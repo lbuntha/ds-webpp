@@ -11,6 +11,7 @@ import { ToastContainer } from '../shared/components/ToastContainer';
  * Wraps all context providers in the correct order
  */
 export function AppProviders({ children }: { children: ReactNode }) {
+    // Re-triggering HMR
     return (
         <ToastProvider>
             <LanguageProvider>

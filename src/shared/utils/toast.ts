@@ -3,6 +3,7 @@
 
 import { toast as toastFn } from '../hooks/useToast';
 
+// Re-exporting toast function
 export const toast = toastFn;
 
 // Helper to show success messages

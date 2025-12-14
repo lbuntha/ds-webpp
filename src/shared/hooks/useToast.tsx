@@ -35,12 +35,13 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
         setToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
 
+    const value = { toasts, addToast, removeToast };
+
     return (
-        <ToastContext.Provider value= {{ toasts, addToast, removeToast }
-}>
-    { children }
-    </ToastContext.Provider>
-  );
+        <ToastContext.Provider value= { value } >
+        { children }
+        </ToastContext.Provider>
+    );
 }
 
 export function useToast() {
