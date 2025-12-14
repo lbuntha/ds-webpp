@@ -1,0 +1,592 @@
+
+import React, { useState, useEffect } from 'react';
+import { UserProfile, Account, Branch, JournalEntry, Customer, Invoice, Vendor, Bill, Employee, StaffLoan, FixedAsset, CurrencyConfig, TaxRate, SystemSettings, UserRole, Permission, NavigationItem } from './types';
+import { firebaseService } from './services/firebaseService';
+import { AuthForms } from './components/AuthForms';
+import { PendingApproval } from './components/PendingApproval';
+import { OnboardingWizard } from './components/setup/OnboardingWizard';
+import { Dashboard } from './components/Dashboard';
+import { JournalEntryList } from './components/JournalEntryList';
+import { JournalEntryForm } from './components/JournalEntryForm';
+import { ReceivablesDashboard } from './components/receivables/ReceivablesDashboard';
+import { PayablesDashboard } from './components/payables/PayablesDashboard';
+import { BankingDashboard } from './components/banking/BankingDashboard';
+import { StaffLoansDashboard } from './components/staff/StaffLoansDashboard';
+import { FixedAssetsDashboard } from './components/fixed_assets/FixedAssetsDashboard';
+import { ParcelsDashboard } from './components/parcels/ParcelsDashboard';
+import { Reports } from './components/Reports';
+import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard';
+import { SettingsDashboard } from './components/settings/SettingsDashboard';
+import { UserList } from './components/UserList';
+import { UserProfileView } from './components/UserProfile';
+import { UserManual } from './components/UserManual';
+import { ClosingDashboard } from './components/closing/ClosingDashboard';
+import { CustomerLayout } from './components/customer/CustomerLayout';
+import { DriverLayout } from './components/driver/DriverLayout'; 
+import { ROLE_PERMISSIONS, DEFAULT_NAVIGATION } from './constants';
+import { NotificationBell } from './components/ui/NotificationBell';
+import { useLanguage } from './contexts/LanguageContext';
+import { LanguageSwitcher } from './components/ui/LanguageSwitcher';
+import { LandingPage } from './components/LandingPage';
+import { MenuIcon } from './components/ui/MenuIcon';
+
+function App() {
+  const { t } = useLanguage();
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState('DASHBOARD');
+  
+  // Auth & Landing State
+  const [viewState, setViewState] = useState<'LANDING' | 'AUTH' | 'APP'>('LANDING');
+  const [authMode, setAuthMode] = useState<'LOGIN' | 'REGISTER' | 'RESET'>('LOGIN');
+  
+  // Specific sub-view for Parcels
+  const [parcelSubView, setParcelSubView] = useState('LIST');
+  const [logisticsMenuOpen, setLogisticsMenuOpen] = useState(false);
+  
+  // Data State
+  const [settings, setSettings] = useState<SystemSettings>({});
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [transactions, setTransactions] = useState<JournalEntry[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loans, setLoans] = useState<StaffLoan[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyConfig[]>([]);
+  const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
+  
+  // Navigation Menu
+  const [menuItems, setMenuItems] = useState<NavigationItem[]>([]);
+  
+  // Permission State
+  const [rolePermissions, setRolePermissions] = useState<Record<UserRole, Permission[]>>(ROLE_PERMISSIONS);
+  
+  const [editingTransaction, setEditingTransaction] = useState<JournalEntry | undefined>(undefined);
+  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
+
+  useEffect(() => {
+    // Safety timer to force loading state off if auth hangs
+    const safetyTimer = setTimeout(() => {
+        if (loading) {
+            setLoading(false);
+            if (!user && viewState === 'LANDING') {
+                // Stay on landing
+            }
+        }
+    }, 5000);
+
+    const unsubscribe = firebaseService.subscribeToAuth((u) => {
+      setUser(u);
+      if (u) {
+          setViewState('APP'); // User found, go to app
+      } else {
+          setViewState(prev => prev === 'AUTH' ? 'AUTH' : 'LANDING');
+      }
+      setLoading(false);
+      clearTimeout(safetyTimer);
+    });
+    return () => {
+        unsubscribe();
+        clearTimeout(safetyTimer);
+    };
+  }, []);
+
+  const loadData = async () => {
+    if (!user) return;
+    if (user.role === 'customer' || user.role === 'driver') return; 
+    
+    // Determine if user is allowed to see financial data
+    const isFinancialUser = ['system-admin', 'accountant', 'finance-manager'].includes(user.role);
+
+    try {
+      // 1. Fetch Configuration & Shared Data (Safe for all internal roles)
+      const settingsPromise = firebaseService.getSettings().catch(() => ({}));
+      
+      const [sts, accs, brs, currs, taxes, perms, emps, custs, menu] = await Promise.all([
+        settingsPromise,
+        firebaseService.getAccounts().catch(() => []),
+        firebaseService.getBranches().catch(() => []),
+        firebaseService.getCurrencies().catch(() => []),
+        firebaseService.getTaxRates().catch(() => []),
+        firebaseService.getRolePermissions().catch(() => ({})),
+        firebaseService.getEmployees().catch(() => []),
+        firebaseService.getCustomers().catch(() => []),
+        firebaseService.getMenuItems().catch(() => [])
+      ]);
+
+      setSettings(sts as SystemSettings);
+      setAccounts(accs);
+      setBranches(brs);
+      setCurrencies(currs);
+      setTaxRates(taxes);
+      if (perms && Object.keys(perms).length > 0) setRolePermissions(perms as Record<UserRole, Permission[]>);
+      setEmployees(emps);
+      setCustomers(custs);
+      
+      // AUTO-SEED MENU IF EMPTY OR FAILED
+      // Use fallback DEFAULT_NAVIGATION immediately if DB is empty to prevent blank sidebar
+      if (!menu || menu.length === 0) {
+          if (user.role === 'system-admin') {
+              console.log("Menu empty in DB. Attempting to seed defaults...");
+              try {
+                  await firebaseService.seedDefaultMenu();
+                  // Re-fetch to ensure we have the DB version with IDs
+                  const seededMenu = await firebaseService.getMenuItems();
+                  setMenuItems(seededMenu.length > 0 ? seededMenu : DEFAULT_NAVIGATION);
+              } catch (seedError) {
+                  console.warn("Menu seeding failed (likely permission issue). Using fallback.", seedError);
+                  setMenuItems(DEFAULT_NAVIGATION); 
+              }
+          } else {
+              // Non-admin: Fallback to defaults so they are not blocked
+              setMenuItems(DEFAULT_NAVIGATION);
+          }
+      } else {
+          setMenuItems(menu);
+      }
+
+      // 2. Fetch Financial Data (Only for authorized roles)
+      if (isFinancialUser) {
+          const [txns, invs, vends, bls, lns] = await Promise.all([
+              firebaseService.getTransactions().catch(() => []),
+              firebaseService.getInvoices().catch(() => []),
+              firebaseService.getVendors().catch(() => []),
+              firebaseService.getBills().catch(() => []),
+              firebaseService.getStaffLoans().catch(() => [])
+          ]);
+          setTransactions(txns);
+          setInvoices(invs);
+          setVendors(vends);
+          setBills(bls);
+          setLoans(lns);
+      } else {
+          // Ensure state is clear for non-finance users to avoid stale data
+          setTransactions([]);
+          setInvoices([]);
+          setVendors([]);
+          setBills([]);
+          setLoans([]);
+      }
+
+    } catch (e) {
+      console.error("Critical failure in loadData", e);
+      // Fallback menu even in critical failure
+      setMenuItems(DEFAULT_NAVIGATION);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.status !== 'PENDING') {
+      loadData();
+    }
+  }, [user]);
+
+  const handleLogin = async (data: any) => {
+    await firebaseService.login(data.email, data.password);
+  };
+
+  const handleRegister = async (data: any) => {
+    await firebaseService.register(data.email, data.password, data.name, data);
+  };
+
+  const handleLogout = async () => {
+    try {
+        await firebaseService.logout();
+    } catch(e) {
+        console.error("Logout error", e);
+    }
+    setUser(null);
+    setViewState('LANDING'); 
+    setAuthMode('LOGIN');
+  };
+
+  const hasAccess = (featureKey: Permission) => {
+      const permissions = rolePermissions[user?.role || 'accountant'] || [];
+      return permissions.includes(featureKey);
+  };
+
+  const navigateToParcel = (subView: string) => {
+      setActiveView('PARCELS');
+      setParcelSubView(subView);
+  };
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-500 font-medium">{t('loading')}</div>;
+
+  if (!user) {
+      if (viewState === 'LANDING') {
+          return (
+            <LandingPage 
+                onLogin={() => { setAuthMode('LOGIN'); setViewState('AUTH'); }} 
+                onRegister={() => { setAuthMode('REGISTER'); setViewState('AUTH'); }} 
+            />
+          );
+      }
+
+      if (viewState === 'AUTH') {
+          return (
+            <AuthForms 
+                mode={authMode} 
+                onSubmit={async (data) => {
+                    if (authMode === 'LOGIN') await handleLogin(data);
+                    else if (authMode === 'REGISTER') await handleRegister(data);
+                    else await firebaseService.resetPassword(data.email);
+                }}
+                onModeChange={setAuthMode} 
+                onBack={() => setViewState('LANDING')} 
+            />
+          );
+      }
+  }
+
+  if (!user) return null;
+
+  if (user.status === 'PENDING') {
+    return <PendingApproval onLogout={handleLogout} userName={user.name} />;
+  }
+
+  if (user.role === 'customer') {
+      return <CustomerLayout user={user} onLogout={handleLogout} />;
+  }
+
+  if (user.role === 'driver') {
+      return <DriverLayout user={user} onLogout={handleLogout} />;
+  }
+
+  if (!settings.setupComplete && user.role === 'system-admin') {
+    return <OnboardingWizard onComplete={async (s, a, b, r) => {
+        await firebaseService.initializeCompanyData(s, a, b, r);
+        loadData();
+    }} />;
+  }
+
+  // Filter menu items for current user
+  const visibleMenuItems = menuItems.filter(item => 
+      item.allowedRoles.includes(user.role)
+  );
+
+  return (
+    <div className="flex h-screen bg-gray-100">
+      <div className="w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col transition-all duration-300 shadow-xl z-20">
+        <div className="p-4 flex items-center space-x-3 border-b border-slate-800">
+           <div className="h-8 w-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-red-900/50">D</div>
+           <span className="font-bold text-lg truncate tracking-tight">{settings.companyName || 'Doorstep'}</span>
+        </div>
+        
+        <nav className="flex-1 overflow-y-auto py-4 space-y-1">
+           {visibleMenuItems.map((item) => (
+             <React.Fragment key={item.id}>
+                {item.viewId === 'PARCELS' ? (
+                   <>
+                       <button 
+                           onClick={() => setLogisticsMenuOpen(!logisticsMenuOpen)} 
+                           className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-all duration-200 ${activeView === 'PARCELS' ? 'text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+                       >
+                           <span className="flex items-center">
+                               <span className="mr-3"><MenuIcon iconKey={item.iconKey} className="w-4 h-4" /></span>
+                               {
+                                   // @ts-ignore
+                                   t(item.label)
+                               }
+                           </span>
+                           <svg className={`w-4 h-4 transition-transform ${logisticsMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                       </button>
+                       
+                       {logisticsMenuOpen && (
+                           <div className="bg-slate-800/50 py-1">
+                               {(hasAccess('VIEW_LOGISTICS_OVERVIEW') || hasAccess('MANAGE_PARCELS')) && (
+                                   <button onClick={() => navigateToParcel('LIST')} className={`w-full flex items-center pl-14 pr-6 py-2 text-xs font-medium transition-colors ${activeView === 'PARCELS' && parcelSubView === 'LIST' ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}>All Bookings</button>
+                               )}
+                               {hasAccess('CREATE_BOOKING') && (
+                                   <button onClick={() => navigateToParcel('NEW')} className={`w-full flex items-center pl-14 pr-6 py-2 text-xs font-medium transition-colors ${activeView === 'PARCELS' && parcelSubView === 'NEW' ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}>New Booking</button>
+                               )}
+                               {hasAccess('MANAGE_DISPATCH') && (
+                                   <button onClick={() => navigateToParcel('DISPATCH')} className={`w-full flex items-center pl-14 pr-6 py-2 text-xs font-medium transition-colors ${activeView === 'PARCELS' && parcelSubView === 'DISPATCH' ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}>Dispatch Console</button>
+                               )}
+                               {hasAccess('MANAGE_WAREHOUSE') && (
+                                   <button onClick={() => navigateToParcel('WAREHOUSE')} className={`w-full flex items-center pl-14 pr-6 py-2 text-xs font-medium transition-colors ${activeView === 'PARCELS' && parcelSubView === 'WAREHOUSE' ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}>Warehouse Ops</button>
+                               )}
+                               {hasAccess('MANAGE_FLEET') && (
+                                   <button onClick={() => navigateToParcel('FLEET')} className={`w-full flex items-center pl-14 pr-6 py-2 text-xs font-medium transition-colors ${activeView === 'PARCELS' && parcelSubView === 'FLEET' ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}>Fleet & Drivers</button>
+                               )}
+                               {(hasAccess('MANAGE_LOGISTICS_CONFIG') || hasAccess('MANAGE_PARCELS')) && (
+                                   <button onClick={() => navigateToParcel('SETUP')} className={`w-full flex items-center pl-14 pr-6 py-2 text-xs font-medium transition-colors ${activeView === 'PARCELS' && parcelSubView === 'SETUP' ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}>Products & Rates</button>
+                               )}
+                           </div>
+                       )}
+                   </>
+                ) : (
+                   <button 
+                       onClick={() => setActiveView(item.viewId)} 
+                       className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-all duration-200 ${activeView === item.viewId ? 'bg-slate-800 border-l-4 border-red-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+                   >
+                       <span className="mr-3"><MenuIcon iconKey={item.iconKey} className="w-4 h-4" /></span>
+                       {
+                           // @ts-ignore
+                           t(item.label)
+                       }
+                   </button>
+                )}
+                {item.section === 'system' && item.order === 90 && (
+                    <div className="pt-4 pb-2 px-6 text-xs text-slate-500 font-bold uppercase tracking-wider">{t('system')}</div>
+                )}
+             </React.Fragment>
+           ))}
+        </nav>
+
+        <div className="p-4 border-t border-slate-800 bg-slate-900">
+            <button onClick={() => setActiveView('PROFILE')} className="flex items-center w-full text-left group">
+                <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center text-xs font-bold text-white group-hover:bg-red-500 transition-colors shadow-md">
+                    {user.name.charAt(0)}
+                </div>
+                <div className="ml-3 flex-1 overflow-hidden">
+                    <div className="text-sm font-medium truncate text-white group-hover:text-red-200 transition-colors">{user.name}</div>
+                    <div className="text-xs text-slate-400 truncate">{(user.role || '').replace('-', ' ')}</div>
+                </div>
+            </button>
+            <button onClick={handleLogout} className="mt-3 w-full text-center text-xs text-slate-400 hover:text-white transition-colors py-1 hover:bg-slate-800 rounded">
+                {t('signOut')}
+            </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
+          <header className="bg-white border-b border-gray-200 px-8 py-3 flex justify-between items-center shadow-sm">
+              <h2 className="text-lg font-bold text-gray-800 capitalize">
+                  {activeView === 'PARCELS' ? 'Logistics Management' : (activeView || 'Dashboard').replace('_', ' ').toLowerCase()}
+              </h2>
+              <div className="flex items-center gap-4">
+                  <LanguageSwitcher />
+                  <NotificationBell user={user} />
+                  <div className="h-8 w-px bg-gray-200"></div>
+                  <div className="text-xs text-right hidden sm:block">
+                      <div className="font-bold text-gray-900">{user.name}</div>
+                      <div className="text-gray-500">{user.role}</div>
+                  </div>
+              </div>
+          </header>
+
+          <div className="flex-1 overflow-auto p-8">
+              {activeView === 'DASHBOARD' && <Dashboard transactions={transactions} accounts={accounts} branches={branches} />}
+              {activeView === 'ANALYTICS' && <AnalyticsDashboard accounts={accounts} transactions={transactions} invoices={invoices} bills={bills} />}
+              {activeView === 'JOURNAL' && (
+                  <>
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-2xl font-bold text-gray-800">General Journal</h1>
+                        {hasAccess('CREATE_JOURNAL') && (
+                            <button 
+                                onClick={() => { setEditingTransaction(undefined); setIsTransactionFormOpen(true); }}
+                                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                            >
+                                + New Entry
+                            </button>
+                        )}
+                    </div>
+                    {isTransactionFormOpen ? (
+                        <JournalEntryForm 
+                            accounts={accounts}
+                            branches={branches}
+                            currencies={currencies}
+                            initialData={editingTransaction}
+                            onSubmit={async (entry) => {
+                                if (editingTransaction) await firebaseService.updateTransaction(entry);
+                                else await firebaseService.addTransaction(entry);
+                                await loadData();
+                                setIsTransactionFormOpen(false);
+                            }}
+                            onCancel={() => setIsTransactionFormOpen(false)}
+                        />
+                    ) : (
+                        <JournalEntryList 
+                            transactions={transactions} 
+                            accounts={accounts} 
+                            branches={branches}
+                            onEdit={(t) => { setEditingTransaction(t); setIsTransactionFormOpen(true); }}
+                            onDeleteBatch={async (ids) => {
+                                await firebaseService.deleteTransactions(ids);
+                                await loadData();
+                            }}
+                            onViewRelated={(id) => alert("Navigate to source module to view details: " + id)}
+                        />
+                    )}
+                  </>
+              )}
+              {activeView === 'RECEIVABLES' && (
+                  <ReceivablesDashboard 
+                      invoices={invoices}
+                      customers={customers}
+                      accounts={accounts}
+                      branches={branches}
+                      currencies={currencies}
+                      taxRates={taxRates}
+                      onCreateInvoice={async (inv) => { await firebaseService.createInvoice(inv); await loadData(); }}
+                      onAddCustomer={async (c) => { await firebaseService.addCustomer(c); await loadData(); }}
+                      onUpdateCustomer={async (c) => { await firebaseService.updateCustomer(c); await loadData(); }}
+                      onReceivePayment={async (id, amt, acc) => { 
+                          await firebaseService.recordPayment({
+                              id: `pay-${Date.now()}`,
+                              invoiceId: id,
+                              amount: amt,
+                              date: new Date().toISOString().split('T')[0],
+                              depositAccountId: acc
+                          });
+                          await loadData();
+                      }}
+                  />
+              )}
+              {activeView === 'PAYABLES' && (
+                  <PayablesDashboard 
+                      bills={bills}
+                      vendors={vendors}
+                      accounts={accounts}
+                      branches={branches}
+                      currencies={currencies}
+                      onCreateBill={async (b) => { await firebaseService.createBill(b); await loadData(); }}
+                      onAddVendor={async (v) => { await firebaseService.addVendor(v); await loadData(); }}
+                      onUpdateVendor={async (v) => { await firebaseService.updateVendor(v); await loadData(); }}
+                      onRecordPayment={async (bid, amt, acc, date, ref) => {
+                          await firebaseService.recordBillPayment({
+                              id: `bpay-${Date.now()}`,
+                              billId: bid,
+                              amount: amt,
+                              paymentAccountId: acc,
+                              date,
+                              reference: ref
+                          });
+                          await loadData();
+                      }}
+                      onSaveTransaction={async (entry) => { await firebaseService.addTransaction(entry); await loadData(); }}
+                      onGetBillPayments={(bid) => firebaseService.getBillPayments(bid)}
+                  />
+              )}
+              {activeView === 'BANKING' && (
+                  <BankingDashboard 
+                      accounts={accounts}
+                      transactions={transactions}
+                      branches={branches}
+                      currencies={currencies}
+                      onTransfer={async (entry) => { await firebaseService.addTransaction(entry); await loadData(); }}
+                      onAddAccount={async (acc) => { await firebaseService.addAccount(acc); await loadData(); }}
+                  />
+              )}
+              {activeView === 'STAFF' && (
+                  <StaffLoansDashboard 
+                      loans={loans}
+                      employees={employees}
+                      accounts={accounts}
+                      branches={branches}
+                      currencies={currencies}
+                      transactions={transactions}
+                      onCreateLoan={async (l) => { await firebaseService.createStaffLoan(l); await loadData(); }}
+                      onRepayLoan={async (r) => { await firebaseService.recordStaffLoanRepayment(r); await loadData(); }}
+                      onAddEmployee={async (e) => { await firebaseService.addEmployee(e); await loadData(); }}
+                      onUpdateEmployee={async (e) => { await firebaseService.updateEmployee(e); await loadData(); }}
+                      onSaveTransaction={async (e) => { await firebaseService.addTransaction(e); await loadData(); }}
+                  />
+              )}
+              {activeView === 'ASSETS' && <FixedAssetsDashboard accounts={accounts} branches={branches} />}
+              {activeView === 'PARCELS' && (
+                  <ParcelsDashboard 
+                      accounts={accounts} 
+                      branches={branches} 
+                      customers={customers} 
+                      taxRates={taxRates}
+                      initialView={parcelSubView}
+                  />
+              )}
+              {activeView === 'REPORTS' && <Reports transactions={transactions} accounts={accounts} branches={branches} />}
+              {activeView === 'CLOSING' && (
+                  <ClosingDashboard 
+                      settings={settings}
+                      accounts={accounts}
+                      transactions={transactions}
+                      branches={branches}
+                      currencies={currencies}
+                      invoices={invoices}
+                      bills={bills}
+                      onUpdateSettings={async (s) => { await firebaseService.updateSettings(s); await loadData(); }}
+                      onPostClosingEntry={async (entry) => { await firebaseService.addTransaction(entry); await loadData(); }}
+                      onDeleteAccount={async (id) => { await firebaseService.deleteAccount(id); await loadData(); }}
+                  />
+              )}
+              {activeView === 'SETTINGS' && (
+                  <SettingsDashboard 
+                      settings={settings}
+                      accounts={accounts}
+                      branches={branches}
+                      currencies={currencies}
+                      taxRates={taxRates}
+                      transactions={transactions}
+                      onAddAccount={async (a) => { await firebaseService.addAccount(a); await loadData(); }}
+                      onUpdateAccount={async (a) => { await firebaseService.updateAccount(a); await loadData(); }}
+                      onDeleteAccount={async (id) => { await firebaseService.deleteAccount(id); await loadData(); }}
+                      onAddBranch={async (b) => { await firebaseService.addBranch(b); await loadData(); }}
+                      onUpdateBranch={async (b) => { await firebaseService.updateBranch(b); await loadData(); }}
+                      onDeleteBranch={async (id) => { await firebaseService.deleteBranch(id); await loadData(); }}
+                      onAddCurrency={async (c) => { await firebaseService.addCurrency(c); await loadData(); }}
+                      onUpdateCurrency={async (c) => { await firebaseService.updateCurrency(c); await loadData(); }}
+                      onAddTaxRate={async (t) => { await firebaseService.addTaxRate(t); await loadData(); }}
+                      onUpdateTaxRate={async (t) => { await firebaseService.updateTaxRate(t); await loadData(); }}
+                      onRunSetup={() => setSettings({ ...settings, setupComplete: false })}
+                      onUpdateSettings={async (s) => { await firebaseService.updateSettings(s); await loadData(); }}
+                      onClearData={async () => {
+                          setLoading(true);
+                          try {
+                              await firebaseService.clearFinancialAndLogisticsData(); 
+                              await loadData();
+                              alert("Data cleared successfully.");
+                          } catch (e) {
+                              console.error(e);
+                              alert("Failed to clear data.");
+                          } finally {
+                              setLoading(false);
+                          }
+                      }}
+                  />
+              )}
+              {activeView === 'USERS' && (
+                  <UserListWrapper currentUser={user} branches={branches} />
+              )}
+              {activeView === 'PROFILE' && (
+                  <UserProfileView 
+                      user={user} 
+                      onUpdateProfile={async (name) => { await firebaseService.updateUserProfile(name); await loadData(); }} 
+                  />
+              )}
+              {activeView === 'MANUAL' && <UserManual />}
+          </div>
+      </div>
+    </div>
+  );
+}
+
+const UserListWrapper = ({ currentUser, branches }: { currentUser: UserProfile, branches: Branch[] }) => {
+    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [permissions, setPermissions] = useState<Record<UserRole, Permission[]>>(ROLE_PERMISSIONS);
+
+    useEffect(() => {
+        firebaseService.getUsers().then(setUsers);
+        firebaseService.getRolePermissions().then(setPermissions);
+    }, []);
+
+    const refreshUsers = async () => {
+        const u = await firebaseService.getUsers();
+        setUsers(u);
+    };
+
+    return (
+        <UserList 
+            users={users} 
+            branches={branches}
+            rolePermissions={permissions}
+            onUpdateRole={async (uid, role) => { await firebaseService.updateUserRole(uid, role); await refreshUsers(); }}
+            onUpdateStatus={async (uid, status) => { await firebaseService.updateUserStatus(uid, status); await refreshUsers(); }}
+            onUpdateProfile={async (uid, name, extra) => { await firebaseService.configService.updateUserProfile(uid, name, extra); await refreshUsers(); }}
+            onUpdatePermissions={async (perms) => { await firebaseService.updateRolePermissions(perms); setPermissions(perms); }}
+        />
+    );
+};
+
+export default App;
