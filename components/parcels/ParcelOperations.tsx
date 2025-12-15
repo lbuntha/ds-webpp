@@ -4,563 +4,589 @@ import { ParcelBooking, ParcelItem, Branch } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { firebaseService } from '../../services/firebaseService';
+import { toast } from '../../src/shared/utils/toast';
 
 const ITEMS_PER_PAGE = 20;
 
 export const ParcelOperations: React.FC = () => {
-  const [bookings, setBookings] = useState<ParcelBooking[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  
-  // View State
-  const [viewMode, setViewMode] = useState<'CARD' | 'TABLE'>('TABLE');
-  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
-  
-  // Filter State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PICKED_UP' | 'IN_TRANSIT'>('ALL');
-  const [dateFilter, setDateFilter] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+    const [bookings, setBookings] = useState<ParcelBooking[]>([]);
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [processing, setProcessing] = useState(false);
 
-  // Selection State (for Bulk Actions)
-  const [selectedBookingIds, setSelectedBookingIds] = useState<Set<string>>(new Set());
+    // View State
+    const [viewMode, setViewMode] = useState<'CARD' | 'TABLE'>('TABLE');
+    const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
-  // Verify Modal State
-  const [verifyItem, setVerifyItem] = useState<ParcelItem | null>(null);
-  const [weightInput, setWeightInput] = useState(0);
-  const [currentBookingId, setCurrentBookingId] = useState('');
+    // Filter State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PICKED_UP' | 'IN_TRANSIT'>('ALL');
+    const [dateFilter, setDateFilter] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
 
-  // Transfer/Branch Selection Modal
-  const [transferItem, setTransferItem] = useState<{ bookingIds: string[] } | null>(null);
-  const [targetBranchId, setTargetBranchId] = useState('');
+    // Selection State (for Bulk Actions)
+    const [selectedBookingIds, setSelectedBookingIds] = useState<Set<string>>(new Set());
 
-  const loadData = async () => {
-      setLoading(true);
-      try {
-          const [bData, brData] = await Promise.all([
-              firebaseService.getParcelBookings(),
-              firebaseService.getBranches()
-          ]);
-          // Filter out completed/cancelled immediately to reduce noise
-          const active = bData.filter(b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED');
-          setBookings(active);
-          setBranches(brData);
-          if (brData.length > 0) setTargetBranchId(brData[0].id);
-      } catch (e) {
-          console.error("Failed to load data", e);
-      } finally {
-          setLoading(false);
-      }
-  };
+    // Verify Modal State
+    const [verifyItem, setVerifyItem] = useState<ParcelItem | null>(null);
+    const [weightInput, setWeightInput] = useState(0);
+    const [currentBookingId, setCurrentBookingId] = useState('');
 
-  useEffect(() => {
-      loadData();
-  }, []);
+    // Transfer/Branch Selection Modal
+    const [transferItem, setTransferItem] = useState<{ bookingIds: string[] } | null>(null);
+    const [targetBranchId, setTargetBranchId] = useState('');
 
-  // --- FILTERING & PAGINATION LOGIC ---
-  const filteredBookings = useMemo(() => {
-      return bookings.filter(b => {
-          // Date Filter (Optional: clear date to show all)
-          if (dateFilter && b.bookingDate !== dateFilter) return false;
+    // Bulk Confirm Modal
+    const [showBulkConfirmModal, setShowBulkConfirmModal] = useState(false);
 
-          const bItems = b.items || [];
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [bData, brData] = await Promise.all([
+                firebaseService.getParcelBookings(),
+                firebaseService.getBranches()
+            ]);
+            // Filter out completed/cancelled immediately to reduce noise
+            const active = bData.filter(b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED');
+            setBookings(active);
+            setBranches(brData);
+            if (brData.length > 0) setTargetBranchId(brData[0].id);
+        } catch (e) {
+            console.error("Failed to load data", e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-          // Status Filter
-          if (statusFilter !== 'ALL') {
-              if (statusFilter === 'PENDING' && b.status !== 'PENDING') return false;
-              if (statusFilter === 'PICKED_UP' && !bItems.some(i => i.status === 'PICKED_UP')) return false;
-              if (statusFilter === 'IN_TRANSIT' && b.status !== 'IN_TRANSIT') return false;
-          }
+    useEffect(() => {
+        loadData();
+    }, []);
 
-          // Search Filter
-          if (searchTerm) {
-              const term = searchTerm.toLowerCase();
-              const matches = 
-                  (b.senderName || '').toLowerCase().includes(term) ||
-                  (b.senderPhone || '').includes(term) ||
-                  (b.id || '').toLowerCase().includes(term) ||
-                  bItems.some(i => (i.receiverName || '').toLowerCase().includes(term) || (i.trackingCode && i.trackingCode.toLowerCase().includes(term)));
-              if (!matches) return false;
-          }
+    // --- FILTERING & PAGINATION LOGIC ---
+    const filteredBookings = useMemo(() => {
+        return bookings.filter(b => {
+            // Date Filter (Optional: clear date to show all)
+            if (dateFilter && b.bookingDate !== dateFilter) return false;
 
-          return true;
-      }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }, [bookings, searchTerm, statusFilter, dateFilter]);
+            const bItems = b.items || [];
 
-  const paginatedBookings = useMemo(() => {
-      const start = (currentPage - 1) * ITEMS_PER_PAGE;
-      return filteredBookings.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBookings, currentPage]);
+            // Status Filter
+            if (statusFilter !== 'ALL') {
+                if (statusFilter === 'PENDING' && b.status !== 'PENDING') return false;
+                if (statusFilter === 'PICKED_UP' && !bItems.some(i => i.status === 'PICKED_UP')) return false;
+                if (statusFilter === 'IN_TRANSIT' && b.status !== 'IN_TRANSIT') return false;
+            }
 
-  const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
+            // Search Filter
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const matches =
+                    (b.senderName || '').toLowerCase().includes(term) ||
+                    (b.senderPhone || '').includes(term) ||
+                    (b.id || '').toLowerCase().includes(term) ||
+                    bItems.some(i => (i.receiverName || '').toLowerCase().includes(term) || (i.trackingCode && i.trackingCode.toLowerCase().includes(term)));
+                if (!matches) return false;
+            }
 
-  // --- STATS SUMMARY ---
-  const stats = useMemo(() => {
-      const totalItems = filteredBookings.reduce((sum, b) => sum + (b.items || []).length, 0);
-      const totalCOD = filteredBookings.reduce((sum, b) => {
-          return sum + (b.items || []).reduce((isum, i) => isum + (Number(i.productPrice) || 0), 0); 
-      }, 0);
-      return { count: filteredBookings.length, items: totalItems, estCod: totalCOD };
-  }, [filteredBookings]);
+            return true;
+        }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }, [bookings, searchTerm, statusFilter, dateFilter]);
 
-  // --- ACTIONS ---
+    const paginatedBookings = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredBookings.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredBookings, currentPage]);
 
-  const toggleExpand = (id: string) => {
-      if (expandedBookingId === id) setExpandedBookingId(null);
-      else setExpandedBookingId(id);
-  };
+    const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
 
-  const toggleSelection = (id: string) => {
-      const next = new Set(selectedBookingIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      setSelectedBookingIds(next);
-  };
+    // --- STATS SUMMARY ---
+    const stats = useMemo(() => {
+        const totalItems = filteredBookings.reduce((sum, b) => sum + (b.items || []).length, 0);
+        const totalCOD = filteredBookings.reduce((sum, b) => {
+            return sum + (b.items || []).reduce((isum, i) => isum + (Number(i.productPrice) || 0), 0);
+        }, 0);
+        return { count: filteredBookings.length, items: totalItems, estCod: totalCOD };
+    }, [filteredBookings]);
 
-  const selectAllPage = () => {
-      if (selectedBookingIds.size === paginatedBookings.length && paginatedBookings.length > 0) {
-          setSelectedBookingIds(new Set());
-      } else {
-          const ids = new Set(paginatedBookings.map(b => b.id));
-          setSelectedBookingIds(ids);
-      }
-  };
+    // --- ACTIONS ---
 
-  const openVerify = (bookingId: string, item: ParcelItem) => {
-      setCurrentBookingId(bookingId);
-      setVerifyItem(item);
-      setWeightInput(item.weight || 0);
-  };
+    const toggleExpand = (id: string) => {
+        if (expandedBookingId === id) setExpandedBookingId(null);
+        else setExpandedBookingId(id);
+    };
 
-  const handleSaveVerify = async () => {
-      if (!currentBookingId || !verifyItem) return;
-      const booking = bookings.find(b => b.id === currentBookingId);
-      if (!booking) return;
+    const toggleSelection = (id: string) => {
+        const next = new Set(selectedBookingIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedBookingIds(next);
+    };
 
-      const updatedItems = (booking.items || []).map(i => {
-          if (i.id === verifyItem.id) {
-              return { ...i, weight: weightInput, status: 'PICKED_UP' as const };
-          }
-          return i;
-      });
+    const selectAllPage = () => {
+        if (selectedBookingIds.size === paginatedBookings.length && paginatedBookings.length > 0) {
+            setSelectedBookingIds(new Set());
+        } else {
+            const ids = new Set(paginatedBookings.map(b => b.id));
+            setSelectedBookingIds(ids);
+        }
+    };
 
-      const updatedBooking = { ...booking, items: updatedItems, status: 'CONFIRMED' }; // Ensure not pending
-      await firebaseService.saveParcelBooking(updatedBooking); 
-      
-      // Update local state
-      setBookings(prev => prev.map(b => b.id === currentBookingId ? updatedBooking : b));
-      setVerifyItem(null);
-  };
+    const openVerify = (bookingId: string, item: ParcelItem) => {
+        setCurrentBookingId(bookingId);
+        setVerifyItem(item);
+        setWeightInput(item.weight || 0);
+    };
 
-  const handleBulkTransfer = async () => {
-      if (!transferItem || !targetBranchId) return;
-      setProcessing(true);
-      try {
-          // Process sequentially to avoid race conditions on backend
-          for (const bid of transferItem.bookingIds) {
-              const booking = bookings.find(b => b.id === bid);
-              if (booking) {
-                  const updatedItems = (booking.items || []).map(i => ({
-                      ...i,
-                      status: 'IN_TRANSIT' as const,
-                      targetBranchId
-                  }));
-                  await firebaseService.saveParcelBooking({ 
-                      ...booking, 
-                      items: updatedItems, 
-                      status: 'IN_TRANSIT' 
-                  });
-              }
-          }
-          await loadData();
-          setTransferItem(null);
-          setSelectedBookingIds(new Set());
-          alert(`Successfully transferred ${transferItem.bookingIds.length} bookings.`);
-      } catch (e) {
-          alert("Bulk transfer failed.");
-      } finally {
-          setProcessing(false);
-      }
-  };
+    const handleSaveVerify = async () => {
+        if (!currentBookingId || !verifyItem) return;
+        const booking = bookings.find(b => b.id === currentBookingId);
+        if (!booking) return;
 
-  const handleBulkConfirm = async () => {
-      if (selectedBookingIds.size === 0) return;
-      if (!confirm(`Confirm pickup for ${selectedBookingIds.size} bookings? This will mark all items as PICKED_UP.`)) return;
+        const updatedItems = (booking.items || []).map(i => {
+            if (i.id === verifyItem.id) {
+                return { ...i, weight: weightInput, status: 'PICKED_UP' as const };
+            }
+            return i;
+        });
 
-      setProcessing(true);
-      try {
-          const ids = Array.from(selectedBookingIds);
-          for (const bid of ids) {
-              const booking = bookings.find(b => b.id === bid);
-              if (booking && booking.status === 'PENDING') {
-                  const updatedItems = (booking.items || []).map(i => ({
-                      ...i,
-                      status: 'PICKED_UP' as const
-                  }));
-                  await firebaseService.saveParcelBooking({ 
-                      ...booking, 
-                      items: updatedItems, 
-                      status: 'CONFIRMED' 
-                  });
-              }
-          }
-          await loadData();
-          setSelectedBookingIds(new Set());
-      } catch (e) {
-          alert("Bulk confirm failed.");
-      } finally {
-          setProcessing(false);
-      }
-  };
+        const updatedBooking = { ...booking, items: updatedItems, status: 'CONFIRMED' }; // Ensure not pending
+        await firebaseService.saveParcelBooking(updatedBooking);
 
-  // --- RENDER HELPERS ---
-  const calculateTotalCOD = (items: ParcelItem[]) => {
-      if (!items || items.length === 0) return '$0.00';
-      
-      let usd = 0;
-      let khr = 0;
-      items.forEach(i => {
-          const amt = Number(i.productPrice) || 0;
-          if (i.codCurrency === 'KHR') khr += amt;
-          else usd += amt;
-      });
-      if (usd > 0 && khr > 0) return `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛`;
-      if (khr > 0) return `${khr.toLocaleString()} ៛`;
-      return `$${usd.toFixed(2)}`;
-  };
+        // Update local state
+        setBookings(prev => prev.map(b => b.id === currentBookingId ? updatedBooking : b));
+        setVerifyItem(null);
+        toast.success("Parcel verified and picked up.");
+    };
 
-  const getStatusBadge = (status: string) => {
-      const map: Record<string, string> = {
-          'PENDING': 'bg-yellow-100 text-yellow-800',
-          'PICKED_UP': 'bg-blue-100 text-blue-700',
-          'IN_TRANSIT': 'bg-purple-100 text-purple-800',
-          'DELIVERED': 'bg-green-100 text-green-700',
-      };
-      return <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${map[status] || 'bg-gray-100'}`}>{status}</span>;
-  };
+    const handleBulkTransfer = async () => {
+        if (!transferItem || !targetBranchId) return;
+        setProcessing(true);
+        try {
+            // Process sequentially to avoid race conditions on backend
+            for (const bid of transferItem.bookingIds) {
+                const booking = bookings.find(b => b.id === bid);
+                if (booking) {
+                    const updatedItems = (booking.items || []).map(i => ({
+                        ...i,
+                        status: 'IN_TRANSIT' as const,
+                        targetBranchId
+                    }));
+                    await firebaseService.saveParcelBooking({
+                        ...booking,
+                        items: updatedItems,
+                        status: 'IN_TRANSIT'
+                    });
+                }
+            }
+            await loadData();
+            setTransferItem(null);
+            setSelectedBookingIds(new Set());
+            toast.success(`Successfully transferred ${transferItem.bookingIds.length} bookings.`);
+        } catch (e) {
+            toast.error("Bulk transfer failed.");
+        } finally {
+            setProcessing(false);
+        }
+    };
 
-  return (
-    <div className="space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-                <h2 className="text-xl font-bold text-gray-800">Operations Console</h2>
-                <p className="text-sm text-gray-500">Manage daily pickups and hub transfers</p>
-            </div>
-            <div className="flex space-x-2">
-                <Button variant="outline" onClick={loadData} isLoading={loading} className="text-xs">Refresh</Button>
-                <div className="bg-gray-100 p-1 rounded-lg flex space-x-1">
-                    <button 
-                        onClick={() => setViewMode('CARD')} 
-                        className={`p-2 rounded-md transition-all ${viewMode === 'CARD' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}
-                        title="Card View"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('TABLE')} 
-                        className={`p-2 rounded-md transition-all ${viewMode === 'TABLE' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}
-                        title="Table View (High Density)"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                    </button>
+    const handleBulkConfirmClick = () => {
+        if (selectedBookingIds.size === 0) return;
+        setShowBulkConfirmModal(true);
+    };
+
+    const executeBulkConfirm = async () => {
+        setProcessing(true);
+        try {
+            const ids = Array.from(selectedBookingIds);
+            for (const bid of ids) {
+                const booking = bookings.find(b => b.id === bid);
+                if (booking && booking.status === 'PENDING') {
+                    const updatedItems = (booking.items || []).map(i => ({
+                        ...i,
+                        status: 'PICKED_UP' as const
+                    }));
+                    await firebaseService.saveParcelBooking({
+                        ...booking,
+                        items: updatedItems,
+                        status: 'CONFIRMED'
+                    });
+                }
+            }
+            await loadData();
+            setSelectedBookingIds(new Set());
+            toast.success("Bulk pickup confirmed.");
+        } catch (e) {
+            toast.error("Bulk confirm failed.");
+        } finally {
+            setProcessing(false);
+            setShowBulkConfirmModal(false);
+        }
+    };
+
+    // --- RENDER HELPERS ---
+    const calculateTotalCOD = (items: ParcelItem[]) => {
+        if (!items || items.length === 0) return '$0.00';
+
+        let usd = 0;
+        let khr = 0;
+        items.forEach(i => {
+            const amt = Number(i.productPrice) || 0;
+            if (i.codCurrency === 'KHR') khr += amt;
+            else usd += amt;
+        });
+        if (usd > 0 && khr > 0) return `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛`;
+        if (khr > 0) return `${khr.toLocaleString()} ៛`;
+        return `$${usd.toFixed(2)}`;
+    };
+
+    const getStatusBadge = (status: string) => {
+        const map: Record<string, string> = {
+            'PENDING': 'bg-yellow-100 text-yellow-800',
+            'PICKED_UP': 'bg-blue-100 text-blue-700',
+            'IN_TRANSIT': 'bg-purple-100 text-purple-800',
+            'DELIVERED': 'bg-green-100 text-green-700',
+        };
+        return <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${map[status] || 'bg-gray-100'}`}>{status}</span>;
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800">Operations Console</h2>
+                    <p className="text-sm text-gray-500">Manage daily pickups and hub transfers</p>
+                </div>
+                <div className="flex space-x-2">
+                    <Button variant="outline" onClick={loadData} isLoading={loading} className="text-xs">Refresh</Button>
+                    <div className="bg-gray-100 p-1 rounded-lg flex space-x-1">
+                        <button
+                            onClick={() => setViewMode('CARD')}
+                            className={`p-2 rounded-md transition-all ${viewMode === 'CARD' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}
+                            title="Card View"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                        </button>
+                        <button
+                            onClick={() => setViewMode('TABLE')}
+                            className={`p-2 rounded-md transition-all ${viewMode === 'TABLE' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'}`}
+                            title="Table View (High Density)"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        {/* --- FILTERS & STATS --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            <Card className="lg:col-span-3">
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                    <div className="flex-1 w-full">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Search</label>
-                        <div className="relative">
+            {/* --- FILTERS & STATS --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                <Card className="lg:col-span-3">
+                    <div className="flex flex-col md:flex-row gap-4 items-center">
+                        <div className="flex-1 w-full">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Search</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Ref #, Sender, Receiver..."
+                                    className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            </div>
+                        </div>
+                        <div className="w-full md:w-48">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
                             <input
-                                type="text"
-                                placeholder="Ref #, Sender, Receiver..."
-                                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                type="date"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                value={dateFilter}
+                                onChange={(e) => setDateFilter(e.target.value)}
                             />
-                            <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        </div>
+                        <div className="w-full md:w-48">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+                            <select
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value as any)}
+                            >
+                                <option value="ALL">All Statuses</option>
+                                <option value="PENDING">Pending Pickup</option>
+                                <option value="PICKED_UP">Picked Up</option>
+                                <option value="IN_TRANSIT">In Transit</option>
+                            </select>
                         </div>
                     </div>
-                    <div className="w-full md:w-48">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
-                        <input
-                            type="date"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                            value={dateFilter}
-                            onChange={(e) => setDateFilter(e.target.value)}
-                        />
-                    </div>
-                    <div className="w-full md:w-48">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
-                        <select
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value as any)}
-                        >
-                            <option value="ALL">All Statuses</option>
-                            <option value="PENDING">Pending Pickup</option>
-                            <option value="PICKED_UP">Picked Up</option>
-                            <option value="IN_TRANSIT">In Transit</option>
-                        </select>
-                    </div>
-                </div>
-            </Card>
-            
-            <Card className="bg-indigo-50 border-indigo-100 flex flex-col justify-center">
-                <div className="text-center">
-                    <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Workload</p>
-                    <div className="text-2xl font-bold text-indigo-900 mt-1">{stats.count} Bookings</div>
-                    <p className="text-xs text-indigo-600 mt-1">{stats.items} Items • Est. Volume</p>
-                </div>
-            </Card>
-        </div>
+                </Card>
 
-        {/* --- BULK ACTIONS --- */}
-        {selectedBookingIds.size > 0 && (
-            <div className="bg-indigo-900 text-white px-6 py-3 rounded-lg shadow-lg flex items-center justify-between animate-fade-in-up sticky top-4 z-20">
-                <span className="font-bold text-sm">{selectedBookingIds.size} Selected</span>
-                <div className="flex space-x-3">
-                    <button 
-                        onClick={handleBulkConfirm}
-                        disabled={processing}
-                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
-                    >
-                        Confirm Pickups
-                    </button>
-                    <button 
-                        onClick={() => setTransferItem({ bookingIds: Array.from(selectedBookingIds) })}
-                        disabled={processing}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-400 px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
-                    >
-                        Transfer to Branch
-                    </button>
-                    <button onClick={() => setSelectedBookingIds(new Set())} className="text-indigo-300 hover:text-white">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
+                <Card className="bg-indigo-50 border-indigo-100 flex flex-col justify-center">
+                    <div className="text-center">
+                        <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Workload</p>
+                        <div className="text-2xl font-bold text-indigo-900 mt-1">{stats.count} Bookings</div>
+                        <p className="text-xs text-indigo-600 mt-1">{stats.items} Items • Est. Volume</p>
+                    </div>
+                </Card>
             </div>
-        )}
 
-        {/* --- DATA VIEW --- */}
-        {viewMode === 'TABLE' ? (
-            <Card className="p-0 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-4 py-3 w-8">
-                                    <input 
-                                        type="checkbox" 
-                                        className="rounded text-indigo-600 focus:ring-indigo-500" 
-                                        checked={selectedBookingIds.size === paginatedBookings.length && paginatedBookings.length > 0}
-                                        onChange={selectAllPage}
-                                    />
-                                </th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booking Ref</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Items</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total COD</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200 text-sm">
-                            {paginatedBookings.map(b => (
-                                <React.Fragment key={b.id}>
-                                    <tr className={`hover:bg-gray-50 ${expandedBookingId === b.id ? 'bg-indigo-50/50' : ''}`}>
-                                        <td className="px-4 py-3">
-                                            <input 
-                                                type="checkbox" 
-                                                className="rounded text-indigo-600 focus:ring-indigo-500" 
-                                                checked={selectedBookingIds.has(b.id)}
-                                                onChange={() => toggleSelection(b.id)}
-                                            />
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-gray-600">
-                                            {b.id.slice(-6)}
-                                            <div className="text-[10px] text-gray-400">{new Date(b.createdAt || 0).toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'})}</div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="font-bold text-gray-900">{b.senderName}</div>
-                                            <div className="text-xs text-gray-500">{b.senderPhone}</div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="max-w-xs truncate text-gray-600" title={b.pickupAddress}>{b.pickupAddress}</div>
-                                            {b.serviceTypeName && <span className="text-[10px] bg-gray-100 px-1.5 rounded">{b.serviceTypeName}</span>}
-                                        </td>
-                                        <td className="px-4 py-3 text-center font-bold text-gray-700">{(b.items || []).length}</td>
-                                        <td className="px-4 py-3 text-right text-red-600 font-medium">
-                                            {calculateTotalCOD(b.items)}
-                                        </td>
-                                        <td className="px-4 py-3 text-center">{getStatusBadge(b.status)}</td>
-                                        <td className="px-4 py-3 text-right">
-                                            <button 
-                                                onClick={() => toggleExpand(b.id)} 
-                                                className="text-indigo-600 hover:text-indigo-900 text-xs font-bold border border-indigo-100 bg-indigo-50 px-2 py-1 rounded"
-                                            >
-                                                {expandedBookingId === b.id ? 'Close' : 'Manage'}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {expandedBookingId === b.id && (
-                                        <tr>
-                                            <td colSpan={8} className="bg-gray-50 p-4 border-b border-gray-200 shadow-inner">
-                                                <div className="grid grid-cols-1 gap-2">
-                                                    {(b.items || []).map((item, idx) => (
-                                                        <div key={item.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="font-bold text-gray-400 text-xs w-6">#{idx+1}</span>
-                                                                <div className="w-8 h-8 bg-gray-100 rounded overflow-hidden">
-                                                                    <img src={item.image} className="w-full h-full object-cover" alt="img" />
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-xs font-bold text-gray-800">{item.receiverName}</p>
-                                                                    <p className="text-[10px] text-gray-500">{item.destinationAddress}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-3">
-                                                                {getStatusBadge(item.status || 'PENDING')}
-                                                                {item.status === 'PENDING' && (
-                                                                    <Button 
-                                                                        variant="secondary" 
-                                                                        className="h-6 text-[10px] px-2"
-                                                                        onClick={() => openVerify(b.id, item)}
-                                                                    >
-                                                                        Verify
-                                                                    </Button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+            {/* --- BULK ACTIONS --- */}
+            {selectedBookingIds.size > 0 && (
+                <div className="bg-indigo-900 text-white px-6 py-3 rounded-lg shadow-lg flex items-center justify-between animate-fade-in-up sticky top-4 z-20">
+                    <span className="font-bold text-sm">{selectedBookingIds.size} Selected</span>
+                    <div className="flex space-x-3">
+                        <button
+                            onClick={handleBulkConfirmClick}
+                            disabled={processing}
+                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
+                        >
+                            Confirm Pickups
+                        </button>
+                        <button
+                            onClick={() => setTransferItem({ bookingIds: Array.from(selectedBookingIds) })}
+                            disabled={processing}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-400 px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
+                        >
+                            Transfer to Branch
+                        </button>
+                        <button onClick={() => setSelectedBookingIds(new Set())} className="text-indigo-300 hover:text-white">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* --- DATA VIEW --- */}
+            {viewMode === 'TABLE' ? (
+                <Card className="p-0 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-4 py-3 w-8">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded text-indigo-600 focus:ring-indigo-500"
+                                            checked={selectedBookingIds.size === paginatedBookings.length && paginatedBookings.length > 0}
+                                            onChange={selectAllPage}
+                                        />
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booking Ref</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Items</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total COD</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200 text-sm">
+                                {paginatedBookings.map(b => (
+                                    <React.Fragment key={b.id}>
+                                        <tr className={`hover:bg-gray-50 ${expandedBookingId === b.id ? 'bg-indigo-50/50' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded text-indigo-600 focus:ring-indigo-500"
+                                                    checked={selectedBookingIds.has(b.id)}
+                                                    onChange={() => toggleSelection(b.id)}
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-gray-600">
+                                                {b.id.slice(-6)}
+                                                <div className="text-[10px] text-gray-400">{new Date(b.createdAt || 0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="font-bold text-gray-900">{b.senderName}</div>
+                                                <div className="text-xs text-gray-500">{b.senderPhone}</div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="max-w-xs truncate text-gray-600" title={b.pickupAddress}>{b.pickupAddress}</div>
+                                                {b.serviceTypeName && <span className="text-[10px] bg-gray-100 px-1.5 rounded">{b.serviceTypeName}</span>}
+                                            </td>
+                                            <td className="px-4 py-3 text-center font-bold text-gray-700">{(b.items || []).length}</td>
+                                            <td className="px-4 py-3 text-right text-red-600 font-medium">
+                                                {calculateTotalCOD(b.items)}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">{getStatusBadge(b.status)}</td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    onClick={() => toggleExpand(b.id)}
+                                                    className="text-indigo-600 hover:text-indigo-900 text-xs font-bold border border-indigo-100 bg-indigo-50 px-2 py-1 rounded"
+                                                >
+                                                    {expandedBookingId === b.id ? 'Close' : 'Manage'}
+                                                </button>
                                             </td>
                                         </tr>
-                                    )}
-                                </React.Fragment>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
-        ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {paginatedBookings.map(booking => (
-                    <Card key={booking.id} className={`border transition-all ${expandedBookingId === booking.id ? 'ring-2 ring-indigo-500' : 'hover:border-indigo-300'}`}>
-                        <div className="flex flex-col justify-between cursor-pointer" onClick={() => toggleExpand(booking.id)}>
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="flex items-center gap-2">
-                                    <input 
-                                        type="checkbox" 
-                                        className="rounded text-indigo-600 focus:ring-indigo-500" 
-                                        checked={selectedBookingIds.has(booking.id)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onChange={() => toggleSelection(booking.id)}
-                                    />
-                                    <span className="font-bold text-sm text-gray-900">{booking.senderName}</span>
+                                        {expandedBookingId === b.id && (
+                                            <tr>
+                                                <td colSpan={8} className="bg-gray-50 p-4 border-b border-gray-200 shadow-inner">
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {(b.items || []).map((item, idx) => (
+                                                            <div key={item.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="font-bold text-gray-400 text-xs w-6">#{idx + 1}</span>
+                                                                    <div className="w-8 h-8 bg-gray-100 rounded overflow-hidden">
+                                                                        <img src={item.image} className="w-full h-full object-cover" alt="img" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-xs font-bold text-gray-800">{item.receiverName}</p>
+                                                                        <p className="text-[10px] text-gray-500">{item.destinationAddress}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-3">
+                                                                    {getStatusBadge(item.status || 'PENDING')}
+                                                                    {item.status === 'PENDING' && (
+                                                                        <Button
+                                                                            variant="secondary"
+                                                                            className="h-6 text-[10px] px-2"
+                                                                            onClick={() => openVerify(b.id, item)}
+                                                                        >
+                                                                            Verify
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {paginatedBookings.map(booking => (
+                        <Card key={booking.id} className={`border transition-all ${expandedBookingId === booking.id ? 'ring-2 ring-indigo-500' : 'hover:border-indigo-300'}`}>
+                            <div className="flex flex-col justify-between cursor-pointer" onClick={() => toggleExpand(booking.id)}>
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded text-indigo-600 focus:ring-indigo-500"
+                                            checked={selectedBookingIds.has(booking.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onChange={() => toggleSelection(booking.id)}
+                                        />
+                                        <span className="font-bold text-sm text-gray-900">{booking.senderName}</span>
+                                    </div>
+                                    {getStatusBadge(booking.status)}
                                 </div>
-                                {getStatusBadge(booking.status)}
+                                <div className="text-xs text-gray-600 mb-2 pl-6">
+                                    <p>{booking.pickupAddress}</p>
+                                    <p className="mt-1 text-gray-400">{booking.bookingDate}</p>
+                                </div>
+                                <div className="flex justify-between items-center pl-6 mt-2 border-t border-gray-50 pt-2">
+                                    <span className="font-bold text-gray-800">{(booking.items || []).length} items</span>
+                                    <span className="font-bold text-red-600">{calculateTotalCOD(booking.items)}</span>
+                                </div>
                             </div>
-                            <div className="text-xs text-gray-600 mb-2 pl-6">
-                                <p>{booking.pickupAddress}</p>
-                                <p className="mt-1 text-gray-400">{booking.bookingDate}</p>
+                        </Card>
+                    ))}
+                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center gap-2 pt-4">
+                    <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => p - 1)}
+                        className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-50"
+                    >
+                        Prev
+                    </button>
+                    <span className="px-3 py-1 text-sm text-gray-600">Page {currentPage} of {totalPages}</span>
+                    <button
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(p => p + 1)}
+                        className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-50"
+                    >
+                        Next
+                    </button>
+                </div>
+            )}
+
+            {/* Verify Modal */}
+            {verifyItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Verify Parcel</h3>
+                        <div className="flex justify-center mb-4">
+                            <img src={verifyItem.image} className="h-32 w-32 object-cover rounded-lg border" alt="verify" />
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500">Tracking ID</label>
+                                <div className="font-mono font-bold text-lg">{verifyItem.trackingCode}</div>
                             </div>
-                            <div className="flex justify-between items-center pl-6 mt-2 border-t border-gray-50 pt-2">
-                                <span className="font-bold text-gray-800">{(booking.items || []).length} items</span>
-                                <span className="font-bold text-red-600">{calculateTotalCOD(booking.items)}</span>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Measured Weight (kg)</label>
+                                <input
+                                    type="number"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    value={weightInput}
+                                    onChange={e => setWeightInput(parseFloat(e.target.value))}
+                                    autoFocus
+                                />
                             </div>
                         </div>
-                    </Card>
-                ))}
-            </div>
-        )}
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-            <div className="flex justify-center gap-2 pt-4">
-                <button 
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => p - 1)}
-                    className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-50"
-                >
-                    Prev
-                </button>
-                <span className="px-3 py-1 text-sm text-gray-600">Page {currentPage} of {totalPages}</span>
-                <button 
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(p => p + 1)}
-                    className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-50"
-                >
-                    Next
-                </button>
-            </div>
-        )}
-
-        {/* Verify Modal */}
-        {verifyItem && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Verify Parcel</h3>
-                    <div className="flex justify-center mb-4">
-                        <img src={verifyItem.image} className="h-32 w-32 object-cover rounded-lg border" alt="verify" />
+                        <div className="flex justify-end space-x-2 mt-6">
+                            <Button variant="outline" onClick={() => setVerifyItem(null)}>Cancel</Button>
+                            <Button onClick={handleSaveVerify} className="bg-blue-600 hover:bg-blue-700">Confirm Pickup</Button>
+                        </div>
                     </div>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500">Tracking ID</label>
-                            <div className="font-mono font-bold text-lg">{verifyItem.trackingCode}</div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Measured Weight (kg)</label>
-                            <input 
-                                type="number" 
+                </div>
+            )}
+
+            {/* Transfer Modal */}
+            {transferItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">Bulk Transfer</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Moving <strong>{transferItem.bookingIds.length}</strong> bookings to a branch hub.
+                        </p>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Destination Branch</label>
+                            <select
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                value={weightInput}
-                                onChange={e => setWeightInput(parseFloat(e.target.value))}
-                                autoFocus
-                            />
+                                value={targetBranchId}
+                                onChange={(e) => setTargetBranchId(e.target.value)}
+                            >
+                                {branches.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex justify-end space-x-2">
+                            <Button variant="outline" onClick={() => setTransferItem(null)}>Cancel</Button>
+                            <Button onClick={handleBulkTransfer} className="bg-indigo-600 hover:bg-indigo-700">Start Transit</Button>
                         </div>
                     </div>
-                    <div className="flex justify-end space-x-2 mt-6">
-                        <Button variant="outline" onClick={() => setVerifyItem(null)}>Cancel</Button>
-                        <Button onClick={handleSaveVerify} className="bg-blue-600 hover:bg-blue-700">Confirm Pickup</Button>
+                </div>
+            )}
+
+            {/* Bulk Confirm Modal */}
+            {showBulkConfirmModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Bulk Pickup</h3>
+                        <p className="text-sm text-gray-600 mb-6">
+                            Confirm pickup for <strong>{selectedBookingIds.size}</strong> bookings? This will mark all items as <span className="text-green-600 font-bold">PICKED_UP</span>.
+                        </p>
+
+                        <div className="flex justify-end space-x-2">
+                            <Button variant="outline" onClick={() => setShowBulkConfirmModal(false)}>Cancel</Button>
+                            <Button onClick={executeBulkConfirm} className="bg-green-600 hover:bg-green-700">Confirm All</Button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        )}
-
-        {/* Transfer Modal */}
-        {transferItem && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Bulk Transfer</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                        Moving <strong>{transferItem.bookingIds.length}</strong> bookings to a branch hub.
-                    </p>
-                    
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Destination Branch</label>
-                        <select 
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            value={targetBranchId}
-                            onChange={(e) => setTargetBranchId(e.target.value)}
-                        >
-                            {branches.map(b => (
-                                <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="flex justify-end space-x-2">
-                        <Button variant="outline" onClick={() => setTransferItem(null)}>Cancel</Button>
-                        <Button onClick={handleBulkTransfer} className="bg-indigo-600 hover:bg-indigo-700">Start Transit</Button>
-                    </div>
-                </div>
-            </div>
-        )}
-    </div>
-  );
+            )}
+        </div>
+    );
 };

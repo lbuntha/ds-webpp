@@ -5,6 +5,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AccountingService, HealthIssue } from '../../services/accountingService';
 import { JournalEntryForm } from '../JournalEntryForm';
+import { toast } from '../../src/shared/utils/toast';
 import { firebaseService } from '../../services/firebaseService';
 
 interface Props {
@@ -51,6 +52,9 @@ export const ClosingDashboard: React.FC<Props> = ({
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [deleteConfirmData, setDeleteConfirmData] = useState<{ id: string, usageCount: number } | null>(null);
 
+    // Adjustment Confirmation State
+    const [pendingAdjustmentEntry, setPendingAdjustmentEntry] = useState<JournalEntry | null>(null);
+
     // --- HEALTH CHECK ---
     const healthIssues = useMemo(() => {
         // Pass invoices and bills to included advanced checks (duplicates, unposted items)
@@ -79,7 +83,7 @@ export const ClosingDashboard: React.FC<Props> = ({
             await onDeleteAccount(deleteConfirmData.id);
             setDeleteConfirmData(null);
         } catch (e: any) {
-            alert(`Failed to delete account: ${e.message}`);
+            toast.error(`Failed to delete account: ${e.message}`);
         } finally {
             setDeletingId(null);
         }
@@ -101,13 +105,13 @@ export const ClosingDashboard: React.FC<Props> = ({
                 try {
                     const result = await firebaseService.runBatchDepreciation(lockDate);
                     if (result.processed > 0) {
-                        alert(`Successfully depreciated ${result.processed} assets. Total: $${result.totalAmount.toFixed(2)}.`);
+                        toast.success(`Successfully depreciated ${result.processed} assets. Total: $${result.totalAmount.toFixed(2)}.`);
                     } else {
                         console.log("No assets required depreciation for this month.");
                     }
                 } catch (depError: any) {
                     console.error("Depreciation failed during closing:", depError);
-                    alert(`Warning: Depreciation failed (${depError.message}). The period has NOT been locked. Please fix the error and try again.`);
+                    toast.warning(`Warning: Depreciation failed (${depError.message}). The period has NOT been locked. Please fix the error and try again.`);
                     setMonthLoading(false);
                     return; // Stop closing if depreciation fails
                 }
@@ -126,7 +130,7 @@ export const ClosingDashboard: React.FC<Props> = ({
                 );
 
                 if (!retainedEarningsAccount) {
-                    alert("Error: Could not find Retained Earnings account (Code 3020) to post closing entry.");
+                    toast.error("Error: Could not find Retained Earnings account (Code 3020) to post closing entry.");
                 } else {
                     const closingEntry = AccountingService.generatePeriodClosingEntry(
                         startOfMonth,
@@ -144,10 +148,10 @@ export const ClosingDashboard: React.FC<Props> = ({
 
             // 3. Lock Period
             await onUpdateSettings({ ...settings, lockDate: lockDate });
-            alert("Period lock date updated successfully. Financial reports are now frozen for this period.");
+            toast.success("Period lock date updated successfully.");
         } catch (e: any) {
             console.error(e);
-            alert(`Failed to update lock date: ${e.message}`);
+            toast.error(`Failed to update lock date: ${e.message}`);
         } finally {
             setMonthLoading(false);
         }
@@ -183,54 +187,57 @@ export const ClosingDashboard: React.FC<Props> = ({
             const yearEndDate = `${closingYear}-12-31`;
             await onUpdateSettings({ ...settings, lockDate: yearEndDate });
 
-            alert(`Fiscal Year ${closingYear} closed successfully. Period locked through ${yearEndDate}.`);
+            toast.success(`Fiscal Year ${closingYear} closed successfully. Period locked through ${yearEndDate}.`);
             setShowConfirmation(false);
             setLockDate(yearEndDate); // Update local state to reflect change
         } catch (e) {
             console.error(e);
-            alert("Failed to close fiscal year.");
+            toast.error("Failed to close fiscal year.");
         } finally {
             setYearLoading(false);
         }
     };
 
     // --- POST CLOSING ADJUSTMENT LOGIC ---
+    const executeAdjustmentTheHardWay = async () => {
+        if (!pendingAdjustmentEntry) return;
+        const currentLockDate = settings.lockDate;
+
+        setAdjLoading(true);
+        try {
+            // 1. Temporarily Unlock
+            await onUpdateSettings({ ...settings, lockDate: undefined });
+
+            // 2. Post Transaction
+            await onPostClosingEntry(pendingAdjustmentEntry);
+
+            // 3. Re-Lock
+            await onUpdateSettings({ ...settings, lockDate: currentLockDate });
+
+            toast.success("Adjustment posted successfully. Period has been re-locked.");
+            setActiveTab('MONTH_END'); // Go back to main screen
+        } catch (e: any) {
+            console.error(e);
+            toast.error(`Error during adjustment process: ${e.message}. Check if period is locked.`);
+            // Attempt to restore lock if it failed halfway
+            try { await onUpdateSettings({ ...settings, lockDate: currentLockDate }); } catch (e2) { }
+        } finally {
+            setAdjLoading(false);
+            setPendingAdjustmentEntry(null);
+        }
+    };
+
     const handleAdjustmentSubmit = async (entry: JournalEntry) => {
         const currentLockDate = settings.lockDate;
 
         // Check if the entry falls into a locked period
         if (currentLockDate && entry.date <= currentLockDate) {
-            if (!confirm(`WARNING: The transaction date (${entry.date}) is within a CLOSED period (Locked until ${currentLockDate}).\n\nDo you want to temporarily unlock the period, post this adjustment, and immediately re-lock it?`)) {
-                return;
-            }
-
-            setAdjLoading(true);
-            try {
-                // 1. Temporarily Unlock (Set lock date to day before transaction, or just clear it safely)
-                // Safest is to just clear it momentarily or set it to 1970
-                await onUpdateSettings({ ...settings, lockDate: undefined });
-
-                // 2. Post Transaction
-                await onPostClosingEntry(entry);
-
-                // 3. Re-Lock
-                await onUpdateSettings({ ...settings, lockDate: currentLockDate });
-
-                alert("Adjustment posted successfully. Period has been re-locked.");
-                setActiveTab('MONTH_END'); // Go back to main screen
-            } catch (e: any) {
-                console.error(e);
-                alert(`Error during adjustment process: ${e.message}. Check if period is locked.`);
-                // Attempt to restore lock if it failed halfway
-                try { await onUpdateSettings({ ...settings, lockDate: currentLockDate }); } catch (e2) { }
-            } finally {
-                setAdjLoading(false);
-            }
-
+            setPendingAdjustmentEntry(entry);
+            return;
         } else {
-            // Standard Post (Not actually a closed period adjustment, but allowed here)
+            // Standard Post
             await onPostClosingEntry(entry);
-            alert("Transaction posted successfully.");
+            toast.success("Transaction posted successfully.");
             setActiveTab('MONTH_END');
         }
     };
@@ -652,6 +659,45 @@ export const ClosingDashboard: React.FC<Props> = ({
                     </div>
                 </div>
             )}
+
+            {/* Adjustment Confirmation Modal */}
+            {pendingAdjustmentEntry && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 animate-fade-in-up">
+                        <div className="flex justify-center mb-4">
+                            <div className="bg-yellow-100 p-3 rounded-full">
+                                <svg className="w-8 h-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Post to Closed Period?</h3>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                            <p className="text-sm text-yellow-800 mb-2">
+                                <strong>WARNING:</strong> The transaction date ({pendingAdjustmentEntry.date}) is within a <strong>LOCKED</strong> period (Locked until {settings.lockDate}).
+                            </p>
+                            <p className="text-xs text-yellow-700">
+                                Proceeding will temporarily unlock the period, post this adjustment, and immediately re-lock it.
+                            </p>
+                        </div>
+
+                        <div className="flex space-x-3">
+                            <Button variant="outline" onClick={() => setPendingAdjustmentEntry(null)} className="w-full justify-center">
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={executeAdjustmentTheHardWay}
+                                className="w-full justify-center bg-yellow-600 hover:bg-yellow-700 text-white"
+                                isLoading={adjLoading}
+                            >
+                                Unlock & Post
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

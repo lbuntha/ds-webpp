@@ -4,6 +4,7 @@ import { Employee } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
   employees: Employee[];
@@ -21,7 +22,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
   const [phone, setPhone] = useState('');
   const [position, setPosition] = useState('');
   const [department, setDepartment] = useState('');
-  
+
   const [loading, setLoading] = useState(false);
 
   const resetForm = () => {
@@ -73,7 +74,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
       resetForm();
     } catch (e) {
       console.error("Failed to save employee", e);
-      alert("Failed to save employee record");
+      toast.error("Failed to save employee record");
     } finally {
       setLoading(false);
     }
@@ -90,17 +91,17 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
         <Card className="mb-6 border-indigo-100 ring-2 ring-indigo-50">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-               <h3 className="font-medium text-gray-900">{editingId ? 'Edit Employee Profile' : 'New Employee Profile'}</h3>
+              <h3 className="font-medium text-gray-900">{editingId ? 'Edit Employee Profile' : 'New Employee Profile'}</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                     <Input label="Full Name" value={name} onChange={e => setName(e.target.value)} required />
-                </div>
-                <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-                <Input label="Position / Title" value={position} onChange={e => setPosition(e.target.value)} />
-                <Input label="Department" value={department} onChange={e => setDepartment(e.target.value)} />
+              <div className="md:col-span-2">
+                <Input label="Full Name" value={name} onChange={e => setName(e.target.value)} required />
+              </div>
+              <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+              <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+              <Input label="Position / Title" value={position} onChange={e => setPosition(e.target.value)} />
+              <Input label="Department" value={department} onChange={e => setDepartment(e.target.value)} />
             </div>
 
             <div className="flex justify-end space-x-2 pt-4 border-t border-gray-100">
@@ -129,15 +130,15 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
                     <div className="text-sm font-medium text-gray-900">{e.name}</div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                     {e.position && <div className="text-gray-900 font-medium">{e.position}</div>}
-                     {e.department && <div className="text-xs">{e.department}</div>}
+                    {e.position && <div className="text-gray-900 font-medium">{e.position}</div>}
+                    {e.department && <div className="text-xs">{e.department}</div>}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {e.email && <div className="text-xs">{e.email}</div>}
                     {e.phone && <div className="text-xs">{e.phone}</div>}
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium">
-                    <button 
+                    <button
                       onClick={() => openEdit(e)}
                       className="text-indigo-600 hover:text-indigo-900"
                     >
@@ -147,7 +148,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
                 </tr>
               ))}
               {employees.length === 0 && (
-                  <tr><td colSpan={4} className="text-center py-8 text-gray-500">No employees found.</td></tr>
+                <tr><td colSpan={4} className="text-center py-8 text-gray-500">No employees found.</td></tr>
               )}
             </tbody>
           </table>

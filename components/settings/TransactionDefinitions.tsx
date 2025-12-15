@@ -4,11 +4,12 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { TRANSACTION_DEFINITIONS } from '../../constants';
 import { SystemSettings, Account } from '../../types';
+import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
-  settings?: SystemSettings;
-  accounts?: Account[];
-  onUpdateSettings?: (settings: SystemSettings) => Promise<void>;
+    settings?: SystemSettings;
+    accounts?: Account[];
+    onUpdateSettings?: (settings: SystemSettings) => Promise<void>;
 }
 
 export const TransactionDefinitions: React.FC<Props> = ({ settings, accounts = [], onUpdateSettings }) => {
@@ -39,9 +40,9 @@ export const TransactionDefinitions: React.FC<Props> = ({ settings, accounts = [
                 transactionRules: localMappings
             });
             setIsDirty(false);
-            alert("Posting rules updated successfully.");
+            toast.success("Posting rules updated successfully.");
         } catch (e) {
-            alert("Failed to save rules.");
+            toast.error("Failed to save rules.");
         } finally {
             setSaving(false);
         }
@@ -58,10 +59,10 @@ export const TransactionDefinitions: React.FC<Props> = ({ settings, accounts = [
         // 14: VAT Input (Asset)
         return [4, 5, 10, 12, 13, 14].includes(ruleId);
     };
-    
+
     // Helper to get rule hint
     const getRuleHint = (ruleId: number) => {
-        switch(ruleId) {
+        switch (ruleId) {
             case 1: return "Defined in Parcel Status Config";
             case 7: return "Defined in Parcel Status Config";
             case 9: return "Defined per Service Type";
@@ -94,7 +95,7 @@ export const TransactionDefinitions: React.FC<Props> = ({ settings, accounts = [
                         {TRANSACTION_DEFINITIONS.map((def) => {
                             const configurable = isConfigurable(def.id);
                             const hint = getRuleHint(def.id);
-                            
+
                             return (
                                 <tr key={def.id} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
@@ -106,7 +107,7 @@ export const TransactionDefinitions: React.FC<Props> = ({ settings, accounts = [
                                     </td>
                                     <td className="px-6 py-3">
                                         {configurable ? (
-                                            <select 
+                                            <select
                                                 className="block w-full max-w-sm px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                                                 value={localMappings[def.id] || ''}
                                                 onChange={(e) => handleMappingChange(def.id, e.target.value)}
@@ -125,9 +126,8 @@ export const TransactionDefinitions: React.FC<Props> = ({ settings, accounts = [
                                         )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                            def.auto === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                        }`}>
+                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${def.auto === 'Y' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                            }`}>
                                             {def.auto === 'Y' ? 'Yes' : 'No'}
                                         </span>
                                     </td>
@@ -137,12 +137,12 @@ export const TransactionDefinitions: React.FC<Props> = ({ settings, accounts = [
                     </tbody>
                 </table>
             </div>
-            
+
             <div className="mt-4 p-4 bg-gray-50 rounded-lg text-xs text-gray-600 border border-gray-200">
                 <p className="font-bold mb-1">About Transaction Rules:</p>
                 <p>
                     These definitions control which General Ledger accounts are used when the system automatically creates Journal Entries.
-                    <br/>
+                    <br />
                     <strong>Note:</strong> Some rules (like "Service Fee") are mapped dynamically within other configurations (e.g., inside Service Type settings) to allow for granular control.
                     Rules exposed here are global defaults.
                 </p>

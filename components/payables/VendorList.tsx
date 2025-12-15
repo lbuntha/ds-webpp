@@ -4,6 +4,7 @@ import { Vendor } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
   vendors: Vendor[];
@@ -23,13 +24,13 @@ export const VendorList: React.FC<Props> = ({ vendors, onAddVendor, onUpdateVend
   const [address, setAddress] = useState('');
   const [taxId, setTaxId] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('');
-  
+
   // Banking State
   const [bankName, setBankName] = useState('');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
   const [bankRoutingNumber, setBankRoutingNumber] = useState('');
   const [bankNotes, setBankNotes] = useState('');
-  
+
   const [notes, setNotes] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -104,7 +105,7 @@ export const VendorList: React.FC<Props> = ({ vendors, onAddVendor, onUpdateVend
       resetForm();
     } catch (e) {
       console.error("Failed to save vendor", e);
-      alert("Failed to save vendor");
+      toast.error("Failed to save vendor");
     } finally {
       setLoading(false);
     }
@@ -121,45 +122,45 @@ export const VendorList: React.FC<Props> = ({ vendors, onAddVendor, onUpdateVend
         <Card className="mb-6 border-indigo-100 ring-2 ring-indigo-50">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-               <h3 className="font-medium text-gray-900">{editingId ? 'Edit Vendor Profile' : 'New Vendor Profile'}</h3>
+              <h3 className="font-medium text-gray-900">{editingId ? 'Edit Vendor Profile' : 'New Vendor Profile'}</h3>
             </div>
-            
+
             {/* General Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Company Name" value={name} onChange={e => setName(e.target.value)} required />
-                <Input label="Contact Person" value={contactPerson} onChange={e => setContactPerson(e.target.value)} />
-                <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-                <div className="md:col-span-2">
-                    <Input label="Address" value={address} onChange={e => setAddress(e.target.value)} placeholder="Full billing address" />
-                </div>
+              <Input label="Company Name" value={name} onChange={e => setName(e.target.value)} required />
+              <Input label="Contact Person" value={contactPerson} onChange={e => setContactPerson(e.target.value)} />
+              <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+              <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+              <div className="md:col-span-2">
+                <Input label="Address" value={address} onChange={e => setAddress(e.target.value)} placeholder="Full billing address" />
+              </div>
             </div>
 
             {/* Financial Info */}
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Financial Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Tax ID / VAT / GST" value={taxId} onChange={e => setTaxId(e.target.value)} />
-                    <Input label="Payment Terms" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)} placeholder="e.g. Net 30" />
-                </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Financial Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Tax ID / VAT / GST" value={taxId} onChange={e => setTaxId(e.target.value)} />
+                <Input label="Payment Terms" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)} placeholder="e.g. Net 30" />
+              </div>
             </div>
 
             {/* Banking Info */}
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Banking Information (For Outgoing Payments)</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Input label="Bank Name" value={bankName} onChange={e => setBankName(e.target.value)} />
-                    <Input label="Account Number" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} />
-                    <Input label="Routing / Sort Code" value={bankRoutingNumber} onChange={e => setBankRoutingNumber(e.target.value)} />
-                    <div className="md:col-span-3">
-                        <Input label="Banking Notes" value={bankNotes} onChange={e => setBankNotes(e.target.value)} placeholder="IBAN, SWIFT, or other payment instructions" />
-                    </div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Banking Information (For Outgoing Payments)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input label="Bank Name" value={bankName} onChange={e => setBankName(e.target.value)} />
+                <Input label="Account Number" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} />
+                <Input label="Routing / Sort Code" value={bankRoutingNumber} onChange={e => setBankRoutingNumber(e.target.value)} />
+                <div className="md:col-span-3">
+                  <Input label="Banking Notes" value={bankNotes} onChange={e => setBankNotes(e.target.value)} placeholder="IBAN, SWIFT, or other payment instructions" />
                 </div>
+              </div>
             </div>
-            
-             <div>
-                <Input label="Internal Notes" value={notes} onChange={e => setNotes(e.target.value)} />
-             </div>
+
+            <div>
+              <Input label="Internal Notes" value={notes} onChange={e => setNotes(e.target.value)} />
+            </div>
 
             <div className="flex justify-end space-x-2 pt-4 border-t border-gray-100">
               <Button variant="outline" onClick={() => setIsFormOpen(false)} type="button">Cancel</Button>
@@ -197,15 +198,15 @@ export const VendorList: React.FC<Props> = ({ vendors, onAddVendor, onUpdateVend
                     {v.paymentTerms && <div className="text-xs">Terms: {v.paymentTerms}</div>}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                     {v.bankName ? (
-                         <div className="text-xs">
-                             <span className="font-medium">{v.bankName}</span>
-                             <br/>{v.bankAccountNumber && `...${v.bankAccountNumber.slice(-4)}`}
-                         </div>
-                     ) : <span className="text-xs text-gray-400">-</span>}
+                    {v.bankName ? (
+                      <div className="text-xs">
+                        <span className="font-medium">{v.bankName}</span>
+                        <br />{v.bankAccountNumber && `...${v.bankAccountNumber.slice(-4)}`}
+                      </div>
+                    ) : <span className="text-xs text-gray-400">-</span>}
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium">
-                    <button 
+                    <button
                       onClick={() => openEdit(v)}
                       className="text-indigo-600 hover:text-indigo-900"
                     >
@@ -215,7 +216,7 @@ export const VendorList: React.FC<Props> = ({ vendors, onAddVendor, onUpdateVend
                 </tr>
               ))}
               {vendors.length === 0 && (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-500">No vendors found.</td></tr>
+                <tr><td colSpan={5} className="text-center py-8 text-gray-500">No vendors found.</td></tr>
               )}
             </tbody>
           </table>

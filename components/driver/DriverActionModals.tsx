@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Branch } from '../../types';
 import { Button } from '../ui/Button';
 import { ImageUpload } from '../ui/ImageUpload';
+import { toast } from '../../src/shared/utils/toast';
 
 // --- Action Confirmation (Delivery/Return) ---
 interface ActionConfirmationProps {
@@ -14,8 +15,8 @@ interface ActionConfirmationProps {
   initialCodCurrency?: 'USD' | 'KHR';
 }
 
-export const ActionConfirmationModal: React.FC<ActionConfirmationProps> = ({ 
-  action, isOpen, onConfirm, onCancel, initialCodAmount = 0, initialCodCurrency = 'USD' 
+export const ActionConfirmationModal: React.FC<ActionConfirmationProps> = ({
+  action, isOpen, onConfirm, onCancel, initialCodAmount = 0, initialCodCurrency = 'USD'
 }) => {
   const [proofImage, setProofImage] = useState('');
   const [codAmount, setCodAmount] = useState(initialCodAmount);
@@ -27,22 +28,22 @@ export const ActionConfirmationModal: React.FC<ActionConfirmationProps> = ({
   let message = "Are you sure you want to start delivering this parcel?";
 
   if (action === 'DELIVER') {
-      title = "Confirm Delivery?";
-      message = "Mark this parcel as successfully delivered? Please confirm the COD amount and capture proof.";
+    title = "Confirm Delivery?";
+    message = "Mark this parcel as successfully delivered? Please confirm the COD amount and capture proof.";
   } else if (action === 'RETURN') {
-      title = "Mark as Failed/Returned?";
-      message = "Are you sure you want to mark this delivery as failed/returned?";
+    title = "Mark as Failed/Returned?";
+    message = "Are you sure you want to mark this delivery as failed/returned?";
   }
 
   const handleConfirm = () => {
-      if (action === 'DELIVER' && !proofImage) {
-          alert("Proof of Delivery photo is required.");
-          return;
-      }
-      onConfirm(
-          proofImage, 
-          action === 'DELIVER' ? { amount: codAmount, currency: codCurrency } : undefined
-      );
+    if (action === 'DELIVER' && !proofImage) {
+      toast.warning("Proof of Delivery photo is required.");
+      return;
+    }
+    onConfirm(
+      proofImage,
+      action === 'DELIVER' ? { amount: codAmount, currency: codCurrency } : undefined
+    );
   };
 
   return (
@@ -50,7 +51,7 @@ export const ActionConfirmationModal: React.FC<ActionConfirmationProps> = ({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
         <p className="text-gray-600 mb-4 text-sm">{message}</p>
-        
+
         {action === 'DELIVER' && (
           <div className="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
             <label className="block text-xs font-bold text-gray-600 mb-2">Confirm Collected Amount</label>
@@ -61,12 +62,12 @@ export const ActionConfirmationModal: React.FC<ActionConfirmationProps> = ({
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg font-bold text-green-700 focus:ring-green-500 focus:border-green-500"
                 value={codAmount}
                 onChange={e => {
-                    const val = parseFloat(e.target.value);
-                    setCodAmount(val);
-                    // Auto-switch currency based on amount magnitude
-                    if (!isNaN(val)) {
-                        setCodCurrency(val >= 1000 ? 'KHR' : 'USD');
-                    }
+                  const val = parseFloat(e.target.value);
+                  setCodAmount(val);
+                  // Auto-switch currency based on amount magnitude
+                  if (!isNaN(val)) {
+                    setCodCurrency(val >= 1000 ? 'KHR' : 'USD');
+                  }
                 }}
               />
               <select
@@ -116,7 +117,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({ isOpen, branches, 
         <h3 className="text-lg font-bold text-gray-900 mb-4">Transfer to Branch</h3>
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">Select Destination Hub</label>
-          <select 
+          <select
             className="w-full border border-gray-300 rounded-lg px-3 py-2"
             value={targetBranchId}
             onChange={(e) => setTargetBranchId(e.target.value)}

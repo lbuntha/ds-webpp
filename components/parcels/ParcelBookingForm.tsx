@@ -9,6 +9,7 @@ import { LocationPicker } from '../ui/LocationPicker';
 import { PlaceAutocomplete } from '../ui/PlaceAutocomplete';
 import { processImageForUpload } from '../../utils/imageUtils';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
     services: ParcelServiceType[];
@@ -154,7 +155,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
             // Optional: Show toast success
         } catch (e) {
             console.error("Failed to save place", e);
-            alert("Failed to save place.");
+            toast.error("Failed to save place.");
         }
     };
 
@@ -183,7 +184,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (items.length >= 10) {
-            alert("Maximum 10 parcels per booking.");
+            toast.warning("Maximum 10 parcels per booking.");
             return;
         }
 
@@ -205,7 +206,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
                 setItems(prevItems => [...prevItems, newItem]);
             } catch (error) {
                 console.error("Error compressing image", error);
-                alert("Failed to process image. Please try again.");
+                toast.error("Failed to process image. Please try again.");
             }
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -313,7 +314,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
             onComplete();
         } catch (e) {
             console.error(e);
-            alert("Failed to save booking.");
+            toast.error("Failed to save booking.");
         } finally {
             setLoading(false);
         }

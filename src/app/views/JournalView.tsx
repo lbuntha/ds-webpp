@@ -4,7 +4,8 @@ import { usePermission } from '../../shared/hooks/usePermissions';
 import { JournalEntryList } from '../../components/JournalEntryList';
 import { JournalEntryForm } from '../../components/JournalEntryForm';
 import { firebaseService } from '../../services/firebaseService';
-import { JournalEntry } from '../../types';
+import { JournalEntry, Account, Branch, CurrencyConfig } from '../../types';
+import { toast } from '../../shared/utils/toast';
 
 export default function JournalView() {
     const { transactions, accounts, branches, currencies, refreshData } = useData();
@@ -72,7 +73,7 @@ export default function JournalView() {
                     branches={branches}
                     onEdit={handleEdit}
                     onDeleteBatch={handleDelete}
-                    onViewRelated={(id) => alert('Navigate to source module: ' + id)}
+                    onViewRelated={(id) => toast.info('Navigate to source module: ' + id)}
                 />
             )}
         </>

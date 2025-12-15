@@ -86,7 +86,7 @@ export interface Branch {
   code: string;
 }
 
-export type Permission = 
+export type Permission =
   | 'VIEW_DASHBOARD'
   | 'VIEW_JOURNAL'
   | 'CREATE_JOURNAL'
@@ -106,18 +106,36 @@ export type Permission =
   | 'MANAGE_DISPATCH'
   | 'MANAGE_WAREHOUSE'
   | 'MANAGE_FLEET'
-  | 'MANAGE_LOGISTICS_CONFIG';
+  | 'MANAGE_LOGISTICS_CONFIG'
+  // Granular Configuration Permissions
+  | 'CONFIG_MANAGE_SERVICES'
+  | 'CONFIG_MANAGE_PLACES'
+  | 'CONFIG_MANAGE_PROMOTIONS'
+  | 'CONFIG_MANAGE_STATUSES'
+  | 'CONFIG_MANAGE_DRIVERS'
+  | 'CONFIG_MANAGE_WAREHOUSE'
+  | 'CONFIG_MANAGE_DISPATCH'
+  // Driver Permissions
+  | 'DRIVER_VIEW_JOBS'
+  | 'DRIVER_ACCESS_WALLET'
+  | 'DRIVER_MANAGE_PROFILE'
+  // Customer Permissions
+  | 'CUSTOMER_VIEW_DASHBOARD'
+  | 'CUSTOMER_CREATE_BOOKING'
+  | 'CUSTOMER_ACCESS_WALLET'
+  | 'CUSTOMER_VIEW_REPORTS'
+  | 'CUSTOMER_MANAGE_PROFILE';
 
 export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse';
 
 export type UserStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE' | 'ACTIVE';
 
 export interface SavedLocation {
-    id: string;
-    label: string;
-    address: string;
-    coordinates?: GeoPoint;
-    isPrimary?: boolean;
+  id: string;
+  label: string;
+  address: string;
+  coordinates?: GeoPoint;
+  isPrimary?: boolean;
 }
 
 export interface UserProfile {
@@ -140,8 +158,8 @@ export interface UserProfile {
   referredBy?: string; // Referral Code of the person who invited them
   referralRewardPaid?: boolean; // Has the referrer been paid for this user?
   referralStats?: {
-      count: number; // Total users referred
-      earnings: number; // Total earned from referrals
+    count: number; // Total users referred
+    earnings: number; // Total earned from referrals
   };
   // Tracking Stats
   completedOrderCount?: number;
@@ -160,36 +178,36 @@ export interface ParcelStatusConfig {
 }
 
 export interface DriverCommissionRule {
-    id: string;
-    zoneName: string; // e.g. "Default", "Phnom Penh", "Kandal"
-    type: 'PERCENTAGE' | 'FIXED_AMOUNT';
-    value: number; // e.g. 70 (for 70%) or 1.50 (for $1.50)
-    currency?: 'USD' | 'KHR'; // Only relevant for FIXED_AMOUNT
-    isDefault: boolean;
+  id: string;
+  zoneName: string; // e.g. "Default", "Phnom Penh", "Kandal"
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  value: number; // e.g. 70 (for 70%) or 1.50 (for $1.50)
+  currency?: 'USD' | 'KHR'; // Only relevant for FIXED_AMOUNT
+  isDefault: boolean;
 }
 
 export interface CustomerSpecialRate {
-    id: string;
-    customerId: string;
-    serviceTypeId: string;
-    serviceName: string; // Snapshot for UI
-    price: number; // The override price
-    startDate: string; // ISO Date YYYY-MM-DD
-    endDate: string; // ISO Date YYYY-MM-DD
-    createdAt: number;
+  id: string;
+  customerId: string;
+  serviceTypeId: string;
+  serviceName: string; // Snapshot for UI
+  price: number; // The override price
+  startDate: string; // ISO Date YYYY-MM-DD
+  endDate: string; // ISO Date YYYY-MM-DD
+  createdAt: number;
 }
 
 export interface ReferralRule {
-    id: string;
-    name: string;
-    isActive: boolean;
-    trigger: 'FIRST_ORDER' | 'ORDER_MILESTONE';
-    milestoneCount?: number;
-    expiryDays?: number;
-    referrerAmount: number;
-    referrerCurrency: 'USD' | 'KHR';
-    refereeAmount: number;
-    refereeCurrency: 'USD' | 'KHR';
+  id: string;
+  name: string;
+  isActive: boolean;
+  trigger: 'FIRST_ORDER' | 'ORDER_MILESTONE';
+  milestoneCount?: number;
+  expiryDays?: number;
+  referrerAmount: number;
+  referrerCurrency: 'USD' | 'KHR';
+  refereeAmount: number;
+  refereeCurrency: 'USD' | 'KHR';
 }
 
 export interface JournalEntryLine {
@@ -245,9 +263,9 @@ export interface GeneralLedgerLine {
 }
 
 export interface BankAccountDetails {
-    bankName: string;
-    accountNumber: string;
-    qrCode?: string;
+  bankName: string;
+  accountNumber: string;
+  qrCode?: string;
 }
 
 export interface Customer {
@@ -344,12 +362,12 @@ export interface Bill {
 }
 
 export interface BillPayment {
-    id: string;
-    billId: string;
-    date: string;
-    amount: number;
-    paymentAccountId: string;
-    reference?: string;
+  id: string;
+  billId: string;
+  date: string;
+  amount: number;
+  paymentAccountId: string;
+  reference?: string;
 }
 
 export interface Employee {
@@ -387,24 +405,24 @@ export interface StaffLoan {
 }
 
 export interface StaffLoanRepayment {
-    id: string;
-    loanId: string;
-    date: string;
-    amount: number;
-    depositAccountId: string;
-    createdAt: number;
+  id: string;
+  loanId: string;
+  date: string;
+  amount: number;
+  depositAccountId: string;
+  createdAt: number;
 }
 
 export interface FixedAssetCategory {
-    id: string;
-    name: string;
-    usefulLifeYears: number;
-    method: DepreciationMethod;
-    assetAccountId: string;
-    accumDepAccountId: string;
-    depExpenseAccountId: string;
-    gainLossAccountId?: string;
-    writeOffAccountId?: string;
+  id: string;
+  name: string;
+  usefulLifeYears: number;
+  method: DepreciationMethod;
+  assetAccountId: string;
+  accumDepAccountId: string;
+  depExpenseAccountId: string;
+  gainLossAccountId?: string;
+  writeOffAccountId?: string;
 }
 
 export type DepreciationMethod = 'STRAIGHT_LINE' | 'DECLINING_BALANCE';
@@ -451,7 +469,7 @@ export interface SystemSettings {
   companyName?: string;
   setupComplete?: boolean;
   lockDate?: string;
-  
+
   // Wallet Liabilities (Multi-Currency)
   customerWalletAccountUSD?: string;
   customerWalletAccountKHR?: string;
@@ -465,7 +483,7 @@ export interface SystemSettings {
   // Legacy (Keep for compatibility until fully migrated)
   defaultCustomerWalletAccountId?: string;
   defaultDriverWalletAccountId?: string;
-  
+
   // Bank Accounts (Nostro) for Settlements
   defaultDriverSettlementBankIdUSD?: string;
   defaultDriverSettlementBankIdKHR?: string;
@@ -476,7 +494,7 @@ export interface SystemSettings {
   defaultSettlementBankAccountId?: string;
   defaultDriverSettlementBankId?: string;
   defaultCustomerSettlementBankId?: string;
-  
+
   // Referral Program Config
   referralRewardAmount?: number;
   referralRewardCurrency?: 'USD' | 'KHR';
@@ -487,130 +505,143 @@ export interface SystemSettings {
 }
 
 export interface ParcelServiceType {
-    id: string;
-    name: string;
-    defaultPrice: number;
-    pricePerKm?: number;
-    revenueAccountId: string; // Legacy / Primary USD
-    description?: string;
-    image?: string;
-    
-    // Multi-currency Mapping
-    revenueAccountUSD?: string;
-    revenueAccountKHR?: string;
-    
-    driverSettlementUSD?: string;
-    driverSettlementKHR?: string;
-    
-    customerSettlementUSD?: string;
-    customerSettlementKHR?: string;
-    
-    taxAccountUSD?: string;
-    taxAccountKHR?: string;
-    taxRateId?: string;
+  id: string;
+  name: string;
+  defaultPrice: number;
+  pricePerKm?: number;
+  revenueAccountId: string; // Legacy / Primary USD
+  description?: string;
+  image?: string;
+
+  // Multi-currency Mapping
+  revenueAccountUSD?: string;
+  revenueAccountKHR?: string;
+
+  driverSettlementUSD?: string;
+  driverSettlementKHR?: string;
+
+  customerSettlementUSD?: string;
+  customerSettlementKHR?: string;
+
+  taxAccountUSD?: string;
+  taxAccountKHR?: string;
+  taxRateId?: string;
 }
 
 export interface ParcelPromotion {
-    id: string;
-    code: string;
-    name: string;
-    type: 'PERCENTAGE' | 'FIXED_AMOUNT';
-    value: number;
-    startDate: string;
-    endDate: string;
-    isActive: boolean;
+  id: string;
+  code: string;
+  name: string;
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  value: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
 }
 
 export interface ParcelBooking {
-    id: string;
-    bookingDate: string;
-    senderId?: string;
-    senderName: string;
-    senderPhone: string;
-    pickupAddress: string;
-    pickupLocation?: GeoPoint;
-    serviceTypeId: string;
-    serviceTypeName: string;
-    items: ParcelItem[];
-    distance: number;
-    subtotal: number;
-    discountAmount: number;
-    promotionId?: string;
-    taxAmount: number;
-    taxRateId?: string;
-    totalDeliveryFee: number;
-    status: string;
-    statusId?: string;
-    statusHistory?: {
-        statusId: string;
-        statusLabel: string;
-        timestamp: number;
-        updatedBy: string;
-        notes?: string;
-    }[];
-    driverId?: string;
-    driverName?: string;
-    branchId: string;
+  id: string;
+  bookingDate: string;
+  senderId?: string;
+  senderName: string;
+  senderPhone: string;
+  pickupAddress: string;
+  pickupLocation?: GeoPoint;
+  serviceTypeId: string;
+  serviceTypeName: string;
+  items: ParcelItem[];
+  distance: number;
+  subtotal: number;
+  discountAmount: number;
+  promotionId?: string;
+  taxAmount: number;
+  taxRateId?: string;
+  totalDeliveryFee: number;
+  status: string;
+  statusId?: string;
+  statusHistory?: {
+    statusId: string;
+    statusLabel: string;
+    timestamp: number;
+    updatedBy: string;
     notes?: string;
-    journalEntryId?: string;
-    createdAt: number;
-    referralProcessed?: boolean;
-    exchangeRateForCOD?: number; // Snapshot of the rate used for this booking
+  }[];
+  driverId?: string;
+  driverName?: string;
+  branchId: string;
+  notes?: string;
+  journalEntryId?: string;
+  createdAt: number;
+  referralProcessed?: boolean;
+  exchangeRateForCOD?: number; // Snapshot of the rate used for this booking
 }
 
 export interface ChatMessage {
-    id: string;
-    itemId: string;
-    bookingId?: string;
-    senderId: string;
-    senderName: string;
-    senderRole: string;
-    text: string;
-    timestamp: number;
+  id: string;
+  itemId: string;
+  bookingId?: string;
+  senderId: string;
+  senderName: string;
+  senderRole: string;
+  text: string;
+  timestamp: number;
 }
 
 export interface AppNotification {
-    id: string;
-    targetAudience: string;
-    title: string;
-    message: string;
-    type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
-    read: boolean;
-    createdAt: number;
-    link?: string;
-    metadata?: any;
+  id: string;
+  targetAudience: string;
+  title: string;
+  message: string;
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  read: boolean;
+  createdAt: number;
+  link?: string;
+  metadata?: any;
 }
 
 export interface WalletTransaction {
-    id: string;
-    userId: string;
-    userName?: string;
-    amount: number;
-    currency: 'USD' | 'KHR';
-    type: 'DEPOSIT' | 'WITHDRAWAL' | 'EARNING' | 'REFUND' | 'SETTLEMENT';
-    status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FAILED';
-    date: string;
-    description?: string;
-    bankAccountId?: string;
-    attachment?: string;
-    rejectionReason?: string;
-    journalEntryId?: string;
-    relatedItems?: { bookingId: string, itemId: string }[];
+  id: string;
+  userId: string;
+  userName?: string;
+  amount: number;
+  currency: 'USD' | 'KHR';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'EARNING' | 'REFUND' | 'SETTLEMENT';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FAILED';
+  date: string;
+  description?: string;
+  bankAccountId?: string;
+  attachment?: string;
+  rejectionReason?: string;
+  journalEntryId?: string;
+  relatedItems?: { bookingId: string, itemId: string }[];
 }
 
+export type PermissionGroup =
+  | 'FINANCE'
+  | 'LOGISTICS'
+  | 'SETTINGS'
+  | 'REPORTS'
+  | 'SYSTEM'
+  | 'DRIVER'
+  | 'CUSTOMER';
+
 export interface NavigationItem {
-    id: string;
-    label: string;
-    viewId: string;
-    iconKey: string;
-    allowedRoles: UserRole[];
-    order: number;
-    section?: string; // Optional grouping
+  id: string;
+  label: string;
+  viewId: string;
+  iconKey: string;
+  allowedRoles: UserRole[];
+  requiredPermission?: Permission; // NEW: Link menu to specific permission
+  permissionGroup?: PermissionGroup; // NEW: Group for organization in UI
+  order: number;
+  section?: string; // Optional grouping
+  isSubItem?: boolean; // NEW: For nested/grouped items
+  parentId?: string; // NEW: For hierarchical grouping
 }
 
 export interface IDataService {
-    getAccounts(): Promise<Account[]>;
-    getBranches(): Promise<Branch[]>;
-    getTransactions(): Promise<JournalEntry[]>;
-    addTransaction(entry: JournalEntry): Promise<void>;
+  getAccounts(): Promise<Account[]>;
+  getBranches(): Promise<Branch[]>;
+  getTransactions(): Promise<JournalEntry[]>;
+  addTransaction(entry: JournalEntry): Promise<void>;
 }
