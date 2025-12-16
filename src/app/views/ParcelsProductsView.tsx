@@ -1,6 +1,6 @@
-import { ParcelServiceSetup } from '../../components/parcels/ParcelServiceSetup';
-import { ParcelPromotionSetup } from '../../components/parcels/ParcelPromotionSetup';
-import { ParcelStatusSetup } from '../../components/parcels/ParcelStatusSetup';
+import { ParcelServiceSetup } from '../../../components/parcels/ParcelServiceSetup';
+import { ParcelPromotionSetup } from '../../../components/parcels/ParcelPromotionSetup';
+import { ParcelStatusSetup } from '../../../components/parcels/ParcelStatusSetup';
 import { useData } from '../../shared/contexts/DataContext';
 import { useLanguage } from '../../shared/contexts/LanguageContext';
 

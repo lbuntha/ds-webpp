@@ -44,8 +44,8 @@ export const WalletBalanceReport: React.FC = () => {
     }, []);
 
     const calculateAllBalances = (
-        users: UserProfile[], 
-        bookings: ParcelBooking[], 
+        users: UserProfile[],
+        bookings: ParcelBooking[],
         txns: WalletTransaction[],
         rules: DriverCommissionRule[],
         employees: Employee[]
@@ -82,7 +82,7 @@ export const WalletBalanceReport: React.FC = () => {
 
             // A. Customer Logic (Sender)
             const senderUid = b.senderId ? users.find(u => u.linkedCustomerId === b.senderId)?.uid : users.find(u => u.name === b.senderName)?.uid;
-            
+
             if (senderUid && balanceMap[senderUid]) {
                 // Credit: COD Collected (If delivered)
                 bItems.forEach(item => {
@@ -112,12 +112,12 @@ export const WalletBalanceReport: React.FC = () => {
                 // Credit: Commission Earned
                 const totalItems = bItems.length;
                 const processedItems = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER').length;
-                
+
                 if (totalItems > 0 && processedItems > 0) {
                     let totalComm = 0;
                     if (zoneRule.type === 'FIXED_AMOUNT') totalComm = zoneRule.value;
                     else totalComm = b.totalDeliveryFee * (zoneRule.value / 100);
-                    
+
                     // Pro-rate
                     const earned = totalComm * (processedItems / totalItems);
                     balanceMap[b.driverId].usd += earned;
@@ -151,7 +151,7 @@ export const WalletBalanceReport: React.FC = () => {
     const filteredData = useMemo(() => {
         return balances.filter(b => {
             const matchesRole = filterRole === 'ALL' || b.role === filterRole;
-            const matchesSearch = b.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = (b.name || '').toLowerCase().includes(searchTerm.toLowerCase());
             // Filter out near-zero balances to reduce noise? Optional.
             return matchesRole && matchesSearch;
         });
@@ -173,9 +173,9 @@ export const WalletBalanceReport: React.FC = () => {
                     <Button variant={filterRole === 'driver' ? 'primary' : 'outline'} onClick={() => setFilterRole('driver')}>Drivers</Button>
                 </div>
                 <div className="flex gap-2">
-                    <input 
-                        type="text" 
-                        placeholder="Search name..." 
+                    <input
+                        type="text"
+                        placeholder="Search name..."
                         className="border rounded-lg px-3 py-2 text-sm"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
@@ -189,7 +189,7 @@ export const WalletBalanceReport: React.FC = () => {
                 <Card className="bg-indigo-50 border-indigo-200">
                     <div className="text-sm font-bold text-indigo-800 uppercase">Total Net Liability (USD)</div>
                     <div className="text-2xl font-bold text-indigo-900 mt-1">
-                        ${totals.usd.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                        ${totals.usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
                     <p className="text-xs text-indigo-600 mt-1">
                         {totals.usd > 0 ? "Company owes Users" : "Users owe Company"}
@@ -248,7 +248,7 @@ export const WalletBalanceReport: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className={`px-6 py-4 text-right font-bold ${user.balanceUSD < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                                ${user.balanceUSD.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                                ${user.balanceUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </td>
                                             <td className={`px-6 py-4 text-right font-bold ${user.balanceKHR < 0 ? 'text-red-600' : 'text-blue-600'}`}>
                                                 {user.balanceKHR.toLocaleString()} ៛

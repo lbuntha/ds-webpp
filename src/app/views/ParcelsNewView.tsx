@@ -1,4 +1,4 @@
-import { ParcelBookingForm } from '../../components/parcels/ParcelBookingForm';
+import { ParcelBookingForm } from '../../../components/parcels/ParcelBookingForm';
 import { useData } from '../../shared/contexts/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';

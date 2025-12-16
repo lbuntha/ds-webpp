@@ -1,4 +1,4 @@
-import { WarehouseOperations } from '../../components/parcels/WarehouseOperations';
+import { WarehouseOperations } from '../../../components/parcels/WarehouseOperations';
 
 export default function ParcelsWarehouseView() {
     return <WarehouseOperations />;

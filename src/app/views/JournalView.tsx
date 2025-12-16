@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useData } from '../../shared/contexts/DataContext';
 import { usePermission } from '../../shared/hooks/usePermissions';
-import { JournalEntryList } from '../../components/JournalEntryList';
-import { JournalEntryForm } from '../../components/JournalEntryForm';
-import { firebaseService } from '../../services/firebaseService';
-import { JournalEntry, Account, Branch, CurrencyConfig } from '../../types';
+import { JournalEntryList } from '../../../components/JournalEntryList';
+import { JournalEntryForm } from '../../../components/JournalEntryForm';
+import { firebaseService } from '../../shared/services/firebaseService';
+import { JournalEntry, Account, Branch, CurrencyConfig } from '../../shared/types';
 import { toast } from '../../shared/utils/toast';
 
 export default function JournalView() {

@@ -88,7 +88,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                     // Fetch Company Banks (Nostro) from COA
                     const banks = allAccounts.filter(a =>
                         a.type === AccountType.ASSET &&
-                        (a.subType === AccountSubType.CURRENT_ASSET || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash')) &&
+                        (a.subType === AccountSubType.CURRENT_ASSET || (a.name || '').toLowerCase().includes('bank') || (a.name || '').toLowerCase().includes('cash')) &&
                         !a.isHeader
                     );
                     setCompanyBanks(banks);

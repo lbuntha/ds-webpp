@@ -1,6 +1,6 @@
 import { useData } from '../../shared/contexts/DataContext';
-import { firebaseService } from '../../services/firebaseService';
-import { StaffLoansDashboard } from '../../components/staff/StaffLoansDashboard';
+import { firebaseService } from '../../shared/services/firebaseService';
+import { StaffLoansDashboard } from '../../../components/staff/StaffLoansDashboard';
 
 export default function StaffLoansView() {
   const { loans, employees, accounts, branches, currencies, transactions, refreshData } = useData();

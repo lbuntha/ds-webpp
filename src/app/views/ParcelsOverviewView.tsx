@@ -1,4 +1,4 @@
-import { ParcelList } from '../../components/parcels/ParcelList';
+import { ParcelList } from '../../../components/parcels/ParcelList';
 
 export default function ParcelsOverviewView() {
     return <ParcelList />;

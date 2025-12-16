@@ -1,11 +1,11 @@
 import { useData } from '../../shared/contexts/DataContext';
-import { ParcelsDashboard } from '../../components/parcels/ParcelsDashboard';
+import { ParcelsDashboard } from '../../../components/parcels/ParcelsDashboard';
 import { useLocation } from 'react-router-dom';
 
 export default function ParcelsView() {
   const { accounts, branches, customers, taxRates } = useData();
   const location = useLocation();
-  
+
   // Determine initial view from route
   const getInitialView = () => {
     if (location.pathname.includes('/new')) return 'NEW';

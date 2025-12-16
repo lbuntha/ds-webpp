@@ -63,12 +63,12 @@ export const ParcelList: React.FC = () => {
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(b =>
-                b.senderName.toLowerCase().includes(term) ||
-                b.senderPhone.toLowerCase().includes(term) ||
-                b.id.toLowerCase().includes(term) ||
+                (b.senderName || '').toLowerCase().includes(term) ||
+                (b.senderPhone || '').toLowerCase().includes(term) ||
+                (b.id || '').toLowerCase().includes(term) ||
                 (b.items || []).some(i =>
-                    i.receiverName.toLowerCase().includes(term) ||
-                    i.receiverPhone.toLowerCase().includes(term) ||
+                    (i.receiverName || '').toLowerCase().includes(term) ||
+                    (i.receiverPhone || '').toLowerCase().includes(term) ||
                     (i.trackingCode && i.trackingCode.toLowerCase().includes(term))
                 )
             );

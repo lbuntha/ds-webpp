@@ -472,7 +472,7 @@ export const WalletRequests: React.FC = () => {
                 id: `notif-wallet-${Date.now()}`,
                 targetAudience: txn.userId,
                 title: 'Wallet Request Approved',
-                message: `Your ${txn.type.toLowerCase()} request for ${txn.amount} ${txn.currency} has been approved.`,
+                message: `Your ${(txn.type || '').toLowerCase()} request for ${txn.amount} ${txn.currency} has been approved.`,
                 type: 'SUCCESS',
                 read: false,
                 createdAt: Date.now()
@@ -509,7 +509,7 @@ export const WalletRequests: React.FC = () => {
                 id: `notif-wallet-rej-${Date.now()}`,
                 targetAudience: txn.userId,
                 title: 'Wallet Request Rejected',
-                message: `Your ${txn.type.toLowerCase()} request was rejected. Reason: ${rejectReason}`,
+                message: `Your ${(txn.type || '').toLowerCase()} request was rejected. Reason: ${rejectReason}`,
                 type: 'ERROR',
                 read: false,
                 createdAt: Date.now()

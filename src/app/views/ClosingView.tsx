@@ -1,6 +1,6 @@
 import { useData } from '../../shared/contexts/DataContext';
-import { firebaseService } from '../../services/firebaseService';
-import { ClosingDashboard } from '../../components/closing/ClosingDashboard';
+import { firebaseService } from '../../shared/services/firebaseService';
+import { ClosingDashboard } from '../../../components/closing/ClosingDashboard';
 
 export default function ClosingView() {
   const { settings, accounts, transactions, branches, currencies, invoices, bills, refreshData } = useData();

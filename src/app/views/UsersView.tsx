@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../shared/contexts/AuthContext';
 import { useData } from '../../shared/contexts/DataContext';
-import { firebaseService } from '../../services/firebaseService';
-import { UserList } from '../../components/UserList';
-import { UserProfile } from '../../types';
-import { ROLE_PERMISSIONS } from '../../constants';
+import { firebaseService } from '../../shared/services/firebaseService';
+import { UserList } from '../../../components/UserList';
+import { UserProfile } from '../../shared/types';
+import { ROLE_PERMISSIONS } from '../../shared/constants';
 
 export default function UsersView() {
   const { user: currentUser } = useAuth();

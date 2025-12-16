@@ -39,7 +39,7 @@ export const StaffLoansDashboard: React.FC<Props> = ({
     // Filter for Bank/Cash accounts for deposit
     const assetAccounts = accounts.filter(a =>
         a.type === AccountType.ASSET &&
-        (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank'))
+        ((a.name || '').toLowerCase().includes('cash') || (a.name || '').toLowerCase().includes('bank'))
     );
 
     const formatCurrency = (num: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);

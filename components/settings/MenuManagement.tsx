@@ -82,7 +82,7 @@ export const MenuManagement: React.FC = () => {
                             <div>
                                 <h4 className="text-sm font-bold text-gray-900">{item.label}</h4>
                                 <div className="flex gap-1 mt-1 flex-wrap">
-                                    {item.allowedRoles.map(role => (
+                                    {(item.allowedRoles || []).map(role => (
                                         <span key={role} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200">
                                             {role}
                                         </span>
@@ -119,7 +119,7 @@ export const MenuManagement: React.FC = () => {
                                         <label key={role} className="flex items-center space-x-2 text-sm">
                                             <input
                                                 type="checkbox"
-                                                checked={editingItem.allowedRoles.includes(role)}
+                                                checked={(editingItem.allowedRoles || []).includes(role)}
                                                 onChange={() => toggleRole(role)}
                                                 className="rounded text-indigo-600"
                                             />

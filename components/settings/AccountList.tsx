@@ -64,8 +64,8 @@ export const AccountList: React.FC<Props> = ({ accounts, transactions = [], onEd
     const filteredAccounts = useMemo(() => {
         return accounts.filter(acc => {
             const matchesSearch =
-                acc.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                acc.name.toLowerCase().includes(searchTerm.toLowerCase());
+                (acc.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (acc.name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
             const matchesType = typeFilter === 'ALL' || acc.type === typeFilter;
 

@@ -1,4 +1,4 @@
-import { DriverManagement } from '../../components/parcels/DriverManagement';
+import { DriverManagement } from '../../../components/parcels/DriverManagement';
 import { useData } from '../../shared/contexts/DataContext';
 
 export default function ParcelsFleetView() {

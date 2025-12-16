@@ -1,6 +1,6 @@
 import { useData } from '../../shared/contexts/DataContext';
-import { firebaseService } from '../../services/firebaseService';
-import { BankingDashboard } from '../../components/banking/BankingDashboard';
+import { firebaseService } from '../../shared/services/firebaseService';
+import { BankingDashboard } from '../../../components/banking/BankingDashboard';
 
 export default function BankingView() {
   const { accounts, transactions, branches, currencies, refreshData } = useData();
