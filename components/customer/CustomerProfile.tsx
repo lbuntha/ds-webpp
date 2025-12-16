@@ -13,9 +13,10 @@ import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
     user: UserProfile;
+    hideExchangeRate?: boolean;
 }
 
-export const CustomerProfile: React.FC<Props> = ({ user }) => {
+export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => {
     const { t } = useLanguage();
     const [name, setName] = useState(user.name);
     const [phone, setPhone] = useState(user.phone || '');
@@ -304,59 +305,61 @@ export const CustomerProfile: React.FC<Props> = ({ user }) => {
             </Card>
 
             {/* EXCHANGE RATE SETTING */}
-            <Card title={'Exchange Rate Preferences'}>
-                {!customerData ? (
-                    <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-200">
-                        <p className="text-gray-600 mb-4 text-sm">{t('need_billing_profile')}</p>
-                        <Button onClick={handleCreateBillingProfile} isLoading={bankLoading}>
-                            {t('init_wallet_profile')}
-                        </Button>
-                    </div>
-                ) : (
-                    <>
-
-                        <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-800">
-                            <p className="font-bold mb-1">
-                                {
-                                    // @ts-ignore
-                                    t('daily_rate_title')
-                                }
-                            </p>
-                            <p>
-                                {
-                                    // @ts-ignore
-                                    t('cod_rate_expl').replace('{0}', systemRate.toLocaleString())
-                                }
-                            </p>
-                        </div>
-
-                        <div className="flex items-end gap-4">
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    {
-                                        // @ts-ignore
-                                        t('custom_rate_label')
-                                    }
-                                </label>
-                                <input
-                                    type="number"
-                                    className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-indigo-500 sm:text-sm font-bold text-gray-900"
-                                    placeholder={`System Default: ${systemRate}`}
-                                    value={exchangeRate}
-                                    onChange={e => setExchangeRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                                />
-                            </div>
-                            <Button onClick={handleSaveRate} isLoading={rateLoading} className="mb-[1px]">
-                                {
-                                    // @ts-ignore
-                                    t('update_rate')
-                                }
+            {!hideExchangeRate && (
+                <Card title={'Exchange Rate Preferences'}>
+                    {!customerData ? (
+                        <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-200">
+                            <p className="text-gray-600 mb-4 text-sm">{t('need_billing_profile')}</p>
+                            <Button onClick={handleCreateBillingProfile} isLoading={bankLoading}>
+                                {t('init_wallet_profile')}
                             </Button>
                         </div>
+                    ) : (
+                        <>
 
-                    </>
-                )}
-            </Card>
+                            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-800">
+                                <p className="font-bold mb-1">
+                                    {
+                                        // @ts-ignore
+                                        t('daily_rate_title')
+                                    }
+                                </p>
+                                <p>
+                                    {
+                                        // @ts-ignore
+                                        t('cod_rate_expl').replace('{0}', systemRate.toLocaleString())
+                                    }
+                                </p>
+                            </div>
+
+                            <div className="flex items-end gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        {
+                                            // @ts-ignore
+                                            t('custom_rate_label')
+                                        }
+                                    </label>
+                                    <input
+                                        type="number"
+                                        className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-indigo-500 sm:text-sm font-bold text-gray-900"
+                                        placeholder={`System Default: ${systemRate}`}
+                                        value={exchangeRate}
+                                        onChange={e => setExchangeRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                    />
+                                </div>
+                                <Button onClick={handleSaveRate} isLoading={rateLoading} className="mb-[1px]">
+                                    {
+                                        // @ts-ignore
+                                        t('update_rate')
+                                    }
+                                </Button>
+                            </div>
+
+                        </>
+                    )}
+                </Card>
+            )}
 
             {/* BANK ACCOUNTS SECTION */}
             <Card title={t('bank_accounts')}>

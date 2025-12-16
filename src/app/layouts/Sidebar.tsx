@@ -29,30 +29,27 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
             // System admin gets everything
             if (user.role === 'system-admin') return true;
 
-            // Check both permission-based AND role-based access
-            // Show item if user has the required permission OR is in allowed roles
-            const hasPermission = item.requiredPermission
-                ? userPermissions.includes(item.requiredPermission)
-                : false;
+            // STRICT ACCESS CONTROL
+            // If allowedRoles is defined, user MUST have one of the roles
+            // If requiredPermission is defined, user MUST have the permission
 
-            const hasRole = item.allowedRoles && item.allowedRoles.length > 0
-                ? item.allowedRoles.includes(user.role)
-                : false;
+            // 1. Check Role Constraint
+            if (item.allowedRoles && item.allowedRoles.length > 0) {
+                if (!item.allowedRoles.includes(user.role)) return false;
+            }
 
-            const shouldShow = hasPermission || hasRole;
+            // 2. Check Permission Constraint
+            if (item.requiredPermission) {
+                if (!userPermissions.includes(item.requiredPermission)) return false;
+            }
 
-            console.log(`  ${shouldShow ? '✅' : '❌'} ${item.label}:`, {
-                requiredPermission: item.requiredPermission,
-                allowedRoles: item.allowedRoles,
-                hasPermission,
-                hasRole
-            });
+            // If we reached here, all active constraints passed
+            // Ensure at least one constraint existed (unless we want to allow public items by default, but typically we hide undefined)
+            // Assuming items without configuration are hidden as per original logic line 55
+            const hasConstraints = (item.allowedRoles && item.allowedRoles.length > 0) || item.requiredPermission;
+            if (!hasConstraints) return false;
 
-            // Show if user has permission OR role (either one is sufficient)
-            if (shouldShow) return true;
-
-            // If no access control defined, hide it
-            return false;
+            return true;
         });
 
         console.log('✨ Filtered menu items:', filtered.length, filtered.map(i => i.label));

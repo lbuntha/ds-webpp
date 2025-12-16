@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { useAuth } from '../../shared/contexts/AuthContext';
 import { CustomerProfile } from '../../../components/customer/CustomerProfile';
+import { Card } from '../../../components/ui/Card';
 
 /**
  * Driver Profile View
@@ -19,7 +21,7 @@ export default function DriverProfileView() {
 
     return (
         <div className="space-y-6">
-            <CustomerProfile user={user} />
+            <CustomerProfile user={user} hideExchangeRate={true} />
         </div>
     );
 }

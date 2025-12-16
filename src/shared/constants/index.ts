@@ -98,17 +98,18 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 27, allowedRoles: ['system-admin', 'accountant'] },
 
   // Customer Navigation
-  { id: 'nav-customer-dashboard', label: 'Dashboard', viewId: 'CUSTOMER_PARCELS', iconKey: 'dashboard', order: 50, requiredPermission: 'VIEW_MY_PARCELS' },
-  { id: 'nav-customer-wallet', label: 'Wallet', viewId: 'CUSTOMER_WALLET', iconKey: 'wallet', order: 51, requiredPermission: 'VIEW_PROFILE' },
-  { id: 'nav-customer-booking', label: 'New Booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 52, requiredPermission: 'CREATE_BOOKING' },
-  { id: 'nav-customer-reports', label: 'Delivery Reports', viewId: 'CUSTOMER_REPORTS', iconKey: 'reports', order: 53, requiredPermission: 'VIEW_MY_PARCELS' },
-  { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 54, requiredPermission: 'VIEW_PROFILE' },
+  { id: 'nav-customer-dashboard', label: 'Dashboard', viewId: 'CUSTOMER_PARCELS', iconKey: 'dashboard', order: 50, requiredPermission: 'VIEW_MY_PARCELS', allowedRoles: ['customer'] },
+  { id: 'nav-customer-wallet', label: 'Wallet', viewId: 'CUSTOMER_WALLET', iconKey: 'wallet', order: 51, requiredPermission: 'VIEW_PROFILE', allowedRoles: ['customer'] },
+  { id: 'nav-customer-booking', label: 'New Booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 52, requiredPermission: 'CREATE_BOOKING', allowedRoles: ['customer'] },
+  { id: 'nav-customer-reports', label: 'Delivery Reports', viewId: 'CUSTOMER_REPORTS', iconKey: 'reports', order: 53, requiredPermission: 'VIEW_MY_PARCELS', allowedRoles: ['customer'] },
+  { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 54, requiredPermission: 'VIEW_PROFILE', allowedRoles: ['customer'] },
 
   // Driver Navigation
   // Driver Navigation
-  { id: 'nav-driver-jobs', label: 'My Jobs', viewId: 'DRIVER_JOBS', iconKey: 'jobs', order: 60, requiredPermission: 'VIEW_DRIVER_JOBS' },
-  { id: 'nav-driver-wallet', label: 'Wallet', viewId: 'DRIVER_WALLET', iconKey: 'wallet', order: 61, requiredPermission: 'VIEW_DRIVER_EARNINGS' },
-  { id: 'nav-driver-profile', label: 'Profile', viewId: 'DRIVER_PROFILE', iconKey: 'user', order: 62, requiredPermission: 'VIEW_PROFILE' },
+  // Driver Navigation
+  { id: 'nav-driver-jobs', label: 'My Jobs', viewId: 'DRIVER_JOBS', iconKey: 'jobs', order: 60, requiredPermission: 'VIEW_DRIVER_JOBS', allowedRoles: ['driver', 'fleet-driver'] },
+  { id: 'nav-driver-wallet', label: 'Wallet', viewId: 'DRIVER_WALLET', iconKey: 'wallet', order: 61, requiredPermission: 'VIEW_DRIVER_EARNINGS', allowedRoles: ['driver', 'fleet-driver'] },
+  { id: 'nav-driver-profile', label: 'Profile', viewId: 'DRIVER_PROFILE', iconKey: 'user', order: 62, requiredPermission: 'VIEW_PROFILE', allowedRoles: ['driver', 'fleet-driver'] },
 
   { id: 'nav-settings', label: 'configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], section: 'system' },
   { id: 'nav-users', label: 'users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], section: 'system' },
