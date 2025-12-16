@@ -139,26 +139,23 @@ function App() {
             setEmployees(emps);
             setCustomers(custs);
 
-            // AUTO-SEED MENU IF EMPTY OR FAILED
-            // Use fallback DEFAULT_NAVIGATION immediately if DB is empty to prevent blank sidebar
-            if (!menu || menu.length === 0) {
-                if (user.role === 'system-admin') {
-                    console.log("Menu empty in DB. Attempting to seed defaults...");
-                    try {
-                        await firebaseService.seedDefaultMenu();
-                        // Re-fetch to ensure we have the DB version with IDs
-                        const seededMenu = await firebaseService.getMenuItems();
-                        setMenuItems(seededMenu.length > 0 ? seededMenu : DEFAULT_NAVIGATION);
-                    } catch (seedError) {
-                        console.warn("Menu seeding failed (likely permission issue). Using fallback.", seedError);
-                        setMenuItems(DEFAULT_NAVIGATION);
-                    }
-                } else {
-                    // Non-admin: Fallback to defaults so they are not blocked
+            // Force re-seed menu from local constants to Firebase
+            // This ensures Firebase always has the latest menu structure
+            if (user.role === 'system-admin') {
+                console.log('🔄 Re-seeding menu to Firebase from DEFAULT_NAVIGATION...');
+                try {
+                    await firebaseService.seedDefaultMenu();
+                    const freshMenu = await firebaseService.getMenuItems();
+                    setMenuItems(freshMenu.length > 0 ? freshMenu : DEFAULT_NAVIGATION);
+                    console.log('✅ Menu loaded from Firebase:', freshMenu.length, 'items');
+                } catch (error) {
+                    console.warn('⚠️ Failed to seed menu, using local constants:', error);
                     setMenuItems(DEFAULT_NAVIGATION);
                 }
             } else {
-                setMenuItems(menu);
+                // Non-admin: Load from Firebase or use defaults
+                const menu = await firebaseService.getMenuItems();
+                setMenuItems(menu.length > 0 ? menu : DEFAULT_NAVIGATION);
             }
 
             // 2. Fetch Financial Data (Only for authorized roles)
@@ -311,8 +308,8 @@ function App() {
                             <button
                                 onClick={() => setActiveView(item.viewId)}
                                 className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-all duration-200 ${activeView === item.viewId
-                                        ? 'bg-slate-800 border-l-4 border-red-600 text-white'
-                                        : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                                    ? 'bg-slate-800 border-l-4 border-red-600 text-white'
+                                    : 'hover:bg-slate-800 text-slate-400 hover:text-white'
                                     } ${item.section === 'logistics' ? 'pl-8' : ''}`}
                             >
                                 <span className="mr-3"><MenuIcon iconKey={item.iconKey} className="w-4 h-4" /></span>

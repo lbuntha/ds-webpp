@@ -111,17 +111,22 @@ export class ConfigService extends BaseService {
     }
 
     async seedDefaultMenu() {
-        // Use Batch for atomicity and speed
+        // Step 1: Delete ALL existing menu items to ensure clean slate
+        const existingSnap = await getDocs(collection(this.db, 'navigation_menu'));
         const batch = writeBatch(this.db);
 
+        existingSnap.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        // Step 2: Add fresh menu items from DEFAULT_NAVIGATION
         for (const item of DEFAULT_NAVIGATION) {
             const ref = doc(this.db, 'navigation_menu', item.id);
-            // Merge true ensures we don't overwrite custom role changes if they exist, 
-            // but we ensure the item exists
-            batch.set(ref, item, { merge: true });
+            batch.set(ref, item);
         }
 
         await batch.commit();
+        console.log(`✅ Seeded ${DEFAULT_NAVIGATION.length} menu items to Firebase (deleted ${existingSnap.docs.length} old items)`);
     }
 
     // --- Routes Management ---

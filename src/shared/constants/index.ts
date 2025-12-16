@@ -18,6 +18,7 @@ export const TYPE_TO_SUBTYPE_MAP: Record<AccountType, AccountSubType[]> = {
 // Role Based Access Control Configuration (Default Fallback)
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   'system-admin': [
+    // Admin gets all permissions
     'VIEW_DASHBOARD',
     'VIEW_JOURNAL',
     'CREATE_JOURNAL',
@@ -30,13 +31,18 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_STAFF_LOANS',
     'MANAGE_BANKING',
     'PERFORM_CLOSING',
+    // Parcel permissions
     'MANAGE_PARCELS',
-    'VIEW_LOGISTICS_OVERVIEW',
-    'CREATE_BOOKING',
-    'MANAGE_DISPATCH',
-    'MANAGE_WAREHOUSE',
-    'MANAGE_FLEET',
-    'MANAGE_LOGISTICS_CONFIG'
+    'VIEW_PARCELS_OVERVIEW',
+    'CREATE_PARCEL_BOOKING',
+    'MANAGE_PARCEL_OPERATIONS',
+    'MANAGE_PARCEL_WAREHOUSE',
+    'MANAGE_PARCEL_DISPATCH',
+    'VIEW_PARCEL_RETENTION',
+    'VIEW_PARCEL_AGING',
+    'MANAGE_PARCEL_FLEET',
+    'MANAGE_PARCEL_PLACES',
+    'MANAGE_PARCEL_PRODUCTS'
   ],
   'accountant': [
     'VIEW_DASHBOARD',
@@ -48,72 +54,88 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_ASSETS',
     'MANAGE_STAFF_LOANS',
     'MANAGE_BANKING',
-    'VIEW_LOGISTICS_OVERVIEW'
+    'VIEW_PARCELS_OVERVIEW' // Can view parcel list only
   ],
   'finance-manager': [
     'VIEW_DASHBOARD',
     'VIEW_JOURNAL',
     'VIEW_REPORTS',
-    'VIEW_LOGISTICS_OVERVIEW'
+    'VIEW_PARCELS_OVERVIEW',
+    'VIEW_PARCEL_RETENTION',
+    'VIEW_PARCEL_AGING'
   ],
   'customer': [],
   'driver': [],
   'warehouse': [
     'VIEW_DASHBOARD',
-    'MANAGE_PARCELS',
-    'MANAGE_WAREHOUSE',
-    'VIEW_LOGISTICS_OVERVIEW'
+    'VIEW_PARCELS_OVERVIEW',
+    'CREATE_PARCEL_BOOKING',
+    'MANAGE_PARCEL_WAREHOUSE',
+    'MANAGE_PARCEL_OPERATIONS'
   ]
 };
 
 export const DEFAULT_NAVIGATION: NavigationItem[] = [
-    { id: 'nav-dashboard', label: 'dashboard', viewId: 'DASHBOARD', iconKey: 'dashboard', order: 1, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse'] },
-    { id: 'nav-analytics', label: 'analytics', viewId: 'ANALYTICS', iconKey: 'analytics', order: 2, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
-    { id: 'nav-parcels', label: 'parcels', viewId: 'PARCELS', iconKey: 'parcels', order: 3, allowedRoles: ['system-admin', 'warehouse'] },
-    { id: 'nav-journal', label: 'journal', viewId: 'JOURNAL', iconKey: 'journal', order: 4, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
-    { id: 'nav-receivables', label: 'receivables', viewId: 'RECEIVABLES', iconKey: 'receivables', order: 5, allowedRoles: ['system-admin', 'accountant'] },
-    { id: 'nav-payables', label: 'payables', viewId: 'PAYABLES', iconKey: 'payables', order: 6, allowedRoles: ['system-admin', 'accountant'] },
-    { id: 'nav-banking', label: 'banking', viewId: 'BANKING', iconKey: 'banking', order: 7, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
-    { id: 'nav-staff', label: 'staff_loans', viewId: 'STAFF', iconKey: 'staff', order: 8, allowedRoles: ['system-admin', 'accountant'] },
-    { id: 'nav-assets', label: 'fixed_assets', viewId: 'ASSETS', iconKey: 'assets', order: 9, allowedRoles: ['system-admin', 'accountant'] },
-    { id: 'nav-reports', label: 'reports', viewId: 'REPORTS', iconKey: 'reports', order: 10, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
-    { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 11, allowedRoles: ['system-admin', 'accountant'] },
-    { id: 'nav-settings', label: 'configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], section: 'system' },
-    { id: 'nav-users', label: 'users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], section: 'system' },
-    { id: 'nav-manual', label: 'manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'] }
+  { id: 'nav-dashboard', label: 'dashboard', viewId: 'DASHBOARD', iconKey: 'dashboard', order: 1, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse'] },
+  { id: 'nav-analytics', label: 'analytics', viewId: 'ANALYTICS', iconKey: 'analytics', order: 2, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
+
+  // Parcel/Logistics Features - Each as top-level item with permission check
+  { id: 'nav-parcels-overview', label: 'parcels_overview', viewId: 'PARCELS_OVERVIEW', iconKey: 'parcels', order: 3, requiredPermission: 'VIEW_PARCELS_OVERVIEW' },
+  { id: 'nav-parcels-new', label: 'new_booking', viewId: 'PARCELS_NEW', iconKey: 'plus', order: 4, requiredPermission: 'CREATE_PARCEL_BOOKING' },
+  { id: 'nav-parcels-operations', label: 'operations', viewId: 'PARCELS_OPERATIONS', iconKey: 'operations', order: 5, requiredPermission: 'MANAGE_PARCEL_OPERATIONS' },
+  { id: 'nav-parcels-warehouse', label: 'warehouse', viewId: 'PARCELS_WAREHOUSE', iconKey: 'warehouse', order: 6, requiredPermission: 'MANAGE_PARCEL_WAREHOUSE' },
+  { id: 'nav-parcels-dispatch', label: 'dispatch', viewId: 'PARCELS_DISPATCH', iconKey: 'dispatch', order: 7, requiredPermission: 'MANAGE_PARCEL_DISPATCH' },
+  { id: 'nav-parcels-fleet', label: 'fleet', viewId: 'PARCELS_FLEET', iconKey: 'fleet', order: 8, requiredPermission: 'MANAGE_PARCEL_FLEET' },
+  { id: 'nav-parcels-places', label: 'places', viewId: 'PARCELS_PLACES', iconKey: 'places', order: 9, requiredPermission: 'MANAGE_PARCEL_PLACES' },
+  { id: 'nav-parcels-products', label: 'products', viewId: 'PARCELS_PRODUCTS', iconKey: 'products', order: 10, requiredPermission: 'MANAGE_PARCEL_PRODUCTS' },
+  { id: 'nav-parcels-retention', label: 'retention', viewId: 'PARCELS_RETENTION', iconKey: 'retention', order: 11, requiredPermission: 'VIEW_PARCEL_RETENTION' },
+  { id: 'nav-parcels-aging', label: 'aging_report', viewId: 'PARCELS_AGING', iconKey: 'aging', order: 12, requiredPermission: 'VIEW_PARCEL_AGING' },
+
+  { id: 'nav-journal', label: 'journal', viewId: 'JOURNAL', iconKey: 'journal', order: 20, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
+  { id: 'nav-banking', label: 'banking', viewId: 'BANKING', iconKey: 'banking', order: 23, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
+  { id: 'nav-staff', label: 'staff_loans', viewId: 'STAFF', iconKey: 'staff', order: 24, allowedRoles: ['system-admin', 'accountant'] },
+  { id: 'nav-reports', label: 'reports', viewId: 'REPORTS', iconKey: 'reports', order: 26, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
+  { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 27, allowedRoles: ['system-admin', 'accountant'] },
+  { id: 'nav-settings', label: 'configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], section: 'system' },
+  { id: 'nav-users', label: 'users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], section: 'system' },
+  { id: 'nav-manual', label: 'manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'] }
 ];
 
 // List of Features for UI Mapping
 export const FEATURE_LIST: { key: Permission; label: string }[] = [
-    { key: 'VIEW_DASHBOARD', label: 'View Dashboard' },
-    { key: 'VIEW_JOURNAL', label: 'View General Journal' },
-    { key: 'CREATE_JOURNAL', label: 'Create/Edit Journal Entries' },
-    { key: 'MANAGE_RECEIVABLES', label: 'Sales & Receivables' },
-    { key: 'MANAGE_PAYABLES', label: 'Purchases & Payables' },
-    { key: 'MANAGE_ASSETS', label: 'Fixed Assets' },
-    { key: 'MANAGE_STAFF_LOANS', label: 'Staff Loans & Advances' },
-    { key: 'MANAGE_BANKING', label: 'Banking & Transfers' },
-    { key: 'VIEW_REPORTS', label: 'Financial Reports' },
-    { key: 'PERFORM_CLOSING', label: 'Period Closing' },
-    { key: 'MANAGE_SETTINGS', label: 'System Configuration' },
-    { key: 'MANAGE_USERS', label: 'User Management' },
-    // Logistics
-    { key: 'VIEW_LOGISTICS_OVERVIEW', label: 'Logistics: Overview & List' },
-    { key: 'CREATE_BOOKING', label: 'Logistics: Create Booking' },
-    { key: 'MANAGE_DISPATCH', label: 'Logistics: Dispatch Console' },
-    { key: 'MANAGE_WAREHOUSE', label: 'Logistics: Warehouse Ops' },
-    { key: 'MANAGE_FLEET', label: 'Logistics: Fleet Management' },
-    { key: 'MANAGE_LOGISTICS_CONFIG', label: 'Logistics: Settings/Products' },
+  { key: 'VIEW_DASHBOARD', label: 'View Dashboard' },
+  { key: 'VIEW_JOURNAL', label: 'View General Journal' },
+  { key: 'CREATE_JOURNAL', label: 'Create/Edit Journal Entries' },
+  { key: 'MANAGE_RECEIVABLES', label: 'Sales & Receivables' },
+  { key: 'MANAGE_PAYABLES', label: 'Purchases & Payables' },
+  { key: 'MANAGE_ASSETS', label: 'Fixed Assets' },
+  { key: 'MANAGE_STAFF_LOANS', label: 'Staff Loans & Advances' },
+  { key: 'MANAGE_BANKING', label: 'Banking & Transfers' },
+  { key: 'VIEW_REPORTS', label: 'Financial Reports' },
+  { key: 'PERFORM_CLOSING', label: 'Period Closing' },
+  { key: 'MANAGE_SETTINGS', label: 'System Configuration' },
+  { key: 'MANAGE_USERS', label: 'User Management' },
+  // Parcel/Logistics
+  { key: 'VIEW_PARCELS_OVERVIEW', label: 'Parcels: View Overview & List' },
+  { key: 'CREATE_PARCEL_BOOKING', label: 'Parcels: Create Booking' },
+  { key: 'MANAGE_PARCEL_OPERATIONS', label: 'Parcels: Operations Console' },
+  { key: 'MANAGE_PARCEL_WAREHOUSE', label: 'Parcels: Warehouse Operations' },
+  { key: 'MANAGE_PARCEL_DISPATCH', label: 'Parcels: Dispatch Console' },
+  { key: 'VIEW_PARCEL_RETENTION', label: 'Parcels: Customer Retention Reports' },
+  { key: 'VIEW_PARCEL_AGING', label: 'Parcels: Aging Reports' },
+  { key: 'MANAGE_PARCEL_FLEET', label: 'Parcels: Fleet/Driver Management' },
+  { key: 'MANAGE_PARCEL_PLACES', label: 'Parcels: Places Management' },
+  { key: 'MANAGE_PARCEL_PRODUCTS', label: 'Parcels: Products/Services Setup' },
 ];
 
 // --- PARCEL DEFAULTS ---
 export const DEFAULT_PARCEL_STATUSES: ParcelStatusConfig[] = [
-    { id: 'ps-pending', label: 'Pending', color: 'bg-gray-100 text-gray-800', order: 1, isDefault: true, triggersRevenue: false, isTerminal: false },
-    { id: 'ps-pickup', label: 'Picked Up', color: 'bg-blue-100 text-blue-800', order: 2, isDefault: false, triggersRevenue: false, isTerminal: false },
-    { id: 'ps-transit', label: 'In Transit', color: 'bg-yellow-100 text-yellow-800', order: 3, isDefault: false, triggersRevenue: false, isTerminal: false },
-    { id: 'ps-delivered', label: 'Delivered', color: 'bg-green-100 text-green-800', order: 4, isDefault: false, triggersRevenue: true, isTerminal: true },
-    { id: 'ps-returned', label: 'Returned', color: 'bg-orange-100 text-orange-800', order: 5, isDefault: false, triggersRevenue: false, isTerminal: true },
-    { id: 'ps-cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800', order: 6, isDefault: false, triggersRevenue: false, isTerminal: true },
+  { id: 'ps-pending', label: 'Pending', color: 'bg-gray-100 text-gray-800', order: 1, isDefault: true, triggersRevenue: false, isTerminal: false },
+  { id: 'ps-pickup', label: 'Picked Up', color: 'bg-blue-100 text-blue-800', order: 2, isDefault: false, triggersRevenue: false, isTerminal: false },
+  { id: 'ps-transit', label: 'In Transit', color: 'bg-yellow-100 text-yellow-800', order: 3, isDefault: false, triggersRevenue: false, isTerminal: false },
+  { id: 'ps-delivered', label: 'Delivered', color: 'bg-green-100 text-green-800', order: 4, isDefault: false, triggersRevenue: true, isTerminal: true },
+  { id: 'ps-returned', label: 'Returned', color: 'bg-orange-100 text-orange-800', order: 5, isDefault: false, triggersRevenue: false, isTerminal: true },
+  { id: 'ps-cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800', order: 6, isDefault: false, triggersRevenue: false, isTerminal: true },
 ];
 
 // --- MASTER CHART OF ACCOUNTS (UPDATED WITH USER DATA) ---
@@ -124,11 +146,11 @@ export const MASTER_COA_DATA: Account[] = [
   { id: '1101002', code: '1101002', name: 'Settlement Account', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'USD' },
   { id: '1101101', code: '1101101', name: 'Transit', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'KHR' },
   { id: '1101102', code: '1101102', name: 'Transit', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'USD' },
-  
+
   // FIX: Remapped AR from 1100001/2 to 1105001/2 to avoid duplicate keys
   { id: '1105001', code: '1105001', name: 'Accounts Receivable (Delivery Wallet)', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'KHR' },
   { id: '1105002', code: '1105002', name: 'Accounts Receivable (Delivery Wallet)', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'USD' },
-  
+
   { id: '1111001', code: '1111001', name: 'Cash on Hand', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'KHR' },
   { id: '1111002', code: '1111002', name: 'Cash on Hand', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'USD' },
   { id: '1112001', code: '1112001', name: 'Cash in Bank', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, currency: 'KHR' },
@@ -177,7 +199,7 @@ export const MASTER_COA_DATA: Account[] = [
   { id: '2160002', code: '2160002', name: 'Vehicles', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'USD' },
   { id: '2160101', code: '2160101', name: 'Accumulated Depreciation - Vehicles', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'KHR' },
   { id: '2160102', code: '2160102', name: 'Accumulated Depreciation - Vehicles', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'USD' },
-  
+
   // Intangible Assets
   { id: '2170001', code: '2170001', name: 'Intangible Assets - Patents', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'KHR' },
   { id: '2170002', code: '2170002', name: 'Intangible Assets - Patents', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'USD' },
@@ -191,7 +213,7 @@ export const MASTER_COA_DATA: Account[] = [
   { id: '2174002', code: '2174002', name: 'Intangible Asset -Software & Licenses', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'USD' },
   { id: '2175001', code: '2175001', name: 'Accumulated Amortization – Software', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'KHR' },
   { id: '2175002', code: '2175002', name: 'Accumulated Amortization – Software', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'USD' },
-  
+
   // Long-Term Investments & Receivables
   { id: '2180001', code: '2180001', name: 'Long-term Investments', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'KHR' },
   { id: '2180002', code: '2180002', name: 'Long-term Investments', type: AccountType.ASSET, subType: AccountSubType.NON_CURRENT_ASSET, currency: 'USD' },
@@ -209,7 +231,7 @@ export const MASTER_COA_DATA: Account[] = [
   { id: '3201002', code: '3201002', name: 'Accrued Expenses', type: AccountType.LIABILITY, subType: AccountSubType.CURRENT_LIABILITY, currency: 'USD' },
   { id: '3202001', code: '3202001', name: 'Notes Payable - Current', type: AccountType.LIABILITY, subType: AccountSubType.CURRENT_LIABILITY, currency: 'KHR' },
   { id: '3202002', code: '3202002', name: 'Notes Payable - Current', type: AccountType.LIABILITY, subType: AccountSubType.CURRENT_LIABILITY, currency: 'USD' },
-  
+
   // Payroll & Tax Liabilities
   { id: '3210001', code: '3210001', name: 'Salaries & Wages Payable', type: AccountType.LIABILITY, subType: AccountSubType.CURRENT_LIABILITY, currency: 'KHR' },
   { id: '3210002', code: '3210002', name: 'Salaries & Wages Payable', type: AccountType.LIABILITY, subType: AccountSubType.CURRENT_LIABILITY, currency: 'USD' },
@@ -291,7 +313,7 @@ export const MASTER_COA_DATA: Account[] = [
   { id: '6501002', code: '6501002', name: 'Delivery commision expense Labor', type: AccountType.EXPENSE, subType: AccountSubType.COST_OF_GOODS_SOLD, currency: 'USD' },
   { id: '6502001', code: '6502001', name: 'Cost of Goods Sold - Overhead', type: AccountType.EXPENSE, subType: AccountSubType.COST_OF_GOODS_SOLD, currency: 'KHR' },
   { id: '6502002', code: '6502002', name: 'Cost of Goods Sold - Overhead', type: AccountType.EXPENSE, subType: AccountSubType.COST_OF_GOODS_SOLD, currency: 'USD' },
-  
+
   // Selling Expenses
   { id: '6600001', code: '6600001', name: 'Advertising & Marketing', type: AccountType.EXPENSE, subType: AccountSubType.OPERATING_EXPENSE, currency: 'KHR' }, // Mapped to Operating for now
   { id: '6600002', code: '6600002', name: 'Advertising & Marketing', type: AccountType.EXPENSE, subType: AccountSubType.OPERATING_EXPENSE, currency: 'USD' },
@@ -417,18 +439,18 @@ export const STANDARD_COA: Account[] = MASTER_COA_DATA;
 
 // --- TRANSACTION DEFINITIONS (RULES) ---
 export const TRANSACTION_DEFINITIONS = [
-    { id: 1, description: 'Pickup from Customer', auto: 'Y' },
-    { id: 2, description: 'Received Cash', auto: 'Y' },
-    { id: 3, description: 'Exchange', auto: 'Y' },
-    { id: 4, description: 'Settle to Company', auto: 'Y' },
-    { id: 5, description: 'Settle to Customer', auto: 'Y' },
-    { id: 6, description: 'Return back to Customer', auto: 'Y' },
-    { id: 7, description: 'Warehouse Delivery', auto: 'Y' },
-    { id: 8, description: 'Pickup from warehouse', auto: 'Y' },
-    { id: 9, description: 'Service Fee', auto: 'Y' },
-    { id: 10, description: 'Commission Expense', auto: 'Y' },
-    { id: 11, description: 'Transit warehouse', auto: 'Y' },
-    { id: 12, description: 'Collection Fee', auto: 'Y' },
-    { id: 13, description: 'VAT-Output', auto: 'Y' },
-    { id: 14, description: 'VAT-Input', auto: 'Y' }
+  { id: 1, description: 'Pickup from Customer', auto: 'Y' },
+  { id: 2, description: 'Received Cash', auto: 'Y' },
+  { id: 3, description: 'Exchange', auto: 'Y' },
+  { id: 4, description: 'Settle to Company', auto: 'Y' },
+  { id: 5, description: 'Settle to Customer', auto: 'Y' },
+  { id: 6, description: 'Return back to Customer', auto: 'Y' },
+  { id: 7, description: 'Warehouse Delivery', auto: 'Y' },
+  { id: 8, description: 'Pickup from warehouse', auto: 'Y' },
+  { id: 9, description: 'Service Fee', auto: 'Y' },
+  { id: 10, description: 'Commission Expense', auto: 'Y' },
+  { id: 11, description: 'Transit warehouse', auto: 'Y' },
+  { id: 12, description: 'Collection Fee', auto: 'Y' },
+  { id: 13, description: 'VAT-Output', auto: 'Y' },
+  { id: 14, description: 'VAT-Input', auto: 'Y' }
 ];

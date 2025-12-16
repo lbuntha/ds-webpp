@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../shared/contexts/AuthContext';
 import { useData } from '../../shared/contexts/DataContext';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../shared/contexts/LanguageContext';
 import { NotificationBell } from '../../components/ui/NotificationBell';
 import { LanguageSwitcher } from '../../components/ui/LanguageSwitcher';
 import { Sidebar } from './Sidebar';
@@ -17,15 +17,10 @@ export default function MainLayout() {
 
     if (!user) return null;
 
-    // Filter menu items for current user
-    const visibleMenuItems = menuItems.filter(item =>
-        item.allowedRoles.includes(user.role)
-    );
-
     return (
         <div className="flex h-screen bg-gray-100">
             <Sidebar
-                menuItems={visibleMenuItems}
+                menuItems={menuItems}
                 user={user}
                 onLogout={logout}
             />

@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, RouteObject } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RoleBasedRoute } from './RoleBasedRoute';
+import { PermissionRoute } from './PermissionRoute';
 import { UserRole } from '../types';
 
 // Lazy load components for code splitting
@@ -21,14 +22,20 @@ const AnalyticsDashboard = lazy(() => import('../components/analytics/AnalyticsD
 
 // Accounting
 const JournalView = lazy(() => import('./views/JournalView'));
-const ReceivablesView = lazy(() => import('./views/ReceivablesView'));
-const PayablesView = lazy(() => import('./views/PayablesView'));
 const BankingView = lazy(() => import('./views/BankingView'));
 const StaffLoansView = lazy(() => import('./views/StaffLoansView'));
-const FixedAssetsView = lazy(() => import('./views/FixedAssetsView'));
 
-// Logistics
-const ParcelsView = lazy(() => import('./views/ParcelsView'));
+// Parcel/Logistics Views
+const ParcelsOverviewView = lazy(() => import('./views/ParcelsOverviewView'));
+const ParcelsNewView = lazy(() => import('./views/ParcelsNewView'));
+const ParcelsOperationsView = lazy(() => import('./views/ParcelsOperationsView'));
+const ParcelsWarehouseView = lazy(() => import('./views/ParcelsWarehouseView'));
+const ParcelsDispatchView = lazy(() => import('./views/ParcelsDispatchView'));
+const ParcelsFleetView = lazy(() => import('./views/ParcelsFleetView'));
+const ParcelsPlacesView = lazy(() => import('./views/ParcelsPlacesView'));
+const ParcelsProductsView = lazy(() => import('./views/ParcelsProductsView'));
+const ParcelsRetentionView = lazy(() => import('./views/ParcelsRetentionView'));
+const ParcelsAgingView = lazy(() => import('./views/ParcelsAgingView'));
 
 // Reports & Settings
 const ReportsView = lazy(() => import('./views/ReportsView'));
@@ -133,98 +140,157 @@ const routes: RouteObject[] = [
                     </RoleBasedRoute>
                 ),
             },
-            {
-                path: 'receivables',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
-                        {withSuspense(ReceivablesView)}
-                    </RoleBasedRoute>
-                ),
             },
-            {
-                path: 'payables',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
-                        {withSuspense(PayablesView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'banking',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
-                        {withSuspense(BankingView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'staff-loans',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
-                        {withSuspense(StaffLoansView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'assets',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
-                        {withSuspense(FixedAssetsView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'parcels/*',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'warehouse']}>
-                        {withSuspense(ParcelsView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'reports',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
-                        {withSuspense(ReportsView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'closing',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
-                        {withSuspense(ClosingView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'settings',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin']}>
-                        {withSuspense(SettingsView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'users',
-                element: (
-                    <RoleBasedRoute allowedRoles={['system-admin']}>
-                        {withSuspense(UsersView)}
-                    </RoleBasedRoute>
-                ),
-            },
-            {
-                path: 'profile',
-                element: withSuspense(UserProfileView),
-            },
-            {
-                path: 'manual',
-                element: withSuspense(UserManualView),
-            },
-        ],
+    {
+        path: 'banking',
+        element: (
+            <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
+                {withSuspense(BankingView)}
+            </RoleBasedRoute>
+        ),
     },
     {
-        path: '*',
+        path: 'staff',
+        element: (
+            <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
+                {withSuspense(StaffLoansView)}
+            </RoleBasedRoute>
+        ),
+    },
+    // Parcel/Logistics Routes - Permission-based access control
+    {
+        path: 'parcels/overview',
+        element: (
+            <PermissionRoute requiredPermission="VIEW_PARCELS_OVERVIEW">
+                {withSuspense(ParcelsOverviewView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/new',
+        element: (
+            <PermissionRoute requiredPermission="CREATE_PARCEL_BOOKING">
+                {withSuspense(ParcelsNewView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/operations',
+        element: (
+            <PermissionRoute requiredPermission="MANAGE_PARCEL_OPERATIONS">
+                {withSuspense(ParcelsOperationsView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/warehouse',
+        element: (
+            <PermissionRoute requiredPermission="MANAGE_PARCEL_WAREHOUSE">
+                {withSuspense(ParcelsWarehouseView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/dispatch',
+        element: (
+            <PermissionRoute requiredPermission="MANAGE_PARCEL_DISPATCH">
+                {withSuspense(ParcelsDispatchView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/fleet',
+        element: (
+            <PermissionRoute requiredPermission="MANAGE_PARCEL_FLEET">
+                {withSuspense(ParcelsFleetView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/places',
+        element: (
+            <PermissionRoute requiredPermission="MANAGE_PARCEL_PLACES">
+                {withSuspense(ParcelsPlacesView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/products',
+        element: (
+            <PermissionRoute requiredPermission="MANAGE_PARCEL_PRODUCTS">
+                {withSuspense(ParcelsProductsView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/retention',
+        element: (
+            <PermissionRoute requiredPermission="VIEW_PARCEL_RETENTION">
+                {withSuspense(ParcelsRetentionView)}
+            </PermissionRoute>
+        ),
+    },
+    {
+        path: 'parcels/aging',
+        element: (
+            <PermissionRoute requiredPermission="VIEW_PARCEL_AGING">
+                {withSuspense(ParcelsAgingView)}
+            </PermissionRoute>
+        ),
+    },
+    // Redirects for old parcel routes
+    {
+        path: 'parcels',
+        element: <Navigate to="/app/parcels/overview" replace />,
+    },
+    {
+        path: 'parcels/list',
+        element: <Navigate to="/app/parcels/overview" replace />,
+    },
+    {
+        path: 'reports',
+        element: (
+            <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
+                {withSuspense(ReportsView)}
+            </RoleBasedRoute>
+        ),
+    },
+    {
+        path: 'closing',
+        element: (
+            <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
+                {withSuspense(ClosingView)}
+            </RoleBasedRoute>
+        ),
+    },
+    {
+        path: 'settings',
+        element: (
+            <RoleBasedRoute allowedRoles={['system-admin']}>
+                {withSuspense(SettingsView)}
+            </RoleBasedRoute>
+        ),
+    },
+    {
+        path: 'users',
+        element: (
+            <RoleBasedRoute allowedRoles={['system-admin']}>
+                {withSuspense(UsersView)}
+            </RoleBasedRoute>
+        ),
+    },
+    {
+        path: 'profile',
+        element: withSuspense(UserProfileView),
+    },
+    {
+        path: 'manual',
+        element: withSuspense(UserManualView),
+    },
+],
+    },
+{
+    path: '*',
         element: <Navigate to="/landing" replace />,
     },
 ];

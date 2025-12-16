@@ -139,11 +139,8 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-dashboard', label: 'dashboard', viewId: 'DASHBOARD', iconKey: 'dashboard', order: 1, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse'], requiredPermission: 'VIEW_DASHBOARD', permissionGroup: 'FINANCE' },
   { id: 'nav-analytics', label: 'analytics', viewId: 'ANALYTICS', iconKey: 'analytics', order: 2, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_DASHBOARD', permissionGroup: 'FINANCE' },
   { id: 'nav-journal', label: 'journal', viewId: 'JOURNAL', iconKey: 'journal', order: 3, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_JOURNAL', permissionGroup: 'FINANCE' },
-  { id: 'nav-receivables', label: 'receivables', viewId: 'RECEIVABLES', iconKey: 'receivables', order: 4, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'MANAGE_RECEIVABLES', permissionGroup: 'FINANCE' },
-  { id: 'nav-payables', label: 'payables', viewId: 'PAYABLES', iconKey: 'payables', order: 5, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'MANAGE_PAYABLES', permissionGroup: 'FINANCE' },
   { id: 'nav-banking', label: 'banking', viewId: 'BANKING', iconKey: 'banking', order: 6, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'MANAGE_BANKING', permissionGroup: 'FINANCE' },
   { id: 'nav-staff', label: 'staff_loans', viewId: 'STAFF', iconKey: 'staff', order: 7, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'MANAGE_STAFF_LOANS', permissionGroup: 'FINANCE' },
-  { id: 'nav-assets', label: 'fixed_assets', viewId: 'ASSETS', iconKey: 'assets', order: 8, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'MANAGE_ASSETS', permissionGroup: 'FINANCE' },
   { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 9, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'PERFORM_CLOSING', permissionGroup: 'FINANCE' },
 
   // Logistics Group - Granular Items
