@@ -3,7 +3,7 @@ import { UserProfile, NavigationItem } from '../../shared/types';
 import { useData } from '../../shared/contexts/DataContext';
 import { useLanguage } from '../../shared/contexts/LanguageContext';
 import { useUserPermissions } from '../../shared/hooks/usePermissions';
-import { MenuIcon } from '../../components/ui/MenuIcon';
+import { MenuIcon } from '../../../components/ui/MenuIcon';
 import { useMemo } from 'react';
 
 interface SidebarProps {
@@ -20,23 +20,43 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
 
     // Filter menu items based on permissions
     const filteredMenuItems = useMemo(() => {
-        return menuItems.filter(item => {
+        console.log('🔍 SIDEBAR DEBUG - Menu Filtering:');
+        console.log('📋 Raw menu items from Firebase:', menuItems.length, menuItems);
+        console.log('👤 Current user role:', user.role);
+        console.log('🔑 User permissions:', userPermissions);
+
+        const filtered = menuItems.filter(item => {
             // System admin gets everything
             if (user.role === 'system-admin') return true;
 
-            // Check permission-based access (preferred method)
-            if (item.requiredPermission) {
-                return userPermissions.includes(item.requiredPermission);
-            }
+            // Check both permission-based AND role-based access
+            // Show item if user has the required permission OR is in allowed roles
+            const hasPermission = item.requiredPermission
+                ? userPermissions.includes(item.requiredPermission)
+                : false;
 
-            // Fallback to role-based access
-            if (item.allowedRoles) {
-                return item.allowedRoles.includes(user.role);
-            }
+            const hasRole = item.allowedRoles && item.allowedRoles.length > 0
+                ? item.allowedRoles.includes(user.role)
+                : false;
+
+            const shouldShow = hasPermission || hasRole;
+
+            console.log(`  ${shouldShow ? '✅' : '❌'} ${item.label}:`, {
+                requiredPermission: item.requiredPermission,
+                allowedRoles: item.allowedRoles,
+                hasPermission,
+                hasRole
+            });
+
+            // Show if user has permission OR role (either one is sufficient)
+            if (shouldShow) return true;
 
             // If no access control defined, hide it
             return false;
         });
+
+        console.log('✨ Filtered menu items:', filtered.length, filtered.map(i => i.label));
+        return filtered;
     }, [menuItems, user.role, userPermissions]);
 
     const isActive = (viewId: string) => {
@@ -46,6 +66,17 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
     };
 
     const getRoutePath = (item: NavigationItem) => {
+        // Handle customer routes (CUSTOMER_BOOKING -> /app/customer/booking)
+        if (item.viewId.startsWith('CUSTOMER_')) {
+            const viewId = item.viewId.replace('CUSTOMER_', '').toLowerCase();
+            return `/app/customer/${viewId}`;
+        }
+        // Handle driver routes (DRIVER_JOBS -> /app/driver/jobs)
+        if (item.viewId.startsWith('DRIVER_')) {
+            const viewId = item.viewId.replace('DRIVER_', '').toLowerCase();
+            return `/app/driver/${viewId}`;
+        }
+        // Default handling (PARCELS_OVERVIEW -> /app/parcels/overview)
         const viewId = item.viewId.toLowerCase().replace(/_/g, '/');
         return `/app/${viewId}`;
     };

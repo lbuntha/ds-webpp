@@ -256,13 +256,6 @@ function App() {
         return <PendingApproval onLogout={handleLogout} userName={user.name} />;
     }
 
-    if (user.role === 'customer') {
-        return <CustomerLayout user={user} onLogout={handleLogout} />;
-    }
-
-    if (user.role === 'driver') {
-        return <DriverLayout user={user} onLogout={handleLogout} />;
-    }
 
     if (!settings.setupComplete && user.role === 'system-admin') {
         return <OnboardingWizard onComplete={async (s, a, b, r) => {

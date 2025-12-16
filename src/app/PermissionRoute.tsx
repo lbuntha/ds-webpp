@@ -23,20 +23,30 @@ export function PermissionRoute({
     const { user } = useAuth();
     const hasPermission = usePermission(requiredPermission);
 
+    console.log('🔐 PERMISSION ROUTE CHECK:', {
+        requiredPermission,
+        user: user?.email,
+        role: user?.role,
+        hasPermission,
+        fallbackRoute
+    });
+
     if (!user) {
         return <Navigate to="/landing" replace />;
     }
 
     // System admin always has full access
     if (user.role === 'system-admin') {
+        console.log('✅ System admin - access granted');
         return <>{children}</>;
     }
 
     // Check if user has the required permission
     if (!hasPermission) {
-        console.warn(`User ${user.email} attempted to access route requiring ${requiredPermission} but lacks permission`);
+        console.warn(`❌ User ${user.email} (${user.role}) attempted to access route requiring ${requiredPermission} but lacks permission - redirecting to ${fallbackRoute}`);
         return <Navigate to={fallbackRoute} replace />;
     }
 
+    console.log('✅ Permission granted');
     return <>{children}</>;
 }

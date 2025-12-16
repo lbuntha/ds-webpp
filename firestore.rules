@@ -143,5 +143,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isSystemAdmin();
     }
+    
+    match /app_routes/{routeId} {
+      allow read: if isAuthenticated();
+      allow write: if isSystemAdmin();
+    }
   }
 }

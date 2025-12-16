@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import { AuthProvider } from '../shared/contexts/AuthContext';
 import { DataProvider } from '../shared/contexts/DataContext';
 import { LanguageProvider } from '../shared/contexts/LanguageContext';
+import { PermissionsProvider } from '../../contexts/PermissionsContext';
 import { useAuth } from '../shared/contexts/AuthContext';
 import { ToastProvider } from '../shared/hooks/useToast';
 import { ToastContainer } from '../shared/components/ToastContainer';
@@ -16,10 +17,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
         <ToastProvider>
             <LanguageProvider>
                 <AuthProvider>
-                    <DataProviderWrapper>
-                        {children}
-                        <ToastContainer />
-                    </DataProviderWrapper>
+                    <PermissionsProvider>
+                        <DataProviderWrapper>
+                            {children}
+                            <ToastContainer />
+                        </DataProviderWrapper>
+                    </PermissionsProvider>
                 </AuthProvider>
             </LanguageProvider>
         </ToastProvider>

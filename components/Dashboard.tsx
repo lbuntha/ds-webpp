@@ -6,9 +6,9 @@ import { Card } from './ui/Card';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface Props {
-  transactions: JournalEntry[];
-  accounts: Account[];
-  branches: Branch[];
+    transactions: JournalEntry[];
+    accounts: Account[];
+    branches: Branch[];
 }
 
 export const Dashboard: React.FC<Props> = ({ transactions, accounts }) => {
@@ -26,10 +26,10 @@ export const Dashboard: React.FC<Props> = ({ transactions, accounts }) => {
             // Filter out headers to avoid double counting children
             if (row.isHeader) return;
 
-            if(row.type === AccountType.REVENUE) revenue += (row.credit - row.debit);
-            if(row.type === AccountType.EXPENSE) expenses += (row.debit - row.credit);
-            if(row.type === AccountType.ASSET) assets += (row.debit - row.credit);
-            if(row.type === AccountType.LIABILITY) liabilities += (row.credit - row.debit);
+            if (row.type === AccountType.REVENUE) revenue += (row.credit - row.debit);
+            if (row.type === AccountType.EXPENSE) expenses += (row.debit - row.credit);
+            if (row.type === AccountType.ASSET) assets += (row.debit - row.credit);
+            if (row.type === AccountType.LIABILITY) liabilities += (row.credit - row.debit);
         });
 
         return { revenue, expenses, netIncome: revenue - expenses, cash: assets - liabilities /* Simplified metric */ };
@@ -37,10 +37,10 @@ export const Dashboard: React.FC<Props> = ({ transactions, accounts }) => {
 
     const StatCard = ({ label, value, color }: { label: string, value: number, color: string }) => (
         <Card className="border-l-4" style={{ borderLeftColor: color }}>
-             <dt className="text-sm font-medium text-gray-500 truncate">{label}</dt>
-             <dd className="mt-1 text-3xl font-semibold text-gray-900">
+            <dt className="text-sm font-medium text-gray-500 truncate">{label}</dt>
+            <dd className="mt-1 text-3xl font-semibold text-gray-900">
                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}
-             </dd>
+            </dd>
         </Card>
     );
 
@@ -57,7 +57,7 @@ export const Dashboard: React.FC<Props> = ({ transactions, accounts }) => {
                 <Card title={t('recent_activity')}>
                     <div className="flow-root">
                         <ul className="-my-5 divide-y divide-gray-200">
-                            {transactions.slice(-5).reverse().map((txn) => (
+                            {(transactions || []).slice(-5).reverse().map((txn) => (
                                 <li key={txn.id} className="py-4">
                                     <div className="flex items-center space-x-4">
                                         <div className="flex-1 min-w-0">
@@ -91,7 +91,7 @@ export const Dashboard: React.FC<Props> = ({ transactions, accounts }) => {
                                     </div>
                                 </li>
                             ))}
-                            {transactions.length === 0 && <li className="py-4 text-gray-500 text-sm">No transactions yet.</li>}
+                            {(transactions || []).length === 0 && <li className="py-4 text-gray-500 text-sm">No transactions yet.</li>}
                         </ul>
                     </div>
                 </Card>

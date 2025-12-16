@@ -119,12 +119,18 @@ export type Permission =
   | 'DRIVER_VIEW_JOBS'
   | 'DRIVER_ACCESS_WALLET'
   | 'DRIVER_MANAGE_PROFILE'
+  | 'VIEW_DRIVER_JOBS'
+  | 'VIEW_DRIVER_PICKUPS'
+  | 'VIEW_DRIVER_EARNINGS'
   // Customer Permissions
   | 'CUSTOMER_VIEW_DASHBOARD'
   | 'CUSTOMER_CREATE_BOOKING'
   | 'CUSTOMER_ACCESS_WALLET'
   | 'CUSTOMER_VIEW_REPORTS'
-  | 'CUSTOMER_MANAGE_PROFILE';
+  | 'CUSTOMER_MANAGE_PROFILE'
+  | 'VIEW_MY_PARCELS'
+  | 'TRACK_PARCELS'
+  | 'VIEW_PROFILE';
 
 export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse';
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useData } from '../../shared/contexts/DataContext';
-import { firebaseService } from '../../services/firebaseService';
-import { SettingsDashboard } from '../../components/settings/SettingsDashboard';
+import { firebaseService } from '../../shared/services/firebaseService';
+import { SettingsDashboard } from '../../../components/settings/SettingsDashboard';
 import { toast } from '../../shared/utils/toast';
 
 export default function SettingsView() {

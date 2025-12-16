@@ -1,11 +1,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import App from './src/app/App';  // Changed from './App' to './src/app/App' to use router-based App
 import { LanguageProvider } from './contexts/LanguageContext';
-import { ToastProvider } from './src/shared/hooks/useToast';
-import { ToastContainer } from './src/shared/components/ToastContainer';
-import { PermissionsProvider } from './contexts/PermissionsContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -16,12 +13,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <LanguageProvider>
-      <ToastProvider>
-        <PermissionsProvider>
-          <App />
-          <ToastContainer />
-        </PermissionsProvider>
-      </ToastProvider>
+      <App />
     </LanguageProvider>
   </React.StrictMode>
 );

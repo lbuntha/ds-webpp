@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserProfile, SavedLocation, Customer, BankAccountDetails, CurrencyConfig } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { UserProfile, SavedLocation, Customer, BankAccountDetails, CurrencyConfig } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Avatar } from '../ui/Avatar';
 import { ImageUpload } from '../ui/ImageUpload';
 import { LocationPicker } from '../ui/LocationPicker';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
@@ -304,51 +304,59 @@ export const CustomerProfile: React.FC<Props> = ({ user }) => {
             </Card>
 
             {/* EXCHANGE RATE SETTING */}
-            {customerData && (
-                <Card title={
-                    // @ts-ignore
-                    t('cod_pref_title')
-                }>
-                    <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-800">
-                        <p className="font-bold mb-1">
-                            {
-                                // @ts-ignore
-                                t('daily_rate_title')
-                            }
-                        </p>
-                        <p>
-                            {
-                                // @ts-ignore
-                                t('cod_rate_expl').replace('{0}', systemRate.toLocaleString())
-                            }
-                        </p>
-                    </div>
-
-                    <div className="flex items-end gap-4">
-                        <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {
-                                    // @ts-ignore
-                                    t('custom_rate_label')
-                                }
-                            </label>
-                            <input
-                                type="number"
-                                className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-indigo-500 sm:text-sm font-bold text-gray-900"
-                                placeholder={`System Default: ${systemRate}`}
-                                value={exchangeRate}
-                                onChange={e => setExchangeRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                            />
-                        </div>
-                        <Button onClick={handleSaveRate} isLoading={rateLoading} className="mb-[1px]">
-                            {
-                                // @ts-ignore
-                                t('update_rate')
-                            }
+            <Card title={'Exchange Rate Preferences'}>
+                {!customerData ? (
+                    <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-200">
+                        <p className="text-gray-600 mb-4 text-sm">{t('need_billing_profile')}</p>
+                        <Button onClick={handleCreateBillingProfile} isLoading={bankLoading}>
+                            {t('init_wallet_profile')}
                         </Button>
                     </div>
-                </Card>
-            )}
+                ) : (
+                    <>
+
+                        <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-800">
+                            <p className="font-bold mb-1">
+                                {
+                                    // @ts-ignore
+                                    t('daily_rate_title')
+                                }
+                            </p>
+                            <p>
+                                {
+                                    // @ts-ignore
+                                    t('cod_rate_expl').replace('{0}', systemRate.toLocaleString())
+                                }
+                            </p>
+                        </div>
+
+                        <div className="flex items-end gap-4">
+                            <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    {
+                                        // @ts-ignore
+                                        t('custom_rate_label')
+                                    }
+                                </label>
+                                <input
+                                    type="number"
+                                    className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-indigo-500 sm:text-sm font-bold text-gray-900"
+                                    placeholder={`System Default: ${systemRate}`}
+                                    value={exchangeRate}
+                                    onChange={e => setExchangeRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                />
+                            </div>
+                            <Button onClick={handleSaveRate} isLoading={rateLoading} className="mb-[1px]">
+                                {
+                                    // @ts-ignore
+                                    t('update_rate')
+                                }
+                            </Button>
+                        </div>
+
+                    </>
+                )}
+            </Card>
 
             {/* BANK ACCOUNTS SECTION */}
             <Card title={t('bank_accounts')}>
@@ -526,14 +534,16 @@ export const CustomerProfile: React.FC<Props> = ({ user }) => {
             </Card>
 
             {/* Map Picker Modal */}
-            {showMapPicker && (
-                <LocationPicker
-                    initialLat={typeof newLocLat === 'number' ? newLocLat : undefined}
-                    initialLng={typeof newLocLng === 'number' ? newLocLng : undefined}
-                    onConfirm={handleLocationPicked}
-                    onClose={() => setShowMapPicker(false)}
-                />
-            )}
+            {
+                showMapPicker && (
+                    <LocationPicker
+                        initialLat={typeof newLocLat === 'number' ? newLocLat : undefined}
+                        initialLng={typeof newLocLng === 'number' ? newLocLng : undefined}
+                        onConfirm={handleLocationPicked}
+                        onClose={() => setShowMapPicker(false)}
+                    />
+                )
+            }
 
             <Card title={t('referral_program')}>
                 <div className="bg-red-50 p-6 rounded-xl text-center border border-red-100">
@@ -567,6 +577,6 @@ export const CustomerProfile: React.FC<Props> = ({ user }) => {
                     </button>
                 </div>
             </Card>
-        </div>
+        </div >
     );
 };

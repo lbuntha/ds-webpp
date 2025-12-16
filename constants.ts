@@ -60,12 +60,19 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'CUSTOMER_CREATE_BOOKING',
     'CUSTOMER_ACCESS_WALLET',
     'CUSTOMER_VIEW_REPORTS',
-    'CUSTOMER_MANAGE_PROFILE'
+    'CUSTOMER_MANAGE_PROFILE',
+    'CREATE_BOOKING',
+    'VIEW_MY_PARCELS',
+    'TRACK_PARCELS',
+    'VIEW_PROFILE'
   ],
   'driver': [
     'DRIVER_VIEW_JOBS',
     'DRIVER_ACCESS_WALLET',
-    'DRIVER_MANAGE_PROFILE'
+    'DRIVER_MANAGE_PROFILE',
+    'VIEW_DRIVER_JOBS',
+    'VIEW_DRIVER_PICKUPS',
+    'VIEW_DRIVER_EARNINGS'
   ],
   'warehouse': [
     'VIEW_DASHBOARD',
@@ -161,7 +168,18 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   // System Group
   { id: 'nav-settings', label: 'configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_SETTINGS', permissionGroup: 'SYSTEM', section: 'system' },
   { id: 'nav-users', label: 'users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_USERS', permissionGroup: 'SYSTEM', section: 'system' },
-  { id: 'nav-manual', label: 'manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'], section: 'system' }
+  { id: 'nav-manual', label: 'manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'], section: 'system' },
+
+  // Driver Features
+  { id: 'nav-driver-jobs', label: 'my_deliveries', viewId: 'DRIVER_JOBS', iconKey: 'truck', order: 100, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_JOBS', permissionGroup: 'DRIVER' },
+  { id: 'nav-driver-pickups', label: 'pickup_jobs', viewId: 'DRIVER_PICKUPS', iconKey: 'package', order: 101, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_PICKUPS', permissionGroup: 'DRIVER' },
+  { id: 'nav-driver-earnings', label: 'my_earnings', viewId: 'DRIVER_EARNINGS', iconKey: 'dollar', order: 102, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_EARNINGS', permissionGroup: 'DRIVER' },
+
+  // Customer Features
+  { id: 'nav-customer-booking', label: 'new_booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 200, allowedRoles: ['customer'], requiredPermission: 'CREATE_BOOKING', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-parcels', label: 'my_parcels', viewId: 'CUSTOMER_PARCELS', iconKey: 'box', order: 201, allowedRoles: ['customer'], requiredPermission: 'VIEW_MY_PARCELS', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-tracking', label: 'track_shipment', viewId: 'CUSTOMER_TRACKING', iconKey: 'map', order: 202, allowedRoles: ['customer'], requiredPermission: 'TRACK_PARCELS', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-profile', label: 'my_profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 203, allowedRoles: ['customer'], requiredPermission: 'VIEW_PROFILE', permissionGroup: 'CUSTOMER' }
 ];
 
 // List of Features for UI Mapping

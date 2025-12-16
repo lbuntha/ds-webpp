@@ -1,21 +1,21 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/Button';
 import { LanguageSwitcher } from './ui/LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
 import { toast } from '../src/shared/utils/toast';
 
-interface Props {
-  onLogin: () => void;
-  onRegister: () => void;
-}
-
 type PageType = 'HOME' | 'ABOUT' | 'CONTACT' | 'HELP' | 'PRIVACY';
 
-export const LandingPage: React.FC<Props> = ({ onLogin, onRegister }) => {
+export const LandingPage: React.FC = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [activePage, setActivePage] = useState<PageType>('HOME');
   const [scrolled, setScrolled] = useState(false);
+
+  const onLogin = () => navigate('/auth/login');
+  const onRegister = () => navigate('/auth/register');
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);

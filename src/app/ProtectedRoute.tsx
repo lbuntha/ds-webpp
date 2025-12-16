@@ -56,9 +56,9 @@ export function ProtectedRoute({
 function getRoleDefaultRoute(role: UserRole): string {
     switch (role) {
         case 'customer':
-            return '/customer';
+            return '/app/customer/booking';  // Changed from '/customer' to '/app/customer/booking'
         case 'driver':
-            return '/driver';
+            return '/app/driver/jobs';  // Changed from '/driver' to '/app/driver/jobs'
         case 'system-admin':
         case 'accountant':
         case 'finance-manager':

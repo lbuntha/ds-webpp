@@ -110,7 +110,16 @@ export type Permission =
   | 'VIEW_PARCEL_AGING'          // Aging reports
   | 'MANAGE_PARCEL_FLEET'        // Fleet/driver management
   | 'MANAGE_PARCEL_PLACES'       // Places management
-  | 'MANAGE_PARCEL_PRODUCTS';    // Service types/products setup
+  | 'MANAGE_PARCEL_PRODUCTS'     // Service types/products setup
+  // Customer Permissions
+  | 'CREATE_BOOKING'             // Customer: Create new parcel booking
+  | 'VIEW_MY_PARCELS'            // Customer: View own parcel bookings
+  | 'TRACK_PARCELS'              // Customer: Track parcel status
+  | 'VIEW_PROFILE'               // Customer/Driver: View/edit own profile
+  // Driver Permissions
+  | 'VIEW_DRIVER_JOBS'           // Driver: View assigned delivery jobs
+  | 'VIEW_DRIVER_PICKUPS'        // Driver: View pickup assignments
+  | 'VIEW_DRIVER_EARNINGS';      // Driver: View earnings and commissions
 
 export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse';
 

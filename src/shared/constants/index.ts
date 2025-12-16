@@ -1,5 +1,5 @@
 
-import { Account, AccountSubType, AccountType, Branch, Permission, UserRole, ParcelStatusConfig, NavigationItem } from './types';
+import { Account, AccountSubType, AccountType, Branch, Permission, UserRole, ParcelStatusConfig, NavigationItem } from '../types';
 
 export const INITIAL_BRANCHES: Branch[] = [
   { id: 'b1', name: 'Headquarters', code: 'HQ' },
@@ -64,8 +64,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'VIEW_PARCEL_RETENTION',
     'VIEW_PARCEL_AGING'
   ],
-  'customer': [],
-  'driver': [],
+  'customer': ['CREATE_BOOKING', 'VIEW_MY_PARCELS', 'TRACK_PARCELS', 'VIEW_PROFILE'],
+  'driver': ['VIEW_DRIVER_JOBS', 'VIEW_DRIVER_PICKUPS', 'VIEW_DRIVER_EARNINGS', 'VIEW_PROFILE'],
   'warehouse': [
     'VIEW_DASHBOARD',
     'VIEW_PARCELS_OVERVIEW',
@@ -96,6 +96,18 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-staff', label: 'staff_loans', viewId: 'STAFF', iconKey: 'staff', order: 24, allowedRoles: ['system-admin', 'accountant'] },
   { id: 'nav-reports', label: 'reports', viewId: 'REPORTS', iconKey: 'reports', order: 26, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
   { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 27, allowedRoles: ['system-admin', 'accountant'] },
+
+  // Customer Navigation
+  { id: 'nav-customer-booking', label: 'New Booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 50, requiredPermission: 'CREATE_BOOKING' },
+  { id: 'nav-customer-parcels', label: 'My Parcels', viewId: 'CUSTOMER_PARCELS', iconKey: 'parcels', order: 51, requiredPermission: 'VIEW_MY_PARCELS' },
+  { id: 'nav-customer-tracking', label: 'Track Parcel', viewId: 'CUSTOMER_TRACKING', iconKey: 'tracking', order: 52, requiredPermission: 'TRACK_PARCELS' },
+  { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 53, requiredPermission: 'VIEW_PROFILE' },
+
+  // Driver Navigation
+  { id: 'nav-driver-jobs', label: 'My Jobs', viewId: 'DRIVER_JOBS', iconKey: 'jobs', order: 60, requiredPermission: 'VIEW_DRIVER_JOBS' },
+  { id: 'nav-driver-pickups', label: 'Pickups', viewId: 'DRIVER_PICKUPS', iconKey: 'pickup', order: 61, requiredPermission: 'VIEW_DRIVER_PICKUPS' },
+  { id: 'nav-driver-earnings', label: 'Earnings', viewId: 'DRIVER_EARNINGS', iconKey: 'money', order: 62, requiredPermission: 'VIEW_DRIVER_EARNINGS' },
+
   { id: 'nav-settings', label: 'configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], section: 'system' },
   { id: 'nav-users', label: 'users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], section: 'system' },
   { id: 'nav-manual', label: 'manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'] }

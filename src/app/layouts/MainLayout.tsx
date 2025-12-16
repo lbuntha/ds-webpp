@@ -2,8 +2,8 @@ import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../shared/contexts/AuthContext';
 import { useData } from '../../shared/contexts/DataContext';
 import { useLanguage } from '../../shared/contexts/LanguageContext';
-import { NotificationBell } from '../../components/ui/NotificationBell';
-import { LanguageSwitcher } from '../../components/ui/LanguageSwitcher';
+import { NotificationBell } from '../../../components/ui/NotificationBell';
+import { LanguageSwitcher } from '../../../components/ui/LanguageSwitcher';
 import { Sidebar } from './Sidebar';
 
 /**
@@ -16,6 +16,9 @@ export default function MainLayout() {
     const { t } = useLanguage();
 
     if (!user) return null;
+
+    console.log('🏠 MAINLAYOUT RENDERING for user:', user.name, 'role:', user.role);
+    console.log('📋 Menu items available:', menuItems.length);
 
     return (
         <div className="flex h-screen bg-gray-100">

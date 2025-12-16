@@ -102,7 +102,7 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
     };
 
     const refreshData = async () => {
-        if (!userRole || userRole === 'customer' || userRole === 'driver') {
+        if (!userRole) {
             setLoading(false);
             return;
         }
@@ -129,18 +129,27 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
             setBranches(brs);
             setCurrencies(currs);
             setTaxRates(taxes);
+            // Use Firebase permissions if available, otherwise fallback to ROLE_PERMISSIONS constant
             if (perms && Object.keys(perms).length > 0) {
+                console.log('📋 Loading permissions from Firebase:', perms);
                 setRolePermissions(perms as Record<UserRole, Permission[]>);
+            } else {
+                // Fallback to local ROLE_PERMISSIONS if Firebase is empty
+                console.log('📋 Using default ROLE_PERMISSIONS (Firebase empty)');
+                setRolePermissions(ROLE_PERMISSIONS);
             }
             setEmployees(emps);
             setCustomers(custs);
 
-            // Always use DEFAULT_NAVIGATION from local constants
-            // This ensures we use the latest navigation structure
-            console.log('🔍 Loading menu items from DEFAULT_NAVIGATION');
-            console.log('📋 DEFAULT_NAVIGATION length:', DEFAULT_NAVIGATION.length);
-            console.log('📋 First 5 items:', DEFAULT_NAVIGATION.slice(0, 5).map(i => i.label));
-            setMenuItems(DEFAULT_NAVIGATION);
+            // Use menu items from Firebase if available, otherwise fallback to DEFAULT_NAVIGATION
+            if (menu && menu.length > 0) {
+                console.log('🔍 Loading menu items from Firebase');
+                console.log('📋 Menu items length:', menu.length);
+                setMenuItems(menu);
+            } else {
+                console.log('⚠️ No menu items in Firebase, using DEFAULT_NAVIGATION fallback');
+                setMenuItems(DEFAULT_NAVIGATION);
+            }
 
             // Load financial data if authorized
             await refreshFinancialData();
@@ -155,7 +164,7 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
     };
 
     useEffect(() => {
-        if (userRole && userRole !== 'customer' && userRole !== 'driver') {
+        if (userRole) {
             refreshData();
         } else {
             setLoading(false);
