@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../shared/contexts/AuthContext';
 import { firebaseService } from '../../shared/services/firebaseService';
-import { ParcelBooking } from '../../../types';
+import { ParcelBooking } from '../../shared/types';
 import { DriverDeliveryCard } from '../../../components/driver/DriverDeliveryCard';
 import { Card } from '../../../components/ui/Card';
 
@@ -31,6 +31,30 @@ export default function DriverJobsView() {
         loadDeliveries();
     }, [user]);
 
+    const handleAction = async (bookingId: string, itemId: string, action: 'DELIVER' | 'RETURN' | 'TRANSFER') => {
+        try {
+            await firebaseService.updateParcelItemStatus(bookingId, itemId, action === 'DELIVER' ? 'DELIVERED' : action === 'RETURN' ? 'RETURN_TO_SENDER' : 'IN_TRANSIT');
+            // Refresh
+            const bookings = await firebaseService.getParcelBookings();
+            const myDeliveries = bookings.filter(b => b.driverId === user!.uid);
+            setDeliveries(myDeliveries);
+        } catch (error) {
+            console.error('Action failed', error);
+        }
+    };
+
+    const handleUpdateCod = async (bookingId: string, itemId: string, amount: number, currency: 'USD' | 'KHR') => {
+        try {
+            await firebaseService.updateParcelItemCOD(bookingId, itemId, amount, currency);
+            // Refresh
+            const bookings = await firebaseService.getParcelBookings();
+            const myDeliveries = bookings.filter(b => b.driverId === user!.uid);
+            setDeliveries(myDeliveries);
+        } catch (error) {
+            console.error('COD update failed', error);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -58,25 +82,11 @@ export default function DriverJobsView() {
                             <DriverDeliveryCard
                                 key={delivery.id}
                                 job={delivery}
-                                user={user!}
-                                onSave={async () => {
-                                    // Reload deliveries after save
-                                    const bookings = await firebaseService.getParcelBookings();
-                                    const myDeliveries = bookings.filter(b => b.driverId === user!.uid);
-                                    setDeliveries(myDeliveries);
-                                }}
-                                onFinish={async () => {
-                                    // Reload deliveries after finish
-                                    const bookings = await firebaseService.getParcelBookings();
-                                    const myDeliveries = bookings.filter(b => b.driverId === user!.uid);
-                                    setDeliveries(myDeliveries);
-                                }}
-                                onCancel={async () => {
-                                    // Reload deliveries after cancel
-                                    const bookings = await firebaseService.getParcelBookings();
-                                    const myDeliveries = bookings.filter(b => b.driverId === user!.uid);
-                                    setDeliveries(myDeliveries);
-                                }}
+                                onZoomImage={(url) => window.open(url, '_blank')}
+                                onAction={handleAction}
+                                onUpdateCod={handleUpdateCod}
+                                onChatClick={(id, item) => console.log('Chat clicked', id, item)}
+                                hasBranches={false}
                             />
                         ))}
                     </div>

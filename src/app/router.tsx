@@ -50,11 +50,15 @@ const SeedPermissionsView = lazy(() => import('./views/SeedPermissionsView'));
 const DriverJobsView = lazy(() => import('./views/DriverJobsView'));
 const DriverPickupsView = lazy(() => import('./views/DriverPickupsView'));
 const DriverEarningsView = lazy(() => import('./views/DriverEarningsView'));
+const DriverWalletView = lazy(() => import('./views/DriverWalletView'));
+const DriverProfileView = lazy(() => import('./views/DriverProfileView'));
 
 // Customer Views
 const CustomerBookingView = lazy(() => import('./views/CustomerBookingView'));
 const CustomerParcelsView = lazy(() => import('./views/CustomerParcelsView'));
 const CustomerTrackingView = lazy(() => import('./views/CustomerTrackingView'));
+const CustomerWalletView = lazy(() => import('./views/CustomerWalletView'));
+const CustomerReportView = lazy(() => import('./views/CustomerReportView'));
 const CustomerProfileView = lazy(() => import('./views/CustomerProfileView'));
 
 // Loading fallback
@@ -318,6 +322,22 @@ const routes: RouteObject[] = [
                     </PermissionRoute>
                 ),
             },
+            {
+                path: 'driver/wallet',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_DRIVER_EARNINGS">
+                        {withSuspense(DriverWalletView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'driver/profile',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_PROFILE">
+                        {withSuspense(DriverProfileView)}
+                    </PermissionRoute>
+                ),
+            },
             // Customer Routes
             {
                 path: 'customer/booking',
@@ -336,6 +356,14 @@ const routes: RouteObject[] = [
                 ),
             },
             {
+                path: 'customer/reports',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_MY_PARCELS">
+                        {withSuspense(CustomerReportView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
                 path: 'customer/tracking',
                 element: (
                     <PermissionRoute requiredPermission="TRACK_PARCELS">
@@ -348,6 +376,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="VIEW_PROFILE">
                         {withSuspense(CustomerProfileView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'customer/wallet',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_PROFILE">
+                        {withSuspense(CustomerWalletView)}
                     </PermissionRoute>
                 ),
             },

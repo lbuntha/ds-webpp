@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../shared/contexts/AuthContext';
 import { firebaseService } from '../../shared/services/firebaseService';
-import { ParcelBooking } from '../../../types';
+import { ParcelBooking } from '../../shared/types';
 import { DriverPickupProcessor } from '../../../components/driver/DriverPickupProcessor';
 import { Card } from '../../../components/ui/Card';
 

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { firebaseService } from '../../shared/services/firebaseService';
-import { ROLE_PERMISSIONS } from '../../shared/constants';
+import { ROLE_PERMISSIONS, DEFAULT_NAVIGATION } from '../../shared/constants';
 import { Card } from '../../../components/ui/Card';
 
 /**
- * Admin utility to seed role permissions to Firebase
- * This syncs the ROLE_PERMISSIONS constant to Firebase
+ * Admin utility to seed role permissions and menu items to Firebase
+ * This syncs the code constants to Firebase
  */
 export default function SeedPermissionsView() {
     const [loading, setLoading] = useState(false);
@@ -34,12 +34,32 @@ export default function SeedPermissionsView() {
         setMessage('');
 
         try {
-            // Directly update the settings/permissions document in Firebase
-            const { getFirestore, doc, setDoc } = await import('firebase/firestore');
+            // Import Firestore functions dynamically
+            const { getFirestore, doc, setDoc, collection, getDocs, writeBatch } = await import('firebase/firestore');
             const db = getFirestore();
+
+            // 1. Seed Permissions
             await setDoc(doc(db, 'settings', 'permissions'), ROLE_PERMISSIONS);
 
-            setMessage('✅ Permissions seeded successfully! Reloading...');
+            // 2. Seed Navigation Menu
+            // First, delete existing menu items to avoid duplicates
+            const menuRef = collection(db, 'navigation_menu');
+            const menuSnap = await getDocs(menuRef);
+            const batch = writeBatch(db);
+
+            menuSnap.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+
+            // Add new menu items
+            DEFAULT_NAVIGATION.forEach((item) => {
+                const newDocRef = doc(menuRef, item.id); // Use item.id as doc ID for stability
+                batch.set(newDocRef, item);
+            });
+
+            await batch.commit();
+
+            setMessage('✅ Permissions & Menu seeded successfully! Reloading...');
 
             // Reload to show updated permissions
             setTimeout(() => {
@@ -53,16 +73,19 @@ export default function SeedPermissionsView() {
 
     return (
         <div className="space-y-6">
-            <Card title="Seed Role Permissions to Firebase">
+            <Card title="Seed System Configuration">
                 <div className="space-y-6">
                     <p className="text-gray-600">
-                        This will update Firebase (<code className="bg-gray-100 px-2 py-1 rounded">settings/permissions</code>) with the default role permissions from the code.
-                        Use this if customer/driver users can't access their menu items.
+                        This will update Firebase with the default values from the code:
+                        <ul className="list-disc ml-5 mt-2">
+                            <li><strong>Permissions:</strong> <code className="bg-gray-100 px-2 py-1 rounded">settings/permissions</code></li>
+                            <li><strong>Navigation Menu:</strong> <code className="bg-gray-100 px-2 py-1 rounded">navigation_menu</code> collection</li>
+                        </ul>
                     </p>
 
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                         <p className="text-sm text-yellow-800">
-                            <strong>Warning:</strong> This will overwrite any custom permissions you've set in Firebase.
+                            <strong>Warning:</strong> This will overwrite any custom permissions or menu items you've created in Firebase.
                         </p>
                     </div>
 
@@ -79,19 +102,26 @@ export default function SeedPermissionsView() {
                         </div>
 
                         <div className="space-y-2">
-                            <h4 className="font-semibold text-gray-900">Code Constants (ROLE_PERMISSIONS):</h4>
-                            <pre className="bg-blue-50 p-4 rounded text-xs overflow-auto max-h-96 border border-blue-200">
-                                {JSON.stringify(ROLE_PERMISSIONS, null, 2)}
-                            </pre>
+                            <h4 className="font-semibold text-gray-900">Code Constants (To be seeded):</h4>
+                            <div className="bg-blue-50 p-4 rounded text-xs overflow-auto max-h-96 border border-blue-200 space-y-4">
+                                <div>
+                                    <strong>Permissions:</strong>
+                                    <pre>{JSON.stringify(ROLE_PERMISSIONS, null, 2)}</pre>
+                                </div>
+                                <div className="border-t border-blue-200 pt-4">
+                                    <strong>Menu Items ({DEFAULT_NAVIGATION.length}):</strong>
+                                    <pre>{JSON.stringify(DEFAULT_NAVIGATION.map(n => n.label), null, 2)}</pre>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <button
                         onClick={handleSeed}
                         disabled={loading}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 w-full"
                     >
-                        {loading ? 'Seeding...' : 'Seed Permissions to Firebase'}
+                        {loading ? 'Seeding Configuration...' : 'Seed Permissions & Menu to Firebase'}
                     </button>
 
                     {message && (

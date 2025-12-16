@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, WalletTransaction, Account, AccountType, AccountSubType, ParcelBooking, SystemSettings, DriverCommissionRule, Employee, CurrencyConfig } from '../../types';
+import { UserProfile, WalletTransaction, Account, AccountType, AccountSubType, ParcelBooking, SystemSettings, DriverCommissionRule, Employee, CurrencyConfig } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { firebaseService } from '../../services/firebaseService';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { firebaseService } from '../../src/shared/services/firebaseService';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { ImageUpload } from '../ui/ImageUpload';
 import { SettlementReportModal } from '../ui/SettlementReportModal';
 import { toast } from '../../src/shared/utils/toast';
