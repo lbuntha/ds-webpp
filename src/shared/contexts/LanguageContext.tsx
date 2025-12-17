@@ -8,6 +8,36 @@ const translations = {
   en: {
     // General
     dashboard: "Dashboard",
+    Dashboard: "Dashboard",
+    // New Title Case Keys
+    Analytics: "Analytics",
+    Journal: "General Journal",
+    Banking: "Banking & Cash",
+    "Staff Loans": "Staff Loans",
+    Closing: "Period Closing",
+    Booking: "Booking",
+    "Parcel List": "Parcel Bookings",
+    Operations: "Operations",
+    Dispatch: "Dispatch",
+    Warehouse: "Warehouse",
+    Fleet: "Fleet",
+    Places: "Places & Zones",
+    Commissions: "Commissions",
+    "Logistics Config": "Logistics Configuration",
+    Reports: "Reports",
+    "Aging Report": "Aging Report",
+    Retention: "Retention",
+    Configuration: "Configuration",
+    Users: "Users",
+    Manual: "User Manual",
+    "My Deliveries": "My Deliveries",
+    "Pickup Jobs": "Pickup Jobs",
+    "My Earnings": "My Earnings",
+    "My Wallet": "My Wallet",
+    "New Booking": "New Booking",
+    "My Parcels": "My Parcels",
+    Tracking: "Tracking",
+    "My Profile": "My Profile",
     loading: "Loading...",
     save: "Save",
     cancel: "Cancel",
@@ -29,7 +59,7 @@ const translations = {
     next: "Next",
     reset: "Reset",
     remove: "Remove",
-    
+
     // Statuses
     status_PENDING: "Pending",
     status_CONFIRMED: "Accepted",
@@ -43,7 +73,7 @@ const translations = {
     status_APPROVED: "Approved",
     status_REJECTED: "Rejected",
     status_SETTLED: "Settled",
-    
+
     // Wallet & Settlement
     wallet: "Wallet",
     my_wallet: "My Wallet",
@@ -62,7 +92,7 @@ const translations = {
     wallet_debit: "Wallet Debit",
     transaction_type: "Transaction Type",
     pending_approval: "Pending Approval",
-    
+
     // Admin Sidebar
     analytics: "Analytics",
     journal: "General Journal",
@@ -97,7 +127,7 @@ const translations = {
     amount: "Amount",
     currency: "Currency",
     exchange_rate: "Exchange Rate",
-    
+
     // Reports
     trial_balance: "Trial Balance",
     balance_sheet: "Balance Sheet",
@@ -180,7 +210,11 @@ const translations = {
     items: "Items",
     fee: "Fee",
     warehouse: "Warehouse",
-    
+    places: "Places & Zones",
+    commissions: "Commissions",
+    logistics_config: "Logistics Configuration",
+    booking: "Booking",
+
     // Logistics Booking Form
     step_sender: "Sender & Route",
     step_items: "Parcel Items",
@@ -215,7 +249,7 @@ const translations = {
     showing: "Showing",
     reset_filters: "Reset Filters",
     booking_ref: "Ref",
-    
+
     // Customer Portal
     my_profile: "My Profile",
     new_booking: "New Booking",
@@ -226,7 +260,7 @@ const translations = {
     history: "History",
     spent: "Spent",
     new_order: "New Order",
-    
+
     // Customer Summary Report
     summary_report: "Summary Report",
     financial_overview: "Financial overview of your deliveries.",
@@ -255,7 +289,7 @@ const translations = {
     review_financials: "Review & Financials",
     cancel_booking: "Cancel Booking",
     confirm_cancel: "Are you sure you want to cancel this booking?",
-    
+
     // Driver Portal
     my_jobs: "My Jobs",
     pickups: "Pickups",
@@ -269,7 +303,7 @@ const translations = {
     completed: "Completed",
     failed_return: "Failed / Return",
     confirm_pickup: "Confirm Pickup",
-    
+
     // Profile & Customer Settings
     saved_locations: "Saved Locations",
     bank_accounts: "Bank Accounts",
@@ -301,7 +335,7 @@ const translations = {
     copied: "Copied!",
     confirm_delete_location: "Delete this location?",
     confirm_delete_bank: "Delete this bank account?",
-    
+
     // COD Rate Preference
     cod_pref_title: "COD Exchange Rate Preference",
     daily_rate_title: "Daily Exchange Rate",
@@ -330,6 +364,36 @@ const translations = {
   km: {
     // General
     dashboard: "ផ្ទាំងគ្រប់គ្រង",
+    Dashboard: "ផ្ទាំងគ្រប់គ្រង",
+    // New Title Case Keys (Khmer)
+    Analytics: "វិភាគទិន្នន័យ",
+    Journal: "កំណត់ត្រាគណនេយ្យ",
+    Banking: "ធនាគារ & សាច់ប្រាក់",
+    "Staff Loans": "ប្រាក់កម្ចីបុគ្គលិក",
+    Closing: "បិទបញ្ជី",
+    Booking: "ការកក់",
+    "Parcel List": "បញ្ជីបញ្ញើ",
+    Operations: "ប្រតិបត្តិការ",
+    Dispatch: "ចាត់ចែង",
+    Warehouse: "ឃ្លាំង",
+    Fleet: "អ្នកដឹកជញ្ជូន",
+    Places: "ទីតាំង & តំបន់",
+    Commissions: "កម្រៃជើងសារ",
+    "Logistics Config": "ការកំណត់ឡូជីស្ទិក",
+    Reports: "របាយការណ៍ហិរញ្ញវត្ថុ",
+    "Aging Report": "របាយការណ៍បំណុល",
+    Retention: "ការរក្សាទុក",
+    Configuration: "ការកំណត់ប្រព័ន្ធ",
+    Users: "អ្នកប្រើប្រាស់",
+    Manual: "សៀវភៅណែនាំ",
+    "My Deliveries": "ការដឹកជញ្ជូនរបស់ខ្ញុំ",
+    "Pickup Jobs": "ការងារទទួល",
+    "My Earnings": "ចំណូលរបស់ខ្ញុំ",
+    "My Wallet": "កាបូបលុយខ្ញុំ",
+    "New Booking": "ការកក់ថ្មី",
+    "My Parcels": "កញ្ចប់របស់ខ្ញុំ",
+    Tracking: "ការតាមដាន",
+    "My Profile": "ប្រវត្តិរូបខ្ញុំ",
     loading: "កំពុងដំណើរការ...",
     save: "រក្សាទុក",
     cancel: "បោះបង់",
@@ -351,7 +415,7 @@ const translations = {
     next: "បន្ទាប់",
     reset: "កំណត់ឡើងវិញ",
     remove: "លុបចេញ",
-    
+
     // Statuses
     status_PENDING: "រង់ចាំ",
     status_CONFIRMED: "បានទទួល",
@@ -365,7 +429,7 @@ const translations = {
     status_APPROVED: "អនុម័ត",
     status_REJECTED: "បដិសេធ",
     status_SETTLED: "ទូទាត់ហើយ",
-    
+
     // Wallet & Settlement
     wallet: "កាបូបលុយ",
     my_wallet: "កាបូបលុយខ្ញុំ",
@@ -502,7 +566,17 @@ const translations = {
     items: "ទំនិញ",
     fee: "ថ្លៃសេវា",
     warehouse: "ឃ្លាំង",
-    
+    places: "ទីតាំង & តំបន់",
+    commissions: "កម្រៃជើងសារ",
+    logistics_config: "ការកំណត់ឡូជីស្ទិក",
+    booking: "ការកក់",
+    retention: "ការរក្សាទុក",
+    tracking: "ការតាមដាន",
+    my_deliveries: "ការដឹកជញ្ជូនរបស់ខ្ញុំ",
+    pickup_jobs: "ការងារទទួល",
+    my_earnings: "ចំណូលរបស់ខ្ញុំ",
+    my_parcels: "កញ្ចប់របស់ខ្ញុំ",
+
     // Logistics Booking Form
     step_sender: "អ្នកផ្ញើ & ផ្លូវ",
     step_items: "ទំនិញបញ្ញើ",
@@ -562,7 +636,7 @@ const translations = {
     delivery_fee: "ថ្លៃដឹក",
     cod_amount_table: "ចំនួន COD",
     no_transactions_period: "រកមិនឃើញប្រតិបត្តិការនៅក្នុងអំឡុងពេលនេះទេ។",
-    
+
     // Customer Booking Form
     sender_route: "អ្នកផ្ញើ & ផ្លូវ",
     parcel_details: "ព័ត៌មានលម្អិតអំពីកញ្ចប់",
@@ -577,7 +651,7 @@ const translations = {
     review_financials: "ពិនិត្យ & ហិរញ្ញវត្ថុ",
     cancel_booking: "បោះបង់ការកក់",
     confirm_cancel: "តើអ្នកប្រាកដថាចង់បោះបង់ការកក់នេះទេ?",
-    
+
     // Driver Portal
     my_jobs: "ការងារខ្ញុំ",
     pickups: "ការទទួល",
@@ -591,7 +665,7 @@ const translations = {
     completed: "បានបញ្ចប់",
     failed_return: "បរាជ័យ / ត្រឡប់",
     confirm_pickup: "បញ្ជាក់ការទទួល",
-    
+
     // Profile & Customer Settings
     saved_locations: "ទីតាំងដែលបានរក្សាទុក",
     bank_accounts: "គណនីធនាគារ",

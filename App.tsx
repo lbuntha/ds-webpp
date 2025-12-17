@@ -142,15 +142,14 @@ function App() {
             // Force re-seed menu from local constants to Firebase
             // This ensures Firebase always has the latest menu structure
             if (user.role === 'system-admin') {
-                console.log('🔄 Re-seeding menu to Firebase from DEFAULT_NAVIGATION...');
-                try {
+                // Check if menu exists, if zero items, seed defaults
+                const existingMenu = await firebaseService.getMenuItems();
+                if (!existingMenu || existingMenu.length === 0) {
+                    console.log('🔄 Seeding default menu (first run)...');
                     await firebaseService.seedDefaultMenu();
-                    const freshMenu = await firebaseService.getMenuItems();
-                    setMenuItems(freshMenu.length > 0 ? freshMenu : DEFAULT_NAVIGATION);
-                    console.log('✅ Menu loaded from Firebase:', freshMenu.length, 'items');
-                } catch (error) {
-                    console.warn('⚠️ Failed to seed menu, using local constants:', error);
                     setMenuItems(DEFAULT_NAVIGATION);
+                } else {
+                    setMenuItems(existingMenu);
                 }
             } else {
                 // Non-admin: Load from Firebase or use defaults
@@ -276,6 +275,27 @@ function App() {
 
         // No permission required, show to all allowed roles
         return true;
+    }).sort((a, b) => {
+        // Sort by Section Priority first
+        // Priority: undefined/null (Finance) -> Logistics -> Reports -> System -> Others
+        const getSectionPriority = (sec?: string) => {
+            const s = (sec || '').toLowerCase();
+            if (!s) return 0; // Finance / Dashboard
+            if (s === 'logistics') return 10;
+            if (s === 'reports') return 20;
+            if (s === 'system') return 90;
+            return 50; // Other custom sections
+        };
+
+        const priorityA = getSectionPriority(a.section);
+        const priorityB = getSectionPriority(b.section);
+
+        if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+        }
+
+        // Secondary sort: Order
+        return a.order - b.order;
     });
 
     return (
@@ -283,37 +303,59 @@ function App() {
             <div className="w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col transition-all duration-300 shadow-xl z-20">
                 <div className="p-4 flex items-center space-x-3 border-b border-slate-800">
                     <div className="h-8 w-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-red-900/50">D</div>
-                    <span className="font-bold text-lg truncate tracking-tight">{settings.companyName || 'Doorstep'}</span>
+                    <span className="font-bold text-lg truncate tracking-tight">{settings.companyName || 'Doorstep (DEBUG)'}</span>
                 </div>
 
                 <nav className="flex-1 overflow-y-auto py-4 space-y-1">
-                    {visibleMenuItems.map((item) => (
-                        <React.Fragment key={item.id}>
-                            {/* Section Header */}
-                            {item.section === 'logistics' && item.order === 20 && (
-                                <div className="pt-4 pb-2 px-6 text-xs text-slate-500 font-bold uppercase tracking-wider">Logistics</div>
-                            )}
-                            {item.section === 'system' && item.order === 90 && (
-                                <div className="pt-4 pb-2 px-6 text-xs text-slate-500 font-bold uppercase tracking-wider">{t('system')}</div>
-                            )}
+                    {/* DEBUG: List active sections */}
+                    {/* {Array.from(new Set(visibleMenuItems.map(i => i.section))).join(', ')} */}
 
-                            {/* Menu Item */}
-                            <button
-                                onClick={() => setActiveView(item.viewId)}
-                                className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-all duration-200 ${activeView === item.viewId
-                                    ? 'bg-slate-800 border-l-4 border-red-600 text-white'
-                                    : 'hover:bg-slate-800 text-slate-400 hover:text-white'
-                                    } ${item.section === 'logistics' ? 'pl-8' : ''}`}
-                            >
-                                <span className="mr-3"><MenuIcon iconKey={item.iconKey} className="w-4 h-4" /></span>
-                                {
-                                    // @ts-ignore
-                                    t(item.label)
-                                }
-                            </button>
-                        </React.Fragment>
-                    ))}
+                    {visibleMenuItems.map((item, index) => {
+                        const prevItem = index > 0 ? visibleMenuItems[index - 1] : null;
+                        // Compare sections case-insensitively? No, they are IDs/keys usually.
+                        // But let's assume strict equality for creating a NEW header block.
+                        const showSectionHeader = item.section && (!prevItem || prevItem.section !== item.section);
+
+                        return (
+                            <React.Fragment key={item.id}>
+                                {/* Section Header */}
+                                {showSectionHeader && (
+                                    <div className="pt-4 pb-2 px-6 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                        {item.section?.toLowerCase() === 'system' ? t('system') : item.section}
+                                    </div>
+                                )}
+
+                                {/* Menu Item */}
+                                <button
+                                    onClick={() => setActiveView(item.viewId)}
+                                    className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-all duration-200 ${activeView === item.viewId
+                                        ? 'bg-slate-800 border-l-4 border-red-600 text-white'
+                                        : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                                        } ${item.section?.toLowerCase() === 'logistics' ? 'pl-8' : ''}`}
+                                >
+                                    <span className="mr-3"><MenuIcon iconKey={item.iconKey} className="w-4 h-4" /></span>
+                                    {
+                                        // @ts-ignore
+                                        t(item.label)
+                                    }
+                                </button>
+                            </React.Fragment>
+                        )
+                    })}
                 </nav>
+
+                <div className="p-4 border-t border-slate-800 bg-slate-900 text-[10px] text-slate-500 font-mono h-40 overflow-y-auto">
+                    <p className="font-bold text-white mb-1">Debug Info</p>
+                    <p>User Role: {user.role}</p>
+                    <div className="space-y-1 mt-2">
+                        {visibleMenuItems.map(i => (
+                            <div key={i.id} className="flex justify-between border-b border-slate-800 pb-0.5">
+                                <span className="truncate w-20">{t(i.label)}</span>
+                                <span className="text-yellow-500">{i.section || 'None'}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
                 <div className="p-4 border-t border-slate-800 bg-slate-900">
                     <button onClick={() => setActiveView('PROFILE')} className="flex items-center w-full text-left group">

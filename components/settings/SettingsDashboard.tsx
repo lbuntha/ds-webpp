@@ -39,6 +39,7 @@ interface Props {
     onRunSetup?: () => void;
     onUpdateSettings: (settings: SystemSettings) => Promise<void>;
     onClearData?: () => Promise<void>;
+    onMenuUpdate?: () => void;
 }
 
 export const SettingsDashboard: React.FC<Props> = ({
@@ -47,7 +48,7 @@ export const SettingsDashboard: React.FC<Props> = ({
     onAddBranch, onUpdateBranch, onDeleteBranch,
     onAddCurrency, onUpdateCurrency,
     onAddTaxRate, onUpdateTaxRate,
-    onRunSetup, onUpdateSettings, onClearData
+    onRunSetup, onUpdateSettings, onClearData, onMenuUpdate
 }) => {
     const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<'GENERAL' | 'COA' | 'BRANCHES' | 'CURRENCIES' | 'TAXES' | 'COMMISSIONS' | 'REFERRAL' | 'MENU' | 'RULES' | 'PERMISSIONS' | 'ROUTES'>('GENERAL');
@@ -436,7 +437,7 @@ export const SettingsDashboard: React.FC<Props> = ({
             )}
 
             {/* ... (Existing Tabs content maintained: COA, BRANCHES, COMMISSIONS, etc) ... */}
-            {activeTab === 'MENU' && <MenuManagement />}
+            {activeTab === 'MENU' && <MenuManagement onUpdateMenuItem={onMenuUpdate} />}
             {activeTab === 'REFERRAL' && <ReferralSettings />}
             {activeTab === 'COMMISSIONS' && <DriverCommissionSetup />}
 

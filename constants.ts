@@ -143,43 +143,46 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Permission[]> = {
 
 export const DEFAULT_NAVIGATION: NavigationItem[] = [
   // Finance Group
-  { id: 'nav-dashboard', label: 'dashboard', viewId: 'DASHBOARD', iconKey: 'dashboard', order: 1, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse'], requiredPermission: 'VIEW_DASHBOARD', permissionGroup: 'FINANCE' },
-  { id: 'nav-analytics', label: 'analytics', viewId: 'ANALYTICS', iconKey: 'analytics', order: 2, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_DASHBOARD', permissionGroup: 'FINANCE' },
-  { id: 'nav-journal', label: 'journal', viewId: 'JOURNAL', iconKey: 'journal', order: 3, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_JOURNAL', permissionGroup: 'FINANCE' },
-  { id: 'nav-banking', label: 'banking', viewId: 'BANKING', iconKey: 'banking', order: 6, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'MANAGE_BANKING', permissionGroup: 'FINANCE' },
-  { id: 'nav-staff', label: 'staff_loans', viewId: 'STAFF', iconKey: 'staff', order: 7, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'MANAGE_STAFF_LOANS', permissionGroup: 'FINANCE' },
-  { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 9, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'PERFORM_CLOSING', permissionGroup: 'FINANCE' },
+  { id: 'nav-dashboard', label: 'Dashboard', viewId: 'DASHBOARD', iconKey: 'dashboard', order: 1, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse'], requiredPermission: 'VIEW_DASHBOARD', permissionGroup: 'FINANCE' },
+  { id: 'nav-analytics', label: 'Analytics', viewId: 'ANALYTICS', iconKey: 'analytics', order: 2, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_DASHBOARD', permissionGroup: 'FINANCE' },
+  { id: 'nav-journal', label: 'Journal', viewId: 'JOURNAL', iconKey: 'journal', order: 3, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_JOURNAL', permissionGroup: 'FINANCE' },
+  { id: 'nav-banking', label: 'Banking', viewId: 'BANKING', iconKey: 'banking', order: 6, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'MANAGE_BANKING', permissionGroup: 'FINANCE' },
+  { id: 'nav-staff', label: 'Staff Loans', viewId: 'STAFF', iconKey: 'staff', order: 7, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'MANAGE_STAFF_LOANS', permissionGroup: 'FINANCE' },
+  { id: 'nav-closing', label: 'Closing', viewId: 'CLOSING', iconKey: 'closing', order: 9, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'PERFORM_CLOSING', permissionGroup: 'FINANCE' },
 
   // Logistics Group - Granular Items
-  { id: 'nav-logistics-booking', label: 'booking', viewId: 'PARCELS_BOOKING', iconKey: 'booking', order: 20, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'CREATE_BOOKING', permissionGroup: 'LOGISTICS', section: 'logistics' },
-  { id: 'nav-logistics-list', label: 'parcel_list', viewId: 'PARCELS_LIST', iconKey: 'list', order: 21, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'VIEW_LOGISTICS_OVERVIEW', permissionGroup: 'LOGISTICS', section: 'logistics' },
-  { id: 'nav-logistics-operations', label: 'operations', viewId: 'PARCELS_OPERATIONS', iconKey: 'operations', order: 22, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'VIEW_LOGISTICS_OVERVIEW', permissionGroup: 'LOGISTICS', section: 'logistics' },
-  { id: 'nav-logistics-dispatch', label: 'dispatch', viewId: 'PARCELS_DISPATCH', iconKey: 'dispatch', order: 23, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_DISPATCH', permissionGroup: 'LOGISTICS', section: 'logistics' },
-  { id: 'nav-logistics-warehouse', label: 'warehouse', viewId: 'PARCELS_WAREHOUSE', iconKey: 'warehouse', order: 24, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'MANAGE_WAREHOUSE', permissionGroup: 'LOGISTICS', section: 'logistics' },
-  { id: 'nav-logistics-fleet', label: 'fleet', viewId: 'PARCELS_FLEET', iconKey: 'fleet', order: 25, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_FLEET', permissionGroup: 'LOGISTICS', section: 'logistics' },
-  { id: 'nav-logistics-places', label: 'places', viewId: 'PARCELS_PLACES', iconKey: 'places', order: 26, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'MANAGE_LOGISTICS_CONFIG', permissionGroup: 'LOGISTICS', section: 'logistics' },
-  { id: 'nav-logistics-config', label: 'logistics_config', viewId: 'PARCELS_CONFIG', iconKey: 'config', order: 27, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_LOGISTICS_CONFIG', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-booking', label: 'Booking', viewId: 'PARCELS_BOOKING', iconKey: 'booking', order: 20, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'CREATE_BOOKING', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-list', label: 'Parcel List', viewId: 'PARCELS_LIST', iconKey: 'list', order: 21, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'VIEW_LOGISTICS_OVERVIEW', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-operations', label: 'Operations', viewId: 'PARCELS_OPERATIONS', iconKey: 'operations', order: 22, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'VIEW_LOGISTICS_OVERVIEW', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-dispatch', label: 'Dispatch', viewId: 'PARCELS_DISPATCH', iconKey: 'dispatch', order: 23, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_DISPATCH', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-warehouse', label: 'Warehouse', viewId: 'PARCELS_WAREHOUSE', iconKey: 'warehouse', order: 24, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'MANAGE_WAREHOUSE', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-fleet', label: 'Fleet', viewId: 'PARCELS_FLEET', iconKey: 'fleet', order: 25, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_FLEET', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-places', label: 'Places', viewId: 'PARCELS_PLACES', iconKey: 'places', order: 26, allowedRoles: ['system-admin', 'warehouse'], requiredPermission: 'MANAGE_LOGISTICS_CONFIG', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-commissions', label: 'Commissions', viewId: 'PARCELS_COMMISSIONS', iconKey: 'percent', order: 27, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_LOGISTICS_CONFIG', permissionGroup: 'LOGISTICS', section: 'logistics' },
+  { id: 'nav-logistics-config', label: 'Logistics Config', viewId: 'PARCELS_CONFIG', iconKey: 'config', order: 28, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_LOGISTICS_CONFIG', permissionGroup: 'LOGISTICS', section: 'logistics' },
 
   // Reports Group
-  { id: 'nav-reports', label: 'reports', viewId: 'REPORTS', iconKey: 'reports', order: 40, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_REPORTS', permissionGroup: 'REPORTS' },
-  { id: 'nav-aging-report', label: 'aging_report', viewId: 'PARCELS_AGING', iconKey: 'aging', order: 41, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'VIEW_REPORTS', permissionGroup: 'REPORTS' },
-  { id: 'nav-retention-report', label: 'retention', viewId: 'PARCELS_RETENTION', iconKey: 'retention', order: 42, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'VIEW_REPORTS', permissionGroup: 'REPORTS' },
+  { id: 'nav-reports', label: 'Reports', viewId: 'REPORTS', iconKey: 'reports', order: 40, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_REPORTS', permissionGroup: 'REPORTS' },
+  { id: 'nav-aging-report', label: 'Aging Report', viewId: 'PARCELS_AGING', iconKey: 'aging', order: 41, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'VIEW_REPORTS', permissionGroup: 'REPORTS' },
+  { id: 'nav-retention-report', label: 'Retention', viewId: 'PARCELS_RETENTION', iconKey: 'retention', order: 42, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'VIEW_REPORTS', permissionGroup: 'REPORTS' },
 
   // System Group
-  { id: 'nav-settings', label: 'configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_SETTINGS', permissionGroup: 'SYSTEM', section: 'system' },
-  { id: 'nav-users', label: 'users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_USERS', permissionGroup: 'SYSTEM', section: 'system' },
-  { id: 'nav-manual', label: 'manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'], section: 'system' },
+  { id: 'nav-settings', label: 'Configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_SETTINGS', permissionGroup: 'SYSTEM', section: 'system' },
+  { id: 'nav-users', label: 'Users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], requiredPermission: 'MANAGE_USERS', permissionGroup: 'SYSTEM', section: 'system' },
+  { id: 'nav-manual', label: 'Manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'], section: 'system' },
 
   // Driver Features
-  { id: 'nav-driver-jobs', label: 'my_deliveries', viewId: 'DRIVER_JOBS', iconKey: 'truck', order: 100, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_JOBS', permissionGroup: 'DRIVER' },
-  { id: 'nav-driver-pickups', label: 'pickup_jobs', viewId: 'DRIVER_PICKUPS', iconKey: 'package', order: 101, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_PICKUPS', permissionGroup: 'DRIVER' },
-  { id: 'nav-driver-earnings', label: 'my_earnings', viewId: 'DRIVER_EARNINGS', iconKey: 'dollar', order: 102, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_EARNINGS', permissionGroup: 'DRIVER' },
+  { id: 'nav-driver-jobs', label: 'My Deliveries', viewId: 'DRIVER_JOBS', iconKey: 'truck', order: 100, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_JOBS', permissionGroup: 'DRIVER' },
+  { id: 'nav-driver-pickups', label: 'Pickup Jobs', viewId: 'DRIVER_PICKUPS', iconKey: 'package', order: 101, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_PICKUPS', permissionGroup: 'DRIVER' },
+  { id: 'nav-driver-earnings', label: 'My Earnings', viewId: 'DRIVER_EARNINGS', iconKey: 'dollar', order: 102, allowedRoles: ['driver'], requiredPermission: 'VIEW_DRIVER_EARNINGS', permissionGroup: 'DRIVER' },
+  { id: 'nav-driver-wallet', label: 'My Wallet', viewId: 'DRIVER_WALLET', iconKey: 'wallet', order: 103, allowedRoles: ['driver'], requiredPermission: 'DRIVER_ACCESS_WALLET', permissionGroup: 'DRIVER' },
 
   // Customer Features
-  { id: 'nav-customer-booking', label: 'new_booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 200, allowedRoles: ['customer'], requiredPermission: 'CREATE_BOOKING', permissionGroup: 'CUSTOMER' },
-  { id: 'nav-customer-parcels', label: 'my_parcels', viewId: 'CUSTOMER_PARCELS', iconKey: 'box', order: 201, allowedRoles: ['customer'], requiredPermission: 'VIEW_MY_PARCELS', permissionGroup: 'CUSTOMER' },
-  { id: 'nav-customer-tracking', label: 'track_shipment', viewId: 'CUSTOMER_TRACKING', iconKey: 'map', order: 202, allowedRoles: ['customer'], requiredPermission: 'TRACK_PARCELS', permissionGroup: 'CUSTOMER' },
-  { id: 'nav-customer-profile', label: 'my_profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 203, allowedRoles: ['customer'], requiredPermission: 'VIEW_PROFILE', permissionGroup: 'CUSTOMER' }
+  { id: 'nav-customer-booking', label: 'New Booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 200, allowedRoles: ['customer'], requiredPermission: 'CREATE_BOOKING', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-parcels', label: 'My Parcels', viewId: 'CUSTOMER_PARCELS', iconKey: 'box', order: 201, allowedRoles: ['customer'], requiredPermission: 'VIEW_MY_PARCELS', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-tracking', label: 'Tracking', viewId: 'CUSTOMER_TRACKING', iconKey: 'map', order: 202, allowedRoles: ['customer'], requiredPermission: 'TRACK_PARCELS', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-wallet', label: 'My Wallet', viewId: 'CUSTOMER_WALLET', iconKey: 'wallet', order: 203, allowedRoles: ['customer'], requiredPermission: 'CUSTOMER_ACCESS_WALLET', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 204, allowedRoles: ['customer'], requiredPermission: 'VIEW_PROFILE', permissionGroup: 'CUSTOMER' }
 ];
 
 // List of Features for UI Mapping

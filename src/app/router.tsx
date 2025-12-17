@@ -35,6 +35,8 @@ const ParcelsFleetView = lazy(() => import('./views/ParcelsFleetView'));
 const ParcelsPlacesView = lazy(() => import('./views/ParcelsPlacesView'));
 const ParcelsProductsView = lazy(() => import('./views/ParcelsProductsView'));
 const ParcelsRetentionView = lazy(() => import('./views/ParcelsRetentionView'));
+const ParcelsServiceSetupView = lazy(() => import('./views/ParcelsServiceSetupView'));
+const DriverCommissionSetupView = lazy(() => import('./views/DriverCommissionSetupView'));
 const ParcelsAgingView = lazy(() => import('./views/ParcelsAgingView'));
 
 // Reports & Settings
@@ -240,10 +242,34 @@ const routes: RouteObject[] = [
                     </PermissionRoute>
                 ),
             },
-            // Redirects for old parcel routes
             {
-                path: 'parcels',
-                element: <Navigate to="/app/parcels/overview" replace />,
+                path: 'parcels/service/setup',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_PARCEL_CONFIG">
+                        {withSuspense(ParcelsServiceSetupView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'parcels/commissions',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_LOGISTICS_CONFIG">
+                        {withSuspense(DriverCommissionSetupView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'parcels/config',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_PARCEL_CONFIG">
+                        {withSuspense(ParcelsServiceSetupView)}
+                    </PermissionRoute>
+                ),
+            },
+            // Redirects for old/alias parcel routes
+            {
+                path: 'parcels/booking',
+                element: <Navigate to="/app/parcels/new" replace />,
             },
             {
                 path: 'parcels/list',

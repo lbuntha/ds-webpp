@@ -8,14 +8,20 @@ import { toast } from '../src/shared/utils/toast';
 
 type PageType = 'HOME' | 'ABOUT' | 'CONTACT' | 'HELP' | 'PRIVACY';
 
-export const LandingPage: React.FC = () => {
+interface Props {
+  onLogin?: () => void;
+  onRegister?: () => void;
+}
+
+export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister: propOnRegister }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState<PageType>('HOME');
   const [scrolled, setScrolled] = useState(false);
 
-  const onLogin = () => navigate('/auth/login');
-  const onRegister = () => navigate('/auth/register');
+  // Use props if provided, otherwise default to navigation
+  const onLogin = propOnLogin || (() => navigate('/auth/login'));
+  const onRegister = propOnRegister || (() => navigate('/auth/register'));
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);

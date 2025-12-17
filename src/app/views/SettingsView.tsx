@@ -79,6 +79,7 @@ export default function SettingsView() {
         await refreshData();
       }}
       onClearData={handleClearData}
+      onMenuUpdate={refreshData}
     />
   );
 }
