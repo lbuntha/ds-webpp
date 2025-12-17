@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RoleBasedRoute } from './RoleBasedRoute';
 import { PermissionRoute } from './PermissionRoute';
+import { RoleBasedRedirect } from './RoleBasedRedirect';
 import { UserRole } from '../shared/types';
 
 // Lazy load components for code splitting
@@ -119,7 +120,7 @@ const routes: RouteObject[] = [
         children: [
             {
                 index: true,
-                element: <Navigate to="/app/dashboard" replace />,
+                element: <RoleBasedRedirect />,
             },
             {
                 path: 'dashboard',
