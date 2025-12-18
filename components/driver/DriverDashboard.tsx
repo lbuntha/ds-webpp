@@ -235,17 +235,6 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
         await firebaseService.saveParcelBooking(finalBooking);
 
-        // REVENUE RECOGNITION (Auto-book Service Fee to GL)
-        if (action === 'DELIVER') {
-            try {
-                // Pass finalBooking to ensure we use latest currency/fee values if recalculated
-                await firebaseService.financeService.recognizeItemRevenue(finalBooking, itemId, settings);
-            } catch (err) {
-                console.error("Failed to auto-recognize revenue", err);
-                // Don't block UI flow
-            }
-        }
-
         // NOTIFICATION TRIGGER: If action is DELIVER, notify Customer
         if (action === 'DELIVER' && booking.senderId) {
             const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
