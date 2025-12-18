@@ -1,11 +1,11 @@
 export const firebaseConfig = {
-  apiKey: "AIzaSyBqib0e-wk2w9NwrhVZ4qLmAo4-QVAMHGU",
-  authDomain: "dsaccounting-18f75.firebaseapp.com",
-  projectId: "dsaccounting-18f75",
-  storageBucket: "dsaccounting-18f75.firebasestorage.app",
-  messagingSenderId: "84268332508",
-  appId: "1:84268332508:web:ef4a9143dc6ccf93010b19",
-  measurementId: "G-NHX29V4CTY"
+  apiKey: import.meta.env.FIREBASE_API_KEY,
+  authDomain: import.meta.env.FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.FIREBASE_APP_ID,
+  measurementId: import.meta.env.FIREBASE_MEASUREMENT_ID
 };
 
 // Since the config is now populated, we set this to true
