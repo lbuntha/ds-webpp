@@ -96,11 +96,39 @@ export const WalletBalanceReport: React.FC = () => {
                 // Debit: Delivery Fees (If delivered or confirmed)
                 // Convert fee to matching currency if needed for display logic, but standard is USD
                 // Here we deduct fee in USD unless user operates purely in KHR (complex, stick to USD for fee)
+                // Debit: Delivery Fees (Pro-rated & Split for Mixed Currencies)
+                const totalItems = bItems.length > 0 ? bItems.length : 1;
                 const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
-                if (itemsDelivered > 0 || b.status === 'COMPLETED' || b.status === 'CONFIRMED') {
-                    // Check if majority of COD is KHR to decide deduction currency (Optional logic)
-                    // For simplicity, deduct fee in USD as stored
-                    balanceMap[senderUid].usd -= b.totalDeliveryFee;
+
+                if (itemsDelivered > 0) {
+                    const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
+                    const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
+
+                    if (isMixed) {
+                        const khrItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR' && i.status === 'DELIVERED').length;
+                        const usdItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'USD' && i.status === 'DELIVERED').length;
+                        const feePerItem = b.totalDeliveryFee / totalItems;
+                        const RATE = 4000;
+
+                        if (khrItemsDelivered > 0) {
+                            let khrVal = feePerItem * khrItemsDelivered;
+                            // If base fee is in USD, convert portion to KHR
+                            if (b.currency === 'USD') khrVal = khrVal * RATE;
+                            balanceMap[senderUid].khr -= khrVal;
+                        }
+                        if (usdItemsDelivered > 0) {
+                            let usdVal = feePerItem * usdItemsDelivered;
+                            // If base fee is in KHR, convert portion to USD
+                            if (b.currency === 'KHR') usdVal = usdVal / RATE;
+                            balanceMap[senderUid].usd -= usdVal;
+                        }
+                    } else {
+                        // Standard Single Currency Logic
+                        const deduction = (b.totalDeliveryFee / totalItems) * itemsDelivered;
+                        const isKHR = b.currency === 'KHR' || (bItems.length > 0 && bItems[0]?.codCurrency === 'KHR');
+                        if (isKHR) balanceMap[senderUid].khr -= deduction;
+                        else balanceMap[senderUid].usd -= deduction;
+                    }
                 }
             }
 
@@ -118,9 +146,45 @@ export const WalletBalanceReport: React.FC = () => {
                     if (zoneRule.type === 'FIXED_AMOUNT') totalComm = zoneRule.value;
                     else totalComm = b.totalDeliveryFee * (zoneRule.value / 100);
 
-                    // Pro-rate
-                    const earned = totalComm * (processedItems / totalItems);
-                    balanceMap[b.driverId].usd += earned;
+                    const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
+                    const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
+
+                    if (isMixed) {
+                        // Split Commission Logic for Mixed Currencies
+                        const processedItemsList = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER');
+                        const khrProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
+                        const usdProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'USD').length;
+
+                        const commPerItem = totalComm / totalItems;
+                        const RATE = 4000;
+
+                        if (khrProcessed > 0) {
+                            let khrVal = commPerItem * khrProcessed;
+                            // Convert to KHR if base is USD
+                            if (b.currency === 'USD') khrVal = khrVal * RATE;
+                            balanceMap[b.driverId].khr += khrVal;
+                        }
+                        if (usdProcessed > 0) {
+                            let usdVal = commPerItem * usdProcessed;
+                            // Convert to USD if base is KHR
+                            if (b.currency === 'KHR') usdVal = usdVal / RATE;
+                            balanceMap[b.driverId].usd += usdVal;
+                        }
+
+                    } else {
+                        // Single Currency Logic
+                        // Pro-rate
+                        const earned = totalComm * (processedItems / totalItems);
+
+                        // Determine Currency
+                        const isKHR = b.currency === 'KHR' || (bItems.length > 0 && bItems[0]?.codCurrency === 'KHR');
+
+                        if (isKHR) {
+                            balanceMap[b.driverId].khr += earned;
+                        } else {
+                            balanceMap[b.driverId].usd += earned;
+                        }
+                    }
                 }
 
                 // Debit: Cash Held (Driver owes company)

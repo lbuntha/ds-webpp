@@ -83,8 +83,17 @@ export const SettingsDashboard: React.FC<Props> = ({
     const [driverCommExpKHR, setDriverCommExpKHR] = useState(settings?.driverCommissionExpenseAccountKHR || '');
 
     // Unified Settlement Accounts
-    const [settlementBankUSD, setSettlementBankUSD] = useState(settings?.defaultDriverSettlementBankIdUSD || settings?.defaultSettlementBankAccountId || '');
-    const [settlementBankKHR, setSettlementBankKHR] = useState(settings?.defaultDriverSettlementBankIdKHR || '');
+    const [driverSettlementBankUSD, setDriverSettlementBankUSD] = useState(settings?.defaultDriverSettlementBankIdUSD || settings?.defaultSettlementBankAccountId || '');
+    const [driverSettlementBankKHR, setDriverSettlementBankKHR] = useState(settings?.defaultDriverSettlementBankIdKHR || '');
+
+    const [customerSettlementBankUSD, setCustomerSettlementBankUSD] = useState(settings?.defaultCustomerSettlementBankIdUSD || settings?.defaultSettlementBankAccountId || '');
+    const [customerSettlementBankKHR, setCustomerSettlementBankKHR] = useState(settings?.defaultCustomerSettlementBankIdKHR || '');
+
+    // Revenue & Tax Defaults
+    const [defaultRevenueUSD, setDefaultRevenueUSD] = useState(settings?.defaultRevenueAccountUSD || '');
+    const [defaultRevenueKHR, setDefaultRevenueKHR] = useState(settings?.defaultRevenueAccountKHR || '');
+    const [defaultTaxUSD, setDefaultTaxUSD] = useState(settings?.defaultTaxAccountUSD || '');
+    const [defaultTaxKHR, setDefaultTaxKHR] = useState(settings?.defaultTaxAccountKHR || '');
 
     const [savingGeneral, setSavingGeneral] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -102,12 +111,22 @@ export const SettingsDashboard: React.FC<Props> = ({
         !a.isHeader
     );
 
-    // Helper to filter by currency (approximate, since some accounts might not have currency set)
+    // Helper to filter by currency
     const getAccountsByCurrency = (list: Account[], curr: 'USD' | 'KHR') => {
         return list.filter(a => !a.currency || a.currency === curr);
     };
 
     // ... (Existing Account Handlers maintained) ...
+
+    const renderAccountSelect = (label: string, value: string, setValue: (val: string) => void, list: Account[]) => (
+        <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">{label}</label>
+            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={value} onChange={e => setValue(e.target.value)}>
+                <option value="">-- Select Account --</option>
+                {list.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+            </select>
+        </div>
+    );
     const handleAccountSubmit = async (acc: Account) => {
         if (editingAccount) await onUpdateAccount(acc);
         else await onAddAccount(acc);
@@ -261,16 +280,22 @@ export const SettingsDashboard: React.FC<Props> = ({
                 driverCommissionExpenseAccountKHR: driverCommExpKHR,
 
                 // Settlement Accounts
-                defaultDriverSettlementBankIdUSD: settlementBankUSD,
-                defaultDriverSettlementBankIdKHR: settlementBankKHR,
+                defaultDriverSettlementBankIdUSD: driverSettlementBankUSD,
+                defaultDriverSettlementBankIdKHR: driverSettlementBankKHR,
 
-                defaultCustomerSettlementBankIdUSD: settlementBankUSD,
-                defaultCustomerSettlementBankIdKHR: settlementBankKHR,
+                defaultCustomerSettlementBankIdUSD: customerSettlementBankUSD,
+                defaultCustomerSettlementBankIdKHR: customerSettlementBankKHR,
 
                 // Fallback
-                defaultDriverSettlementBankId: settlementBankUSD,
-                defaultCustomerSettlementBankId: settlementBankUSD,
-                defaultSettlementBankAccountId: settlementBankUSD,
+                defaultDriverSettlementBankId: driverSettlementBankUSD,
+                defaultCustomerSettlementBankId: customerSettlementBankUSD,
+                defaultSettlementBankAccountId: driverSettlementBankUSD,
+
+                // Revenue & Tax
+                defaultRevenueAccountUSD: defaultRevenueUSD,
+                defaultRevenueAccountKHR: defaultRevenueKHR,
+                defaultTaxAccountUSD: defaultTaxUSD,
+                defaultTaxAccountKHR: defaultTaxKHR
             });
             toast.success("Configuration saved successfully.");
         } catch (e) {
@@ -333,6 +358,22 @@ export const SettingsDashboard: React.FC<Props> = ({
                             <h4 className="text-sm font-bold text-gray-900 mb-4">Financial Integration Mapping</h4>
 
                             <div className="space-y-6">
+                                {/* Service Revenue & Tax Defaults */}
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                    <h5 className="text-xs font-bold text-gray-500 uppercase mb-3">Service Revenue & Tax Liability (Global)</h5>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        {/* Revenue */}
+                                        {renderAccountSelect("Default Revenue Account (USD)", defaultRevenueUSD, setDefaultRevenueUSD, getAccountsByCurrency(accounts.filter(a => a.type === AccountType.REVENUE), 'USD'))}
+                                        {renderAccountSelect("Default Revenue Account (KHR)", defaultRevenueKHR, setDefaultRevenueKHR, getAccountsByCurrency(accounts.filter(a => a.type === AccountType.REVENUE), 'KHR'))}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-200 pt-3">
+                                        {/* Tax */}
+                                        {renderAccountSelect("Default Tax Payable (USD)", defaultTaxUSD, setDefaultTaxUSD, getAccountsByCurrency(liabilityAccounts, 'USD'))}
+                                        {renderAccountSelect("Default Tax Payable (KHR)", defaultTaxKHR, setDefaultTaxKHR, getAccountsByCurrency(liabilityAccounts, 'KHR'))}
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-2 italic">These accounts are used for all products. Tax is only applied if the customer is marked as "Taxable".</p>
+                                </div>
+
                                 {/* Customer Wallets */}
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                     <h5 className="text-xs font-bold text-gray-500 uppercase mb-3">Customer Wallets (Liability)</h5>
@@ -397,19 +438,41 @@ export const SettingsDashboard: React.FC<Props> = ({
                                 </div>
 
                                 {/* Settlement Assets */}
+                                {/* Customer Top-Up Assets (Cash In Bank) */}
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                    <h5 className="text-xs font-bold text-gray-500 uppercase mb-3">Master Settlement Assets (Cash/Bank)</h5>
+                                    <h5 className="text-xs font-bold text-gray-500 uppercase mb-3">Customer Top-Up Asset (Cash/Bank)</h5>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-green-700 mb-1">USD Top-Up Asset ($)</label>
+                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={customerSettlementBankUSD} onChange={e => setCustomerSettlementBankUSD(e.target.value)}>
+                                                <option value="">-- Select USD Asset --</option>
+                                                {getAccountsByCurrency(bankAccounts, 'USD').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-blue-700 mb-1">KHR Top-Up Asset (៛)</label>
+                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={customerSettlementBankKHR} onChange={e => setCustomerSettlementBankKHR(e.target.value)}>
+                                                <option value="">-- Select KHR Asset --</option>
+                                                {getAccountsByCurrency(bankAccounts, 'KHR').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Driver Settlement Assets (Clearing) */}
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                    <h5 className="text-xs font-bold text-gray-500 uppercase mb-3">Driver Settlement Asset (Internal/Clearing)</h5>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-bold text-green-700 mb-1">USD Settlement Asset ($)</label>
-                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={settlementBankUSD} onChange={e => setSettlementBankUSD(e.target.value)}>
+                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={driverSettlementBankUSD} onChange={e => setDriverSettlementBankUSD(e.target.value)}>
                                                 <option value="">-- Select USD Asset --</option>
                                                 {getAccountsByCurrency(bankAccounts, 'USD').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
                                             </select>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-blue-700 mb-1">KHR Settlement Asset (៛)</label>
-                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={settlementBankKHR} onChange={e => setSettlementBankKHR(e.target.value)}>
+                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={driverSettlementBankKHR} onChange={e => setDriverSettlementBankKHR(e.target.value)}>
                                                 <option value="">-- Select KHR Asset --</option>
                                                 {getAccountsByCurrency(bankAccounts, 'KHR').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
                                             </select>

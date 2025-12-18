@@ -174,6 +174,7 @@ export interface UserProfile {
   completedOrderCount?: number;
   joinedAt?: number; // Timestamp of registration
   createdAt?: number; // Legacy timestamp
+  isTaxable?: boolean; // Customer-specific tax flag
 }
 
 export interface ParcelStatusConfig {
@@ -504,6 +505,12 @@ export interface SystemSettings {
   defaultDriverSettlementBankId?: string;
   defaultCustomerSettlementBankId?: string;
 
+  // Revenue & Tax Configuration (Centralized)
+  defaultRevenueAccountUSD?: string;
+  defaultRevenueAccountKHR?: string;
+  defaultTaxAccountUSD?: string;
+  defaultTaxAccountKHR?: string;
+
   // Referral Program Config
   referralRewardAmount?: number;
   referralRewardCurrency?: 'USD' | 'KHR';
@@ -517,7 +524,9 @@ export interface ParcelServiceType {
   id: string;
   name: string;
   defaultPrice: number;
+  defaultPriceKHR?: number;
   pricePerKm?: number;
+  pricePerKmKHR?: number;
   revenueAccountId: string; // Legacy / Primary USD
   description?: string;
   image?: string;
@@ -566,6 +575,7 @@ export interface ParcelBooking {
   taxAmount: number;
   taxRateId?: string;
   totalDeliveryFee: number;
+  currency?: 'USD' | 'KHR';
   status: string;
   statusId?: string;
   statusHistory?: {
@@ -582,6 +592,7 @@ export interface ParcelBooking {
   journalEntryId?: string;
   createdAt: number;
   referralProcessed?: boolean;
+  revenueRecognizedItems?: string[];
   exchangeRateForCOD?: number; // Snapshot of the rate used for this booking
 }
 

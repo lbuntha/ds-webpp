@@ -5,7 +5,7 @@ import { firebaseService } from '../../services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { DEFAULT_NAVIGATION } from '../../constants';
+import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../../constants';
 import { toast } from '../../src/shared/utils/toast';
 
 const ICON_OPTIONS = [
@@ -50,13 +50,18 @@ export const MenuManagement: React.FC<Props> = ({ onUpdateMenuItem }) => {
         setLoading(true);
         try {
             await firebaseService.seedDefaultMenu();
-            await loadItems();
-            toast.success("Menu reset to defaults.");
-        } catch (e) {
-            toast.error("Failed to reset menu.");
+            // Use updateRolePermissions directly to avoid stale cache issues
+            await firebaseService.updateRolePermissions(ROLE_PERMISSIONS);
+            const items = await firebaseService.getMenuItems();
+            setItems(items);
+            setShowResetConfirm(false);
+            if (onUpdateMenuItem) onUpdateMenuItem();
+            toast.success("Menu and permissions reset to defaults.");
+        } catch (error) {
+            console.error("Reset failed:", error);
+            toast.error("Failed to reset menu: " + (error as any).message);
         } finally {
             setLoading(false);
-            setShowResetConfirm(false);
         }
     };
 

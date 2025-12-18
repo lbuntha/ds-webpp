@@ -23,9 +23,9 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
   };
 
   const getStatusLabel = (status: string) => {
-      // @ts-ignore
-      const label = t(`status_${status}`);
-      return label === `status_${status}` ? status : label;
+    // @ts-ignore
+    const label = t(`status_${status}`);
+    return label === `status_${status}` ? status : label;
   };
 
   const isAvailable = type === 'AVAILABLE';
@@ -56,24 +56,60 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
             ) : (
               <div className="flex flex-col items-end gap-1">
                 <span className="text-[10px] bg-red-100 text-red-800 px-2 py-1 rounded font-bold uppercase">
-                    {getStatusLabel(job.status)}
+                  {getStatusLabel(job.status)}
                 </span>
                 <Button onClick={() => onAction(job)} className="text-xs h-7 py-0 bg-indigo-600 hover:bg-indigo-700">{t('process_pickup')}</Button>
               </div>
             )}
           </div>
-          
+
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{job.pickupAddress}</p>
-          
+
           {isAvailable ? (
             <div className="mt-2 flex gap-2">
               <span className="text-[10px] bg-gray-100 px-2 py-1 rounded font-bold text-gray-600">{items.length} items</span>
-              <span className="text-[10px] bg-green-50 px-2 py-1 rounded font-bold text-green-700">Earn: ${(job.totalDeliveryFee * 0.7).toFixed(2)}</span>
+              <span className="text-[10px] bg-green-50 px-2 py-1 rounded font-bold text-green-700">
+                Earn: {(() => {
+                  const fee = job.totalDeliveryFee || 0;
+                  const commRate = 0.7; // Hardcoded fallback for now, ideally from props or hook
+
+                  const itemCurrencies = new Set(items.map(i => i.codCurrency || 'USD'));
+                  const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
+
+                  if (isMixed) {
+                    const khrCount = items.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
+                    const usdCount = items.filter(i => (i.codCurrency || 'USD') === 'USD').length;
+                    const total = items.length;
+                    const feePerItem = fee / total;
+
+                    const khrPortion = (feePerItem * khrCount) * commRate;
+                    const usdPortion = (feePerItem * usdCount) * commRate;
+
+                    // Rate 4000
+                    const RATE = 4000;
+
+                    let khrFinal = khrPortion;
+                    let usdFinal = usdPortion;
+
+                    // Adjust based on base fee currency
+                    if (job.currency === 'USD') {
+                      khrFinal = khrPortion * RATE;
+                    } else {
+                      usdFinal = usdPortion / RATE;
+                    }
+
+                    return `$${usdFinal.toFixed(2)} + ${khrFinal.toLocaleString()} ៛`;
+                  }
+
+                  const val = fee * commRate;
+                  return job.currency === 'KHR' ? `${val.toLocaleString()} ៛` : `$${val.toFixed(2)}`;
+                })()}
+              </span>
             </div>
           ) : (
             <div className="mt-3 flex gap-2">
               {job.driverId && onChatClick && (
-                <button 
+                <button
                   onClick={() => onChatClick(job)}
                   className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full flex items-center font-bold border border-indigo-100"
                 >
@@ -82,7 +118,7 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
                 </button>
               )}
               {onMapClick && (
-                <button 
+                <button
                   className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full flex items-center font-bold border border-gray-200"
                   onClick={() => onMapClick(job.pickupAddress)}
                 >

@@ -30,6 +30,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
     const [selectedBranchId, setSelectedBranchId] = useState('');
     const [editName, setEditName] = useState('');
     const [editPhone, setEditPhone] = useState('');
+    const [isTaxable, setIsTaxable] = useState(false); // New State
 
     const [walletAccount, setWalletAccount] = useState('');
     const [availableAccounts, setAvailableAccounts] = useState<Account[]>([]);
@@ -81,6 +82,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
         setEditingUser(user);
         setEditName(user.name);
         setEditPhone(user.phone || '');
+        setIsTaxable(user.isTaxable || false); // Init
         setSelectedRole(user.role);
         setSelectedStatus(user.status || 'APPROVED');
         setWalletAccount(user.walletAccountId || '');
@@ -100,9 +102,12 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
         setIsUpdating(true);
         setUpdateError(null);
         try {
-            // 1. Update Basic Profile
+            // 1. Update Basic Profile + Extra (Taxable)
             if (onUpdateProfile) {
-                await onUpdateProfile(editingUser.uid, editName, { phone: editPhone });
+                await onUpdateProfile(editingUser.uid, editName, {
+                    phone: editPhone,
+                    isTaxable: isTaxable
+                });
             }
 
             // 2. Update Role
@@ -599,6 +604,21 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                                                     ))}
                                                 </select>
                                                 <p className="text-[10px] text-gray-400 mt-1">Override the default Liability account for this user's wallet.</p>
+
+                                                {/* Tax Configuration */}
+                                                <div className="mt-4 flex items-center bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                                    <input
+                                                        id="isTaxable"
+                                                        type="checkbox"
+                                                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                                        checked={isTaxable}
+                                                        onChange={(e) => setIsTaxable(e.target.checked)}
+                                                    />
+                                                    <label htmlFor="isTaxable" className="ml-2 block text-sm text-gray-900 font-bold">
+                                                        Apply VAT/Tax?
+                                                    </label>
+                                                </div>
+                                                <p className="text-[10px] text-gray-500 mt-1 ml-1">If checked, transactions for this user will automatically trigger tax calculations based on global settings.</p>
                                             </div>
                                         )}
                                     </div>

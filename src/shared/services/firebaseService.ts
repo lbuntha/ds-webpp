@@ -64,6 +64,7 @@ export class FirebaseService {
     updateUserWalletMapping(uid: string, walletAccountId: string) { return this.configService.updateUserWalletMapping(uid, walletAccountId); }
     getRolePermissions() { return this.configService.getRolePermissions(); }
     updateRolePermissions(p: any) { return this.configService.updateRolePermissions(p); }
+    seedDefaultPermissions() { return this.configService.seedDefaultPermissions(); }
     updateUserLocations(locs: any[]) {
         const u = auth.currentUser;
         return u ? this.configService.updateUserLocations(u.uid, locs) : Promise.resolve();

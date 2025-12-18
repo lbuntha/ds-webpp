@@ -21,7 +21,6 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [services, setServices] = useState<ParcelServiceType[]>([]);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const footerRef = useRef<HTMLDivElement>(null);
 
     // Toast State
@@ -189,7 +188,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                 setLoading(false);
             }
         }
-        if (fileInputRef.current) fileInputRef.current.value = '';
+        e.target.value = '';
     };
 
     const handleManualImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,7 +210,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                 setToast({ message: "Failed to process image.", type: 'error' });
             }
         }
-        if (fileInputRef.current) fileInputRef.current.value = '';
+        e.target.value = '';
     };
 
     const updateItem = (index: number, field: keyof ParcelItem, value: any) => {
@@ -256,11 +255,14 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
         const svc = services.find(s => s.id === serviceTypeId);
         if (!svc) return { subtotal: 0, discount: 0, total: 0, isSpecialRate: false };
 
-        let basePrice = svc.defaultPrice || 0;
+        const firstItem = items[0];
+        const isKHR = firstItem?.codCurrency === 'KHR';
+
+        let basePrice = isKHR ? (svc.defaultPriceKHR || 0) : (svc.defaultPrice || 0);
         let isSpecialRate = false;
 
         // Check for Special Rate
-        if (specialRates.length > 0) {
+        if (specialRates.length > 0 && !isKHR) {
             const today = bookingDate;
             const activeSpecial = specialRates.find(r =>
                 r.serviceTypeId === serviceTypeId &&
@@ -367,6 +369,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                 promotionId: selectedPromoId || undefined,
                 taxAmount: 0,
                 totalDeliveryFee: pricing.total,
+                currency: (finalItems[0]?.codCurrency === 'KHR') ? 'KHR' : 'USD',
                 status: status, // Configured status
                 statusId: status === 'PENDING' ? 'ps-pending' : 'ps-pickup',
                 statusHistory: [
@@ -594,13 +597,13 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                 {/* Photo Upload Grid */}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                     {/* Upload Button */}
-                                    <div
-                                        onClick={() => fileInputRef.current?.click()}
+                                    <label
+                                        htmlFor="photo-upload-input"
                                         className="aspect-square rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-white hover:border-red-300 hover:text-red-500 text-gray-400 transition-all"
                                     >
                                         <svg className="w-8 h-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
                                         <span className="text-xs font-bold">Add Photos</span>
-                                    </div>
+                                    </label>
 
                                     {/* Uploaded Items */}
                                     {items.map((item, idx) => (
@@ -621,7 +624,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                 </div>
                                 <input
                                     type="file"
-                                    ref={fileInputRef}
+                                    id="photo-upload-input"
                                     hidden
                                     accept="image/*"
                                     multiple // Allow multiple selection
@@ -671,13 +674,13 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                         <p className="text-gray-500 text-sm">Who are we delivering to?</p>
                                     </div>
                                     <div>
-                                        <button
-                                            onClick={() => fileInputRef.current?.click()}
-                                            className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-red-700 flex items-center"
+                                        <label
+                                            htmlFor="manual-upload-input"
+                                            className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-red-700 flex items-center cursor-pointer"
                                         >
                                             + Add Parcel
-                                        </button>
-                                        <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleManualImageUpload} />
+                                        </label>
+                                        <input type="file" id="manual-upload-input" hidden accept="image/*" onChange={handleManualImageUpload} />
                                     </div>
                                 </div>
 
@@ -772,9 +775,9 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                         </div>
                                     ))}
                                     {items.length === 0 && (
-                                        <div className="text-center py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                                        <label className="block text-center py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 transition-colors" htmlFor="manual-upload-input">
                                             <p className="text-gray-500 font-medium">Tap to add your first parcel</p>
-                                        </div>
+                                        </label>
                                     )}
                                 </div>
 

@@ -552,6 +552,7 @@ export interface ParcelBooking {
   taxAmount: number;
   taxRateId?: string;
   totalDeliveryFee: number;
+  currency?: 'USD' | 'KHR'; // Fee currency
   status: string;
   statusId?: string;
   statusHistory?: {

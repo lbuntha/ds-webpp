@@ -224,40 +224,76 @@ export const WalletRequests: React.FC = () => {
                 const defaultRule = commissionRules.find(r => r.isDefault);
                 const rule = commissionRules.find(r => r.zoneName === driverZone) || defaultRule || { type: 'PERCENTAGE', value: 70 };
 
+                // --- GLOBAL REVENUE & TAX ACCOUNTS ---
+                const globalRevAccId = isUSD
+                    ? (settings.defaultRevenueAccountUSD || settings.defaultRevenueAccountId)
+                    : (settings.defaultRevenueAccountKHR || settings.defaultRevenueAccountId);
+
+                const globalTaxAccId = isUSD
+                    ? (settings.defaultTaxAccountUSD || settings.defaultTaxAccountId)
+                    : (settings.defaultTaxAccountKHR || settings.defaultTaxAccountId);
+
+                // Check Customer Tax Status
+                const isCustomerTaxable = userProfile?.isTaxable === true;
+
                 if (txn.relatedItems && txn.relatedItems.length > 0) {
                     txn.relatedItems.forEach(rel => {
                         const booking = bookings.find(b => b.id === rel.bookingId);
                         if (booking) {
                             // SAFEGUARD: Check booking.items
                             const totalItems = (booking.items && booking.items.length > 0) ? booking.items.length : 1;
-                            const bookingFee = booking.totalDeliveryFee || 0;
-                            const bookingTax = booking.taxAmount || 0;
-                            const bookingRevenue = bookingFee - bookingTax;
+                            const bookingFeeRaw = booking.totalDeliveryFee || 0;
+                            // Precise currency detection
+                            const isBookingKHR = booking.currency === 'KHR' || (booking.currency === undefined && (booking as any).codCurrency === 'KHR');
+                            const bookingCurrency = isBookingKHR ? 'KHR' : 'USD';
 
-                            let bookingComm = 0;
-                            if (rule.type === 'FIXED_AMOUNT') bookingComm = rule.value;
-                            else bookingComm = bookingFee * (rule.value / 100);
-                            totalCommissionUSD += (bookingComm / totalItems);
+                            // EXPLICIT RATE LOOKUP for Booking Currency
+                            let bookingRate = 1;
+                            if (bookingCurrency !== 'USD') {
+                                const cConfig = currencies.find(c => c.code === bookingCurrency);
+                                bookingRate = cConfig ? cConfig.exchangeRate : 4000;
+                            }
 
-                            const service = services.find(s => s.id === booking.serviceTypeId);
-                            // Revenue Logic: Keep in base USD unless specific KHR revenue account exists (rare)
-                            // Rule 9 (Service Fee) -> Mapped per service usually
-                            const revAccId = service?.revenueAccountUSD || service?.revenueAccountId;
+                            // Convert to Base USD using the BOOKING's rate
+                            const bookingFeeBase = bookingFeeRaw / bookingRate;
 
-                            if (revAccId) {
-                                const itemRev = bookingRevenue / totalItems;
-                                revenueByAccount[revAccId] = (revenueByAccount[revAccId] || 0) + itemRev;
+                            // TAX LOGIC: Only apply tax if Customer is Taxable
+                            // Assuming taxAmount is also in Booking Currency
+                            const bookingTaxRaw = isCustomerTaxable ? (booking.taxAmount || 0) : 0;
+                            const bookingTaxBase = bookingTaxRaw / bookingRate;
+
+                            const bookingRevenueBase = bookingFeeBase - bookingTaxBase;
+
+                            // Commission Calculation
+                            // Commission rules are often percentages or fixed scalars.
+                            // If fixed amount, we need to know what currency the rule is in.
+                            // Usually rules are USD-based percentages.
+                            // If Percentage: Apply to BASE Revenue
+                            // If Fixed: Assume USD rule for now (standard practice)
+
+                            let bookingCommBase = 0;
+                            if (rule.type === 'FIXED_AMOUNT') {
+                                // Rule value is likely USD specific or needs context. Assuming USD for fixed rules.
+                                bookingCommBase = rule.value;
+                            } else {
+                                // Percentage of Fee
+                                bookingCommBase = bookingFeeBase * (rule.value / 100);
+                            }
+
+                            totalCommissionUSD += (bookingCommBase / totalItems);
+
+                            // REVENUE ACCUMULATION (Global Account)
+                            if (globalRevAccId) {
+                                const itemRev = bookingRevenueBase / totalItems;
+                                revenueByAccount[globalRevAccId] = (revenueByAccount[globalRevAccId] || 0) + itemRev;
                                 totalRevenueUSD += itemRev;
                             }
 
-                            // Tax Logic
-                            if (bookingTax > 0) {
-                                const taxAccId = service?.taxAccountUSD || defaultTaxAccId;
-                                if (taxAccId) {
-                                    const itemTax = bookingTax / totalItems;
-                                    taxByAccount[taxAccId] = (taxByAccount[taxAccId] || 0) + itemTax;
-                                    totalTaxUSD += itemTax;
-                                }
+                            // TAX ACCUMULATION (Global Account)
+                            if (bookingTaxBase > 0 && globalTaxAccId) {
+                                const itemTax = bookingTaxBase / totalItems;
+                                taxByAccount[globalTaxAccId] = (taxByAccount[globalTaxAccId] || 0) + itemTax;
+                                totalTaxUSD += itemTax;
                             }
                         }
                     });

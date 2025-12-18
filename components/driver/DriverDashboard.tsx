@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, UserProfile, ParcelItem, Account, Branch, AccountType, AccountSubType, WalletTransaction, SystemSettings, AppNotification, CurrencyConfig } from '../../types';
+import { ParcelBooking, UserProfile, ParcelItem, Account, Branch, AccountType, AccountSubType, WalletTransaction, SystemSettings, AppNotification, CurrencyConfig, ParcelServiceType, Employee, DriverCommissionRule } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -26,6 +26,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const [activeTab, setActiveTab] = useState<'MY_PICKUPS' | 'MY_PARCELS' | 'WAREHOUSE' | 'AVAILABLE' | 'SETTLEMENT'>('MY_PICKUPS');
     const [bookings, setBookings] = useState<ParcelBooking[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
+    const [services, setServices] = useState<ParcelServiceType[]>([]);
     const [loading, setLoading] = useState(true);
 
     // States
@@ -55,24 +56,31 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const [settings, setSettings] = useState<SystemSettings>({});
     const [settlementHistory, setSettlementHistory] = useState<WalletTransaction[]>([]);
     const [currencies, setCurrencies] = useState<CurrencyConfig[]>([]);
+    const [commissionRules, setCommissionRules] = useState<DriverCommissionRule[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
     const loadJobs = async () => {
         setLoading(true);
         try {
             // Use getDriverJobs instead of getParcelBookings to satisfy security rules
-            const [myJobs, allBranches, allEmployees, allAccounts, walletTxns, sysSettings, allCurrencies] = await Promise.all([
+            const [myJobs, allBranches, allEmployees, allAccounts, walletTxns, sysSettings, allCurrencies, allServices, allRules] = await Promise.all([
                 firebaseService.getDriverJobs(user.uid),
                 firebaseService.getBranches(),
                 firebaseService.getEmployees(),
                 firebaseService.getAccounts(),
                 firebaseService.getWalletTransactions(user.uid),
                 firebaseService.getSettings(),
-                firebaseService.getCurrencies()
+                firebaseService.getCurrencies(),
+                firebaseService.getParcelServices(),
+                firebaseService.logisticsService.getDriverCommissionRules()
             ]);
 
             setSettings(sysSettings);
+            setServices(allServices);
             setCurrencies(allCurrencies);
+            setCommissionRules(allRules);
+            setEmployees(allEmployees);
 
             const myEmployeeRecord = allEmployees.find(e => e.linkedUserId === user.uid && e.isDriver);
 
@@ -194,7 +202,49 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const allDone = updatedItems.every(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER');
         const bookingStatus = allDone ? 'COMPLETED' : booking.status;
 
-        await firebaseService.saveParcelBooking({ ...booking, items: updatedItems, status: bookingStatus });
+        // FEE RECALCULATION START
+        let finalBooking = { ...booking, items: updatedItems, status: bookingStatus };
+
+        if (action === 'DELIVER' && updatedCOD && services.length > 0) {
+            const firstItem = updatedItems[0];
+            const newCurrency = firstItem.codCurrency === 'KHR' ? 'KHR' : 'USD';
+
+            // If currency changed or we want to ensure correctness
+            const service = services.find(s => s.id === booking.serviceTypeId);
+            if (service) {
+                const isKHR = newCurrency === 'KHR';
+                const basePrice = isKHR ? (service.defaultPriceKHR || 0) : service.defaultPrice;
+                const pricePerKm = isKHR ? (service.pricePerKmKHR || 0) : (service.pricePerKm || 0);
+
+                const count = Math.max(updatedItems.length, 1);
+                const subtotal = basePrice * count + (booking.distance || 0) * pricePerKm;
+
+                // Preserve discount conceptually, but if currency changed, discount might be wrong if it was fixed amount.
+                // For simplicity, we assume percentage or we'll just keep it (if it's 0 it's fine).
+                // If we want to be safe, we might zero it out if currency mismatched, but let's assume it's fine for now.
+                // We will re-calculate total.
+                const discount = booking.discountAmount || 0;
+
+                // Update booking
+                finalBooking.subtotal = subtotal;
+                finalBooking.totalDeliveryFee = subtotal - discount; // Simple update
+                finalBooking.currency = newCurrency;
+            }
+        }
+        // FEE RECALCULATION END
+
+        await firebaseService.saveParcelBooking(finalBooking);
+
+        // REVENUE RECOGNITION (Auto-book Service Fee to GL)
+        if (action === 'DELIVER') {
+            try {
+                // Pass finalBooking to ensure we use latest currency/fee values if recalculated
+                await firebaseService.financeService.recognizeItemRevenue(finalBooking, itemId, settings);
+            } catch (err) {
+                console.error("Failed to auto-recognize revenue", err);
+                // Don't block UI flow
+            }
+        }
 
         // NOTIFICATION TRIGGER: If action is DELIVER, notify Customer
         if (action === 'DELIVER' && booking.senderId) {
@@ -249,8 +299,14 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
         setIsSaving(true);
         try {
-            // Prepare shared items list
-            const itemsToSettle = unsettledItems.map(i => ({ bookingId: i.bookingId, itemId: i.id }));
+            // Prepare items lists split by currency
+            const usdItemsToSettle = unsettledItems
+                .filter(i => (i.codCurrency || 'USD') === 'USD')
+                .map(i => ({ bookingId: i.bookingId, itemId: i.id }));
+
+            const khrItemsToSettle = unsettledItems
+                .filter(i => (i.codCurrency || 'USD') === 'KHR')
+                .map(i => ({ bookingId: i.bookingId, itemId: i.id }));
 
             const requestsToMake = [];
 
@@ -265,7 +321,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                         defaultBankUSD!.id,
                         settleProof || '',
                         `Partial Settlement (USD Portion)`,
-                        itemsToSettle // Attach items to both for record, backend handles idempotency
+                        usdItemsToSettle // Attach only USD items
                     )
                 );
             }
@@ -281,7 +337,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                         defaultBankKHR!.id,
                         settleProof || '',
                         `Partial Settlement (KHR Portion)`,
-                        itemsToSettle
+                        khrItemsToSettle // Attach only KHR items
                     )
                 );
             }
@@ -392,6 +448,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             <DriverPickupProcessor
                 job={processingJob}
                 user={user}
+                services={services}
                 onSave={async (updatedJob) => {
                     // Background save, update local state only
                     await firebaseService.saveParcelBooking(updatedJob);
@@ -544,12 +601,16 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                     transaction={viewHistoryTxn}
                     onClose={() => setViewHistoryTxn(null)}
                     accounts={companyBanks}
+                    employees={employees}
+                    commissionRules={commissionRules}
                 />
             )}
 
             <ActionConfirmationModal
                 isOpen={!!actionModal}
                 action={actionModal?.action || 'DELIVER'}
+                initialCodAmount={bookings.find(b => b.id === actionModal?.bookingId)?.items?.find(i => i.id === actionModal?.itemId)?.productPrice || 0}
+                initialCodCurrency={bookings.find(b => b.id === actionModal?.bookingId)?.items?.find(i => i.id === actionModal?.itemId)?.codCurrency || 'USD'}
                 onCancel={() => setActionModal(null)}
                 onConfirm={(proof, cod) => {
                     if (actionModal) handleParcelAction(actionModal.bookingId, actionModal.itemId, actionModal.action, undefined, proof, cod);

@@ -161,6 +161,47 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
 
     const displayedBookings = tab === 'ACTIVE' ? activeBookings : historyBookings;
 
+    const stats = useMemo(() => {
+        let spentUSD = 0;
+        let spentKHR = 0;
+
+        bookings.forEach(b => {
+            const fee = b.totalDeliveryFee || 0;
+            const items = b.items || [];
+            const itemCurrencies = new Set(items.map(i => i.codCurrency || 'USD'));
+            const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
+
+            if (isMixed && items.length > 0) {
+                const khrCount = items.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
+                const usdCount = items.filter(i => (i.codCurrency || 'USD') === 'USD').length;
+                const feePerItem = fee / items.length;
+
+                // KHR Portion
+                let khrPart = feePerItem * khrCount;
+                if (b.currency === 'USD') khrPart = khrPart * 4000;
+                spentKHR += khrPart;
+
+                // USD Portion
+                let usdPart = feePerItem * usdCount;
+                if (b.currency === 'KHR') usdPart = usdPart / 4000;
+                spentUSD += usdPart;
+
+            } else {
+                // Single Currency
+                const isKHR = b.currency === 'KHR' || (!b.currency && items[0]?.codCurrency === 'KHR');
+                if (isKHR) spentKHR += fee;
+                else spentUSD += fee;
+            }
+        });
+
+        return {
+            activeCount: activeBookings.length,
+            totalCount: bookings.length,
+            spentUSD,
+            spentKHR
+        };
+    }, [bookings, activeBookings]);
+
     return (
         <div className="space-y-6">
 
@@ -168,11 +209,7 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
             <CustomerStats
                 user={user}
                 onNewBooking={onNewBooking}
-                stats={{
-                    activeCount: activeBookings.length,
-                    totalCount: bookings.length,
-                    totalSpent: bookings.reduce((s, b) => s + (b.totalDeliveryFee || 0), 0)
-                }}
+                stats={stats}
             />
 
             {/* --- TABS --- */}

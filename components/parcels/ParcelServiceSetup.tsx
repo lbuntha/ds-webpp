@@ -22,6 +22,8 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
     const [name, setName] = useState('');
     const [defaultPrice, setDefaultPrice] = useState(0);
     const [pricePerKm, setPricePerKm] = useState(0);
+    const [defaultPriceKHR, setDefaultPriceKHR] = useState(0);
+    const [pricePerKmKHR, setPricePerKmKHR] = useState(0);
     const [description, setDescription] = useState('');
     const [image, setImage] = useState('');
     const [taxRateId, setTaxRateId] = useState('');
@@ -54,6 +56,8 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
         setName('');
         setDefaultPrice(0);
         setPricePerKm(0);
+        setDefaultPriceKHR(0);
+        setPricePerKmKHR(0);
         setDescription('');
         setImage('');
         setTaxRateId('');
@@ -70,6 +74,8 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
         setName(s.name);
         setDefaultPrice(s.defaultPrice);
         setPricePerKm(s.pricePerKm || 0);
+        setDefaultPriceKHR(s.defaultPriceKHR || 0);
+        setPricePerKmKHR(s.pricePerKmKHR || 0);
         setTaxRateId(s.taxRateId || '');
         setDescription(s.description || '');
         setImage(s.image || '');
@@ -98,6 +104,8 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
                 name,
                 defaultPrice,
                 pricePerKm,
+                defaultPriceKHR,
+                pricePerKmKHR,
                 revenueAccountId: revenueAccountUSD, // Keep legacy field synced with USD
                 description,
                 image,
@@ -208,6 +216,21 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
                                     onChange={e => setPricePerKm(parseFloat(e.target.value))}
                                 />
                             </div>
+
+                            <div className="grid grid-cols-2 gap-4 bg-orange-50 p-2 rounded-lg border border-orange-100">
+                                <Input
+                                    label="Base Price (KHR)"
+                                    type="number"
+                                    value={defaultPriceKHR}
+                                    onChange={e => setDefaultPriceKHR(parseFloat(e.target.value))}
+                                />
+                                <Input
+                                    label="Price/Km (KHR)"
+                                    type="number"
+                                    value={pricePerKmKHR}
+                                    onChange={e => setPricePerKmKHR(parseFloat(e.target.value))}
+                                />
+                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate</label>
                                 <select
@@ -224,40 +247,10 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
                         </div>
                     </div>
 
-                    <div className="border-t border-gray-100 pt-4">
-                        <h4 className="text-sm font-bold text-gray-800 mb-4 flex items-center">
-                            <svg className="w-4 h-4 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Accounting Mapping (Revenue & Tax)
-                        </h4>
-
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full text-sm border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-3 py-2 text-left font-medium text-gray-500 w-1/3">Transaction Type</th>
-                                        <th className="px-3 py-2 text-left font-medium text-green-700 w-1/3">USD Account ($)</th>
-                                        <th className="px-3 py-2 text-left font-medium text-blue-700 w-1/3">KHR Account (៛)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    <tr>
-                                        <td className="px-3 py-3 font-medium text-gray-800">Fee (Revenue)</td>
-                                        <td className="px-3 py-2">{renderAccountSelect('', revenueAccountUSD, setRevenueAccountUSD, [AccountType.REVENUE])}</td>
-                                        <td className="px-3 py-2">{renderAccountSelect('', revenueAccountKHR, setRevenueAccountKHR, [AccountType.REVENUE])}</td>
-                                    </tr>
-                                    <tr>
-                                        <td className="px-3 py-3 font-medium text-gray-800">Tax Liability</td>
-                                        <td className="px-3 py-2">{renderAccountSelect('', taxAccountUSD, setTaxAccountUSD, [AccountType.LIABILITY])}</td>
-                                        <td className="px-3 py-2">{renderAccountSelect('', taxAccountKHR, setTaxAccountKHR, [AccountType.LIABILITY])}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mt-3">
-                            <p className="text-xs text-gray-600">
-                                <strong>Note:</strong> Settlement accounts are now configured globally in <strong>Settings &gt; General</strong> to simplify bank reconciliation.
-                            </p>
-                        </div>
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mt-4">
+                        <p className="text-xs text-gray-600">
+                            <strong>Note:</strong> Revenue & Tax accounting is now configured globally in <strong>Settings &gt; General</strong>.
+                        </p>
                     </div>
 
                     <div className="flex justify-end pt-4 gap-2 border-t border-gray-100">

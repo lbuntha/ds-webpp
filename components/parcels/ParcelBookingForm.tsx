@@ -230,10 +230,15 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
         if (!service) return { subtotal: 0, discount: 0, tax: 0, total: 0, taxRate: null, isSpecialRate: false };
 
         // Determine Base Price: Check for Special Rate
-        let basePrice = service.defaultPrice;
+        const firstItem = items[0];
+        const isKHR = firstItem?.codCurrency === 'KHR';
+
+        let basePrice = isKHR ? (service.defaultPriceKHR || 0) : service.defaultPrice;
+        let unitPricePerKm = isKHR ? (service.pricePerKmKHR || 0) : (service.pricePerKm || 0);
+
         let isSpecialRate = false;
 
-        if (specialRates.length > 0) {
+        if (specialRates.length > 0 && !isKHR) { // Only apply special rates for USD for now to avoid confusion
             const today = bookingDate;
             const activeSpecial = specialRates.find(r =>
                 r.serviceTypeId === serviceTypeId &&
@@ -248,7 +253,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
 
         const safeDistance = isNaN(distance) ? 0 : distance;
         const base = basePrice * Math.max(items.length, 1);
-        const distanceFee = safeDistance * (service.pricePerKm || 0);
+        const distanceFee = safeDistance * unitPricePerKm;
 
         const subtotal = base + distanceFee;
 
@@ -303,6 +308,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
                 taxAmount: pricing.tax,
                 ...(pricing.taxRate?.id ? { taxRateId: pricing.taxRate.id } : {}),
                 totalDeliveryFee: pricing.total,
+                currency: (items[0]?.codCurrency === 'KHR') ? 'KHR' : 'USD',
                 status,
                 branchId,
                 notes: bookingNotes,
@@ -605,7 +611,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
                             )}
                             <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-300">
                                 <span className="text-gray-900">{t('total_fee')}</span>
-                                <span className="text-indigo-600">${pricing.total.toFixed(2)}</span>
+                                <span className="text-indigo-600">{items[0]?.codCurrency === 'KHR' ? `${pricing.total.toLocaleString()} ៛` : `$${pricing.total.toFixed(2)}`}</span>
                             </div>
                         </div>
                     </div>

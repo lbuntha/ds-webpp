@@ -8,7 +8,8 @@ interface Props {
   stats: {
     activeCount: number;
     totalCount: number;
-    totalSpent: number;
+    spentUSD: number;
+    spentKHR: number;
   };
   onNewBooking: () => void;
 }
@@ -24,7 +25,7 @@ export const CustomerStats: React.FC<Props> = ({ user, stats, onNewBooking }) =>
             <h1 className="text-2xl font-bold text-gray-900">{t('hello')}, {user.name.split(' ')[0]}</h1>
             <p className="text-gray-500 text-sm mt-1">{t('track_shipment')}</p>
           </div>
-          <button 
+          <button
             onClick={onNewBooking}
             className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-red-100 hover:bg-red-700 transition-colors flex items-center"
           >
@@ -43,8 +44,10 @@ export const CustomerStats: React.FC<Props> = ({ user, stats, onNewBooking }) =>
             <div className="text-[10px] uppercase tracking-wide font-medium text-gray-400">{t('total')}</div>
           </div>
           <div className="bg-gray-50 rounded-xl p-3 text-center border border-gray-100">
-            <div className="text-xl font-bold text-gray-900">
-              ${(stats.totalSpent || 0).toFixed(0)}
+            <div className="text-xl font-bold text-gray-900 flex flex-col justify-center items-center">
+              {stats.spentUSD > 0 && <span>${(stats.spentUSD).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
+              {stats.spentKHR > 0 && <span className={stats.spentUSD > 0 ? "text-sm text-gray-600" : ""}>{stats.spentKHR.toLocaleString()} ៛</span>}
+              {stats.spentUSD === 0 && stats.spentKHR === 0 && <span>$0.00</span>}
             </div>
             <div className="text-[10px] uppercase tracking-wide font-medium text-gray-400">{t('spent')}</div>
           </div>

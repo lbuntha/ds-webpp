@@ -45,6 +45,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
 
     // Form State
     const [amount, setAmount] = useState<number>(0);
+    const [amountKHR, setAmountKHR] = useState<number>(0); // NEW: For multi-currency settlement
     const [description, setDescription] = useState('');
     const [attachment, setAttachment] = useState('');
 
@@ -165,29 +166,86 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                     const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
                     // Deduct fee if items are delivered or booking is completed
                     if (itemsDelivered > 0 || b.status === 'COMPLETED' || b.status === 'CONFIRMED') {
-                        // SMART CURRENCY ADJUSTMENT:
-                        // If the collected COD is in KHR, we should display the fee in KHR to allow clean netting
-                        // The actual revenue is still booked in USD in the backend, but for the customer's wallet view,
-                        // we convert it to match the currency they are holding.
                         let feeAmount = b.totalDeliveryFee;
                         let feeCurrency = 'USD';
+                        const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
+                        const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
 
-                        if (hasKHR) {
-                            feeAmount = b.totalDeliveryFee * 4100; // Convert to KHR
-                            feeCurrency = 'KHR';
+                        if (isMixed) {
+                            // Mixed Currency Logic: Split Fee based on DELIVERED items only
+                            const khrItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR' && i.status === 'DELIVERED').length;
+                            const usdItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'USD' && i.status === 'DELIVERED').length;
+                            const totalCount = bItems.length || 1;
+                            const feePerItem = feeAmount / totalCount;
+                            const RATE = 4000;
+
+                            // 1. KHR Portion (Only for Delivered)
+                            if (khrItemsDelivered > 0) {
+                                const khrPortionFee = feePerItem * khrItemsDelivered;
+                                let khrFinalAmount = khrPortionFee;
+                                if (b.currency === 'USD') khrFinalAmount = khrPortionFee * RATE;
+
+                                ledger.push({
+                                    id: `fee-${b.id}-khr`,
+                                    date: b.bookingDate,
+                                    description: `Service Fee (KHR Portion): ${b.serviceTypeName}`,
+                                    type: 'FEE',
+                                    amount: khrFinalAmount,
+                                    currency: 'KHR',
+                                    status: 'APPLIED',
+                                    reference: (b.id || '').slice(-6),
+                                    isCredit: false
+                                });
+                            }
+
+                            // 2. USD Portion (Only for Delivered)
+                            if (usdItemsDelivered > 0) {
+                                const usdPortionFee = feePerItem * usdItemsDelivered;
+                                let usdFinalAmount = usdPortionFee;
+                                if (b.currency === 'KHR') usdFinalAmount = usdPortionFee / RATE;
+
+                                ledger.push({
+                                    id: `fee-${b.id}-usd`,
+                                    date: b.bookingDate,
+                                    description: `Service Fee (USD Portion): ${b.serviceTypeName}`,
+                                    type: 'FEE',
+                                    amount: usdFinalAmount,
+                                    currency: 'USD',
+                                    status: 'APPLIED',
+                                    reference: (b.id || '').slice(-6),
+                                    isCredit: false
+                                });
+                            }
+
+                        } else {
+                            // Single Currency Logic: Pro-rate based on Delivered count
+                            const itemsDeliveredCount = bItems.filter(i => i.status === 'DELIVERED').length;
+
+                            if (itemsDeliveredCount > 0) {
+                                const totalCount = bItems.length || 1;
+                                const feePerItem = feeAmount / totalCount;
+                                const totalDeduction = feePerItem * itemsDeliveredCount;
+
+                                if (b.currency) {
+                                    feeCurrency = b.currency;
+                                } else if (hasKHR) {
+                                    // Legacy fallback
+                                    feeCurrency = 'KHR';
+                                }
+
+                                ledger.push({
+                                    id: `fee-${b.id}`,
+                                    date: b.bookingDate,
+                                    description: `Service Fee: ${b.serviceTypeName}`,
+                                    type: 'FEE',
+                                    amount: totalDeduction,
+                                    currency: feeCurrency,
+                                    status: 'APPLIED',
+                                    reference: (b.id || '').slice(-6),
+                                    isCredit: false // Deducts from balance
+                                });
+                            }
                         }
-
-                        ledger.push({
-                            id: `fee-${b.id}`,
-                            date: b.bookingDate,
-                            description: `Service Fee: ${b.serviceTypeName}`,
-                            type: 'FEE',
-                            amount: feeAmount,
-                            currency: feeCurrency,
-                            status: 'APPLIED',
-                            reference: (b.id || '').slice(-6),
-                            isCredit: false // Deducts from balance
-                        });
                     }
                 }
             }
@@ -204,6 +262,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                         let totalCommission = 0;
                         if (activeRule.type === 'FIXED_AMOUNT') {
                             totalCommission = activeRule.value;
+                            // Fixed amount commissions might need currency awareness too, assuming definition is USD for now unless we add currency to rules
                         } else {
                             totalCommission = b.totalDeliveryFee * (activeRule.value / 100);
                         }
@@ -211,14 +270,78 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                         // Pro-rate commission based on progress
                         const earnedCommission = totalCommission * (processedItems / totalItems);
 
-                        if (earnedCommission > 0) {
+                        const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
+                        const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
+
+                        if (isMixed && earnedCommission > 0) {
+                            // --- MIXED CURRENCY SPLIT COMMISSION ---
+                            const khrItems = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
+                            const usdItems = bItems.filter(i => (i.codCurrency || 'USD') === 'USD').length;
+                            const RATE = 4000;
+
+                            // Calculate Base Per-Item Commission (in booking or fee currency)
+                            const commissionPerItem = totalCommission / totalItems; // 'totalCommission' is usually in 'b.currency'
+
+                            // 1. KHR Portion
+                            // Only earn for processed items that are KHR? Or just pro-rate the EARNED amount?
+                            // Logic: The 'earnedCommission' is already scaled by processedItems/totalItems.
+                            // But we need to split it by the *composition* of processed items?
+                            // Simpler approach: Split the 'earnedCommission' based on the ratio of KHR items in the WHOLE booking?
+                            // Better: Split based on *processed* items' composition if possible, but 'processedItems' is just a count here.
+                            // Let's assume uniform distribution logic used before: Split 'earnedCommission' by total items ratio.
+                            // Actually, if I delivered 1 USD item and 0 KHR items (out of 2), I should earn only USD commission.
+
+                            // Refined Logic: Check specifically which items were processed
+                            const processedItemsList = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER');
+                            const khrProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
+                            const usdProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'USD').length;
+
+                            const commissionPerProcessedItem = totalCommission / totalItems; // Commission per item regardless of currency if fee is flat/percentage of total
+
+                            if (khrProcessed > 0) {
+                                const khrPartBase = commissionPerProcessedItem * khrProcessed;
+                                let khrFinal = khrPartBase;
+                                if (b.currency === 'USD') khrFinal = khrPartBase * RATE;
+
+                                ledger.push({
+                                    id: `earn-${b.id}-khr`,
+                                    date: b.bookingDate,
+                                    description: `Commission (KHR): #${(b.id || '').slice(-6)}`,
+                                    type: 'EARNING',
+                                    amount: khrFinal,
+                                    currency: 'KHR',
+                                    status: 'EARNED',
+                                    reference: (b.id || '').slice(-6),
+                                    isCredit: true
+                                });
+                            }
+
+                            if (usdProcessed > 0) {
+                                const usdPartBase = commissionPerProcessedItem * usdProcessed;
+                                let usdFinal = usdPartBase;
+                                if (b.currency === 'KHR') usdFinal = usdPartBase / RATE;
+
+                                ledger.push({
+                                    id: `earn-${b.id}-usd`,
+                                    date: b.bookingDate,
+                                    description: `Commission (USD): #${(b.id || '').slice(-6)}`,
+                                    type: 'EARNING',
+                                    amount: usdFinal,
+                                    currency: 'USD',
+                                    status: 'EARNED',
+                                    reference: (b.id || '').slice(-6),
+                                    isCredit: true
+                                });
+                            }
+
+                        } else if (earnedCommission > 0) {
                             ledger.push({
                                 id: `earn-${b.id}`,
                                 date: b.bookingDate,
                                 description: `Commission: Booking #${(b.id || '').slice(-6)} (${processedItems}/${totalItems})`,
                                 type: 'EARNING',
                                 amount: earnedCommission,
-                                currency: 'USD',
+                                currency: b.currency || 'USD',
                                 status: 'EARNED',
                                 reference: (b.id || '').slice(-6),
                                 isCredit: true
@@ -318,38 +441,79 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
 
     useEffect(() => {
         if (modalOpen === 'WITHDRAWAL' && balanceBreakdown) {
-            // Auto-fill max amount
-            const maxWithdraw = Math.max(0, balanceBreakdown.net);
-            setAmount(parseFloat(maxWithdraw.toFixed(2)));
+            setAmount(parseFloat(balanceBreakdown.net.toFixed(2)));
+            setAmountKHR(0);
         } else {
             setAmount(0);
+            setAmountKHR(0);
         }
     }, [modalOpen, balanceBreakdown, activeCurrency]);
 
     const handleTransaction = async () => {
-        if (!amount || amount <= 0) return;
-        if (modalOpen === 'DEPOSIT' && !defaultBankId) return toast.error(`System Error: No default ${activeCurrency} company bank configured. Please contact support.`);
+        if ((!amount || amount <= 0) && (!amountKHR || amountKHR <= 0)) return;
+
+        // Determine correct bank for the user role
+        // Customer -> Customer Config
+        // Driver -> Driver Config
+        const isDriver = user.role === 'driver' || user.role === 'warehouse'; // Warehouse treated as internal
+        let targetBankIdUSD = isDriver ? settings.defaultDriverSettlementBankIdUSD : settings.defaultCustomerSettlementBankIdUSD;
+        let targetBankIdKHR = isDriver ? settings.defaultDriverSettlementBankIdKHR : settings.defaultCustomerSettlementBankIdKHR;
+
+        // Fallback for legacy
+        if (!targetBankIdUSD) targetBankIdUSD = settings.defaultSettlementBankAccountId;
+        if (!targetBankIdKHR) targetBankIdKHR = settings.defaultSettlementBankAccountId; // Fallback to same if broken config
+
+        // Validate Banks
+        if (modalOpen === 'DEPOSIT') {
+            if (amount > 0 && !targetBankIdUSD) return toast.error("System Error: No USD bank configured.");
+            if (amountKHR > 0 && !targetBankIdKHR) return toast.error("System Error: No KHR bank configured.");
+        }
+
+        // Validate Withdrawal Limit
+        if (modalOpen === 'WITHDRAWAL') {
+            const maxAvail = balanceBreakdown?.net || 0;
+            if (amount > maxAvail) {
+                return toast.error(`Withdrawal amount cannot exceed available balance (${activeCurrency === 'USD' ? '$' : ''}${maxAvail.toLocaleString()}${activeCurrency === 'KHR' ? '៛' : ''})`);
+            }
+        }
 
         setLoading(true);
         try {
             if (modalOpen === 'DEPOSIT') {
-                await firebaseService.requestWalletTopUp(
-                    user.uid,
-                    amount,
-                    activeCurrency,
-                    defaultBankId!,
-                    attachment,
-                    description || 'Wallet Top Up'
-                );
+                const timestamp = Date.now();
+                // 1. Submit USD if exists
+                if (amount > 0) {
+                    await firebaseService.requestWalletTopUp(
+                        user.uid,
+                        amount,
+                        'USD',
+                        targetBankIdUSD!,
+                        attachment,
+                        (description || 'Settlement') + (amountKHR > 0 ? ' (Mixed Currency Batch)' : '')
+                    );
+                }
+                // 2. Submit KHR if exists
+                if (amountKHR > 0) {
+                    await firebaseService.requestWalletTopUp(
+                        user.uid,
+                        amountKHR,
+                        'KHR',
+                        targetBankIdKHR!,
+                        attachment,
+                        (description || 'Settlement') + (amount > 0 ? ' (Mixed Currency Batch)' : '')
+                    );
+                }
+
                 toast.success("Payment submitted! Please wait for approval.");
             } else {
                 // WITHDRAWAL: Include related items so Finance can do Net Settlement
+                // Only single currency withdrawal supported for now to keep Payout simple
                 await firebaseService.requestWithdrawal(
                     user.uid,
                     user.name,
                     amount,
                     activeCurrency,
-                    defaultBankId || 'system-payout',
+                    (activeCurrency === 'USD' ? targetBankIdUSD : targetBankIdKHR) || 'system-payout',
                     description || 'Net Payout Request',
                     balanceBreakdown?.relatedItems
                 );
@@ -361,6 +525,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             setTransactions(updatedTxns);
             setModalOpen(null);
             setAmount(0);
+            setAmountKHR(0);
             setDescription('');
             setAttachment('');
         } catch (e: any) {
@@ -501,26 +666,79 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{t('amount')} ({activeCurrency})</label>
-                                <input
-                                    type="number"
-                                    className="w-full border rounded-lg px-3 py-2 text-lg font-bold"
-                                    value={amount}
-                                    onChange={e => setAmount(parseFloat(e.target.value))}
-                                    readOnly={modalOpen === 'WITHDRAWAL'}
-                                />
+                                {user.role === 'driver' && modalOpen === 'DEPOSIT' ? (
+                                    // MULTI-CURRENCY INPUT FOR DRIVERS
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Settlement Amount (USD)</label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 font-bold">$</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    className="w-full border rounded-lg pl-8 pr-3 py-2 text-lg font-bold"
+                                                    value={amount}
+                                                    onChange={e => setAmount(parseFloat(e.target.value) || 0)}
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Settlement Amount (KHR)</label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 font-bold">៛</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    className="w-full border rounded-lg pl-3 pr-8 py-2 text-lg font-bold"
+                                                    value={amountKHR}
+                                                    onChange={e => setAmountKHR(parseFloat(e.target.value) || 0)}
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    // STANDARD SINGLE CURRENCY INPUT
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('amount')} ({activeCurrency})</label>
+                                        <input
+                                            type="number"
+                                            className="w-full border rounded-lg px-3 py-2 text-lg font-bold"
+                                            value={amount}
+                                            onChange={e => setAmount(parseFloat(e.target.value))}
+                                            placeholder="0.00"
+                                            max={modalOpen === 'WITHDRAWAL' ? (balanceBreakdown?.net || 0) : undefined}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             {modalOpen === 'DEPOSIT' && (
                                 <>
-                                    {defaultBank ? (
-                                        <div className="flex flex-col items-center bg-blue-50 p-4 rounded-xl border border-blue-200">
-                                            <p className="text-xs text-blue-700 mb-2 uppercase font-bold">{t('pay_to_company')}</p>
-                                            {defaultBank.qrCode && <img src={defaultBank.qrCode} alt="QR" className="w-32 h-32 object-contain mb-2" />}
-                                            <p className="font-bold">{defaultBank.name}</p>
-                                            <p className="text-xs font-mono">{defaultBank.code}</p>
+                                    {/* Bank Display - Logic to handle dual banks if needed, currently showing primary based on activeCurrency context or explicit selection */}
+                                    {user.role === 'driver' ? (
+                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                                            <p className="text-xs text-blue-700 mb-2 uppercase font-bold text-center">Settlement Banks</p>
+                                            <div className="text-sm text-center">
+                                                {amount > 0 && <p>Please transfer <b>${amount}</b> to Company USD Account.</p>}
+                                                {amountKHR > 0 && <p>Please transfer <b>{amountKHR.toLocaleString()} ៛</b> to Company KHR Account.</p>}
+                                                {amount === 0 && amountKHR === 0 && <p className="text-gray-500 italic">Enter amount to see transfer details</p>}
+                                            </div>
                                         </div>
-                                    ) : <div className="text-red-500 text-sm">No company bank configured.</div>}
+                                    ) : (
+                                        // Customer View
+                                        defaultBank ? (
+                                            <div className="flex flex-col items-center bg-blue-50 p-4 rounded-xl border border-blue-200">
+                                                <p className="text-xs text-blue-700 mb-2 uppercase font-bold">{t('pay_to_company')}</p>
+                                                {defaultBank.qrCode && <img src={defaultBank.qrCode} alt="QR" className="w-32 h-32 object-contain mb-2" />}
+                                                <p className="font-bold">{defaultBank.name}</p>
+                                                <p className="text-xs font-mono">{defaultBank.code}</p>
+                                            </div>
+                                        ) : <div className="text-red-500 text-sm">No company bank configured.</div>
+                                    )}
 
                                     <ImageUpload value={attachment} onChange={setAttachment} label={t('proof_of_transfer')} />
                                 </>
