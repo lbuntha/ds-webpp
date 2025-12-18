@@ -6,6 +6,7 @@ import { PermissionRoute } from './PermissionRoute';
 import { RoleBasedRedirect } from './RoleBasedRedirect';
 import { UserRole } from '../shared/types';
 
+
 // Lazy load components for code splitting
 const LandingPage = lazy(() => import('../../components/LandingPage').then(m => ({ default: m.LandingPage })));
 const AuthForms = lazy(() => import('../../components/AuthForms').then(m => ({ default: m.AuthForms })));
