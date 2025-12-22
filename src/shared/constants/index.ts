@@ -64,8 +64,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'VIEW_PARCEL_RETENTION',
     'VIEW_PARCEL_AGING'
   ],
-  'customer': ['CREATE_BOOKING', 'VIEW_MY_PARCELS', 'TRACK_PARCELS', 'VIEW_PROFILE'],
+  'customer': ['CREATE_BOOKING', 'VIEW_MY_PARCELS', 'TRACK_PARCELS', 'VIEW_PROFILE', 'CUSTOMER_VIEW_REPORTS'],
   'driver': ['VIEW_DRIVER_JOBS', 'VIEW_DRIVER_PICKUPS', 'VIEW_DRIVER_EARNINGS', 'VIEW_PROFILE'],
+  'fleet-driver': ['VIEW_DRIVER_JOBS', 'VIEW_DRIVER_PICKUPS', 'VIEW_DRIVER_EARNINGS', 'VIEW_PROFILE'],
   'warehouse': [
     'VIEW_DASHBOARD',
     'VIEW_PARCELS_OVERVIEW',
@@ -101,7 +102,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-customer-dashboard', label: 'Dashboard', viewId: 'CUSTOMER_PARCELS', iconKey: 'dashboard', order: 50, requiredPermission: 'VIEW_MY_PARCELS', allowedRoles: ['customer'] },
   { id: 'nav-customer-wallet', label: 'Wallet', viewId: 'CUSTOMER_WALLET', iconKey: 'wallet', order: 51, requiredPermission: 'VIEW_PROFILE', allowedRoles: ['customer'] },
   { id: 'nav-customer-booking', label: 'New Booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 52, requiredPermission: 'CREATE_BOOKING', allowedRoles: ['customer'] },
-  { id: 'nav-customer-reports', label: 'Delivery Reports', viewId: 'CUSTOMER_REPORTS', iconKey: 'reports', order: 53, requiredPermission: 'VIEW_MY_PARCELS', allowedRoles: ['customer'] },
+  { id: 'nav-customer-reports', label: 'spending_report', viewId: 'CUSTOMER_REPORTS', iconKey: 'reports', order: 53, requiredPermission: 'CUSTOMER_VIEW_REPORTS', allowedRoles: ['customer'] },
   { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 54, requiredPermission: 'VIEW_PROFILE', allowedRoles: ['customer'] },
 
   // Driver Navigation
@@ -141,6 +142,7 @@ export const FEATURE_LIST: { key: Permission; label: string }[] = [
   { key: 'MANAGE_PARCEL_FLEET', label: 'Parcels: Fleet/Driver Management' },
   { key: 'MANAGE_PARCEL_PLACES', label: 'Parcels: Places Management' },
   { key: 'MANAGE_PARCEL_PRODUCTS', label: 'Parcels: Products/Services Setup' },
+  { key: 'CUSTOMER_VIEW_REPORTS', label: 'Customer: Spending Reports' },
 ];
 
 // --- PARCEL DEFAULTS ---

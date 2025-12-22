@@ -89,6 +89,10 @@ export const SettingsDashboard: React.FC<Props> = ({
     const [customerSettlementBankUSD, setCustomerSettlementBankUSD] = useState(settings?.defaultCustomerSettlementBankIdUSD || settings?.defaultSettlementBankAccountId || '');
     const [customerSettlementBankKHR, setCustomerSettlementBankKHR] = useState(settings?.defaultCustomerSettlementBankIdKHR || '');
 
+    // NEW: Driver Cash on Hand Accounts
+    const [driverCashAccUSD, setDriverCashAccUSD] = useState(settings?.defaultDriverCashAccountIdUSD || '');
+    const [driverCashAccKHR, setDriverCashAccKHR] = useState(settings?.defaultDriverCashAccountIdKHR || '');
+
     // Revenue & Tax Defaults
     const [defaultRevenueUSD, setDefaultRevenueUSD] = useState(settings?.defaultRevenueAccountUSD || '');
     const [defaultRevenueKHR, setDefaultRevenueKHR] = useState(settings?.defaultRevenueAccountKHR || '');
@@ -282,6 +286,10 @@ export const SettingsDashboard: React.FC<Props> = ({
                 // Settlement Accounts
                 defaultDriverSettlementBankIdUSD: driverSettlementBankUSD,
                 defaultDriverSettlementBankIdKHR: driverSettlementBankKHR,
+
+                // NEW: Driver Cash
+                defaultDriverCashAccountIdUSD: driverCashAccUSD,
+                defaultDriverCashAccountIdKHR: driverCashAccKHR,
 
                 defaultCustomerSettlementBankIdUSD: customerSettlementBankUSD,
                 defaultCustomerSettlementBankIdKHR: customerSettlementBankKHR,
@@ -478,6 +486,24 @@ export const SettingsDashboard: React.FC<Props> = ({
                                             </select>
                                         </div>
                                     </div>
+                                    {/* NEW: Driver Cash Handover */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
+                                        <div>
+                                            <label className="block text-xs font-bold text-green-700 mb-1">USD Cash on Hand Asset ($)</label>
+                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={driverCashAccUSD} onChange={e => setDriverCashAccUSD(e.target.value)}>
+                                                <option value="">-- Select USD Cash --</option>
+                                                {getAccountsByCurrency(bankAccounts, 'USD').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-blue-700 mb-1">KHR Cash on Hand Asset (៛)</label>
+                                            <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={driverCashAccKHR} onChange={e => setDriverCashAccKHR(e.target.value)}>
+                                                <option value="">-- Select KHR Cash --</option>
+                                                {getAccountsByCurrency(bankAccounts, 'KHR').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-2 italic">Separating Bank/Settlement from Cash Handover allows tracking where the money is currently held.</p>
                                 </div>
                             </div>
 

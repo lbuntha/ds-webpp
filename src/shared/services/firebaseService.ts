@@ -10,7 +10,7 @@ import { WalletService } from './walletService';
 import { PlaceService } from './placeService';
 import { BaseService } from './baseService';
 import { collection, getDocs, deleteDoc, query, writeBatch, limit } from 'firebase/firestore';
-import { UserProfile, NavigationItem, Account } from '../types';
+import { UserProfile, NavigationItem, Account, WalletTransaction } from '../types';
 
 // Facade Class to maintain backward compatibility with existing components
 export class FirebaseService {
@@ -154,7 +154,7 @@ export class FirebaseService {
     getUserBookings(user: UserProfile) { return this.logisticsService.getUserBookings(user); }
 
     saveParcelBooking(b: any, acc?: string) {
-        return this.logisticsService.saveParcelBooking(b, acc, this.walletService, this.configService);
+        return this.logisticsService.saveParcelBooking(b, acc, this.walletService, this.configService, this.hrService);
     }
     updateParcelStatus(id: string, sid: string, uid: string, uname: string) { return this.logisticsService.updateParcelStatus(id, sid, uid, uname); }
     updateParcelItemStatus(bookingId: string, itemId: string, status: string) { return this.logisticsService.updateParcelItemStatus(bookingId, itemId, status); }
@@ -184,6 +184,7 @@ export class FirebaseService {
 
     // Wallet
     getWalletTransactions(uid: string) { return this.walletService.getWalletTransactions(uid); }
+    subscribeToWalletTransactions(uid: string, cb: (txns: WalletTransaction[]) => void) { return this.walletService.subscribeToWalletTransactions(uid, cb); }
     getAllWalletTransactions() { return this.walletService.getAllWalletTransactions(); }
     requestWalletTopUp(uid: string, amt: number, curr: string, bid: string, att: string, desc: string) { return this.walletService.requestWalletTopUp(uid, amt, curr, bid, att, desc); }
     requestSettlement(uid: string, name: string, amt: number, curr: string, bid: string, att: string, desc: string, items?: any[]) { return this.walletService.requestSettlement(uid, name, amt, curr, bid, att, desc, items); }

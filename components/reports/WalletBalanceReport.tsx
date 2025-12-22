@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, WalletTransaction, ParcelBooking, DriverCommissionRule, Employee } from '../../types';
+import { UserProfile, WalletTransaction, ParcelBooking, DriverCommissionRule, Employee, SystemSettings } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
+import { calculateDriverCommission, getApplicableCommissionRule } from '../../src/shared/utils/commissionCalculator';
 
 interface UserBalance {
     uid: string;
@@ -13,6 +14,8 @@ interface UserBalance {
     balanceKHR: number;
     phone?: string;
 }
+
+const round2 = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
 
 export const WalletBalanceReport: React.FC = () => {
     const [balances, setBalances] = useState<UserBalance[]>([]);
@@ -52,28 +55,27 @@ export const WalletBalanceReport: React.FC = () => {
     ): UserBalance[] => {
         const balanceMap: Record<string, { usd: number, khr: number }> = {};
 
-        // Initialize Map
+        // 1. Initialize Map
         users.forEach(u => {
             if (u.role === 'customer' || u.role === 'driver') {
                 balanceMap[u.uid] = { usd: 0, khr: 0 };
             }
         });
 
-        // 1. Process Wallet Transactions (Approved Only)
-        // DEPOSIT/EARNING/REFUND/SETTLEMENT = Credit (+), WITHDRAWAL = Debit (-)
+        // 2. Process Wallet Transactions (Approved Only)
         txns.forEach(t => {
             if (t.status === 'APPROVED' && balanceMap[t.userId]) {
                 const isCredit = ['DEPOSIT', 'EARNING', 'REFUND', 'SETTLEMENT'].includes(t.type);
                 const val = t.amount;
                 if (t.currency === 'KHR') {
-                    balanceMap[t.userId].khr += isCredit ? val : -val;
+                    balanceMap[t.userId].khr = round2(balanceMap[t.userId].khr + (isCredit ? val : -val));
                 } else {
-                    balanceMap[t.userId].usd += isCredit ? val : -val;
+                    balanceMap[t.userId].usd = round2(balanceMap[t.userId].usd + (isCredit ? val : -val));
                 }
             }
         });
 
-        // 2. Process Bookings (Operational)
+        // 3. Process Bookings (Operational)
         const defaultRule = rules.find(r => r.isDefault) || { type: 'PERCENTAGE', value: 70 };
 
         bookings.forEach(b => {
@@ -88,14 +90,11 @@ export const WalletBalanceReport: React.FC = () => {
                 bItems.forEach(item => {
                     if (item.status === 'DELIVERED') {
                         const amount = item.productPrice || 0;
-                        if (item.codCurrency === 'KHR') balanceMap[senderUid].khr += amount;
-                        else balanceMap[senderUid].usd += amount;
+                        if (item.codCurrency === 'KHR') balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr + amount);
+                        else balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd + amount);
                     }
                 });
 
-                // Debit: Delivery Fees (If delivered or confirmed)
-                // Convert fee to matching currency if needed for display logic, but standard is USD
-                // Here we deduct fee in USD unless user operates purely in KHR (complex, stick to USD for fee)
                 // Debit: Delivery Fees (Pro-rated & Split for Mixed Currencies)
                 const totalItems = bItems.length > 0 ? bItems.length : 1;
                 const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
@@ -107,96 +106,76 @@ export const WalletBalanceReport: React.FC = () => {
                     if (isMixed) {
                         const khrItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR' && i.status === 'DELIVERED').length;
                         const usdItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'USD' && i.status === 'DELIVERED').length;
-                        const feePerItem = b.totalDeliveryFee / totalItems;
+                        const feePerItem = round2(b.totalDeliveryFee / totalItems);
                         const RATE = 4000;
 
                         if (khrItemsDelivered > 0) {
-                            let khrVal = feePerItem * khrItemsDelivered;
-                            // If base fee is in USD, convert portion to KHR
-                            if (b.currency === 'USD') khrVal = khrVal * RATE;
-                            balanceMap[senderUid].khr -= khrVal;
+                            let khrVal = round2(feePerItem * khrItemsDelivered);
+                            if (b.currency === 'USD') khrVal = round2(khrVal * RATE);
+                            balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr - khrVal);
                         }
                         if (usdItemsDelivered > 0) {
-                            let usdVal = feePerItem * usdItemsDelivered;
-                            // If base fee is in KHR, convert portion to USD
-                            if (b.currency === 'KHR') usdVal = usdVal / RATE;
-                            balanceMap[senderUid].usd -= usdVal;
+                            let usdVal = round2(feePerItem * usdItemsDelivered);
+                            if (b.currency === 'KHR') usdVal = round2(usdVal / RATE);
+                            balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd - usdVal);
                         }
                     } else {
-                        // Standard Single Currency Logic
-                        const deduction = (b.totalDeliveryFee / totalItems) * itemsDelivered;
+                        const deduction = round2((b.totalDeliveryFee / totalItems) * itemsDelivered);
                         const isKHR = b.currency === 'KHR' || (bItems.length > 0 && bItems[0]?.codCurrency === 'KHR');
-                        if (isKHR) balanceMap[senderUid].khr -= deduction;
-                        else balanceMap[senderUid].usd -= deduction;
+                        if (isKHR) balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr - deduction);
+                        else balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd - deduction);
                     }
                 }
             }
 
-            // B. Driver Logic
-            if (b.driverId && balanceMap[b.driverId]) {
-                const driverEmp = employees.find(e => e.linkedUserId === b.driverId);
-                const zoneRule = rules.find(r => r.zoneName === driverEmp?.zone) || defaultRule;
+            // B. Driver Logic (Refined for Split Commissions)
+            bItems.forEach(item => {
+                const totalItemsForBooking = bItems.length > 0 ? bItems.length : 1;
+                const mods = item.modifications || [];
 
-                // Credit: Commission Earned
-                const totalItems = bItems.length;
-                const processedItems = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER').length;
+                // 1. Pickup Commission
+                const pickupMod = mods.find(m => m.newValue === 'PICKED_UP');
+                const pickupUid = pickupMod?.userId || (item.status !== 'PENDING' ? item.driverId : null);
 
-                if (totalItems > 0 && processedItems > 0) {
-                    let totalComm = 0;
-                    if (zoneRule.type === 'FIXED_AMOUNT') totalComm = zoneRule.value;
-                    else totalComm = b.totalDeliveryFee * (zoneRule.value / 100);
+                if (pickupUid && balanceMap[pickupUid]) {
+                    const emp = employees.find(e => e.linkedUserId === pickupUid);
+                    const rule = getApplicableCommissionRule(emp, 'PICKUP', rules);
+                    const base = calculateDriverCommission(emp, b, 'PICKUP', rules);
 
-                    const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
-                    const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
-
-                    if (isMixed) {
-                        // Split Commission Logic for Mixed Currencies
-                        const processedItemsList = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER');
-                        const khrProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
-                        const usdProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'USD').length;
-
-                        const commPerItem = totalComm / totalItems;
-                        const RATE = 4000;
-
-                        if (khrProcessed > 0) {
-                            let khrVal = commPerItem * khrProcessed;
-                            // Convert to KHR if base is USD
-                            if (b.currency === 'USD') khrVal = khrVal * RATE;
-                            balanceMap[b.driverId].khr += khrVal;
-                        }
-                        if (usdProcessed > 0) {
-                            let usdVal = commPerItem * usdProcessed;
-                            // Convert to USD if base is KHR
-                            if (b.currency === 'KHR') usdVal = usdVal / RATE;
-                            balanceMap[b.driverId].usd += usdVal;
-                        }
-
+                    let earned = 0;
+                    if (rule?.type === 'FIXED_AMOUNT') {
+                        earned = base;
                     } else {
-                        // Single Currency Logic
-                        // Pro-rate
-                        const earned = totalComm * (processedItems / totalItems);
-
-                        // Determine Currency
-                        const isKHR = b.currency === 'KHR' || (bItems.length > 0 && bItems[0]?.codCurrency === 'KHR');
-
-                        if (isKHR) {
-                            balanceMap[b.driverId].khr += earned;
-                        } else {
-                            balanceMap[b.driverId].usd += earned;
-                        }
+                        earned = round2(base / totalItemsForBooking);
                     }
+
+                    const isKHR = b.currency === 'KHR';
+                    if (isKHR) balanceMap[pickupUid].khr = round2(balanceMap[pickupUid].khr + earned);
+                    else balanceMap[pickupUid].usd = round2(balanceMap[pickupUid].usd + earned);
                 }
 
-                // Debit: Cash Held (Driver owes company)
-                bItems.forEach(item => {
-                    if (item.status === 'DELIVERED') {
-                        const amount = item.productPrice || 0;
-                        // Driver DEBT is negative balance
-                        if (item.codCurrency === 'KHR') balanceMap[b.driverId].khr -= amount;
-                        else balanceMap[b.driverId].usd -= amount;
-                    }
-                });
-            }
+                // 2. Delivery Commission
+                const isProcessed = item.status === 'DELIVERED' || item.status === 'RETURN_TO_SENDER';
+                const dlvMod = mods.find(m => m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER');
+                const dlvUid = dlvMod?.userId || (isProcessed ? item.driverId : null);
+
+                if (dlvUid && balanceMap[dlvUid]) {
+                    const emp = employees.find(e => e.linkedUserId === dlvUid);
+                    const base = calculateDriverCommission(emp, b, 'DELIVERY', rules);
+                    const earned = round2(base / totalItemsForBooking);
+
+                    const isKHR = b.currency === 'KHR';
+                    if (isKHR) balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr + earned);
+                    else balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd + earned);
+                }
+
+                // 3. Cash Held (Debit from Delivery Driver)
+                if (item.status === 'DELIVERED' && dlvUid && balanceMap[dlvUid]) {
+                    const amount = item.productPrice || 0;
+                    if (item.codCurrency === 'KHR') balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr - amount);
+                    else balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd - amount);
+                }
+            });
         });
 
         return users
@@ -216,7 +195,6 @@ export const WalletBalanceReport: React.FC = () => {
         return balances.filter(b => {
             const matchesRole = filterRole === 'ALL' || b.role === filterRole;
             const matchesSearch = (b.name || '').toLowerCase().includes(searchTerm.toLowerCase());
-            // Filter out near-zero balances to reduce noise? Optional.
             return matchesRole && matchesSearch;
         });
     }, [balances, filterRole, searchTerm]);
@@ -248,7 +226,6 @@ export const WalletBalanceReport: React.FC = () => {
                 </div>
             </div>
 
-            {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card className="bg-indigo-50 border-indigo-200">
                     <div className="text-sm font-bold text-indigo-800 uppercase">Total Net Liability (USD)</div>
@@ -286,9 +263,6 @@ export const WalletBalanceReport: React.FC = () => {
                                 <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-500">No records found.</td></tr>
                             ) : (
                                 filteredData.map(user => {
-                                    // Status Logic: 
-                                    // Customer > 0 = Company Owes Customer
-                                    // Driver < 0 = Driver Owes Company (Held Cash)
                                     let statusColor = 'text-gray-500 bg-gray-100';
                                     let statusText = 'Balanced';
 

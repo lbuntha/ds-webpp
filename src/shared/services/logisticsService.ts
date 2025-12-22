@@ -1,7 +1,8 @@
 
 import { BaseService } from './baseService';
-import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, UserProfile, ReferralRule } from '../types';
+import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, UserProfile, ReferralRule, ParcelItem, Employee } from '../types';
 import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or } from 'firebase/firestore';
+import { calculateDriverCommission } from '../utils/commissionCalculator';
 
 export class LogisticsService extends BaseService {
     // Config
@@ -90,18 +91,23 @@ export class LogisticsService extends BaseService {
         // 2. Available jobs (status == 'PENDING' AND driverId == null/undefined)
 
         try {
-            // Query 1: Assigned to me
-            const q1 = query(collection(this.db, 'parcel_bookings'), where('driverId', '==', driverId));
+            // Query 1: Involved in this booking
+            const q1 = query(collection(this.db, 'parcel_bookings'), where('involvedDriverIds', 'array-contains', driverId));
             const snap1 = await getDocs(q1);
 
-            // Query 2: Pending jobs (Available for pickup)
-            const q2 = query(collection(this.db, 'parcel_bookings'), where('status', '==', 'PENDING'));
-            const snap2 = await getDocs(q2);
+            // Query 2: Assigned directly (fallback for old records)
+            const q2a = query(collection(this.db, 'parcel_bookings'), where('driverId', '==', driverId));
+            const snap2a = await getDocs(q2a);
+
+            // Query 3: Pending jobs (Available for pickup)
+            const q3 = query(collection(this.db, 'parcel_bookings'), where('status', '==', 'PENDING'));
+            const snap3 = await getDocs(q3);
 
             const bookingsMap = new Map<string, ParcelBooking>();
 
             snap1.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
-            snap2.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
+            snap2a.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
+            snap3.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
 
             return Array.from(bookingsMap.values());
         } catch (e) {
@@ -111,8 +117,59 @@ export class LogisticsService extends BaseService {
     }
 
     // Updated to accept wallet service for referral triggering
-    async saveParcelBooking(b: ParcelBooking, paymentAccountId?: string, walletService?: any, configService?: any) {
+    async saveParcelBooking(b: ParcelBooking, paymentAccountId?: string, walletService?: any, configService?: any, hrService?: any) {
         const bookingToSave = this.cleanData(b);
+
+        // --- ITEM-LEVEL COMMISSION TRIGGER ---
+        if (walletService && hrService && bookingToSave.id && bookingToSave.items) {
+            try {
+                const oldBookingSnap = await getDoc(doc(this.db, 'parcel_bookings', bookingToSave.id));
+                const oldBooking = oldBookingSnap.exists() ? oldBookingSnap.data() as ParcelBooking : null;
+
+                const commissionRules = await this.getDriverCommissionRules();
+                const employees = await hrService.getEmployees();
+
+                for (const item of bookingToSave.items) {
+                    const oldItem = oldBooking?.items?.find((i: ParcelItem) => i.id === item.id);
+                    const itemFeeShare = (bookingToSave.totalDeliveryFee || 0) / (bookingToSave.items.length || 1);
+
+                    // 1. Pickup Commission
+                    // Trigger if item is now in ANY status after PENDING, and it wasn't before
+                    const isAfterPickup = ['PICKED_UP', 'AT_WAREHOUSE', 'IN_TRANSIT', 'DELIVERED'].includes(item.status || '');
+                    const wasBeforePickup = !oldItem || oldItem.status === 'PENDING' || !oldItem.status;
+
+                    if (isAfterPickup && wasBeforePickup && item.collectorId && !item.pickupCommission) {
+                        const collector = employees.find((e: any) => e.linkedUserId === item.collectorId);
+                        const commission = calculateDriverCommission(collector, bookingToSave, 'PICKUP', commissionRules, itemFeeShare);
+                        if (commission > 0) {
+                            item.pickupCommission = commission;
+                            await walletService.executeReferralRule?.(item.collectorId, '', {}); // Placeholder if needed, but we use processWalletTransaction
+                            await walletService.processWalletTransaction(
+                                item.collectorId, commission, bookingToSave.currency || 'USD', 'EARNING', '',
+                                `Pickup: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
+                                [{ bookingId: bookingToSave.id, itemId: item.id }]
+                            );
+                        }
+                    }
+
+                    // 2. Delivery Commission
+                    if (item.status === 'DELIVERED' && oldItem?.status !== 'DELIVERED' && item.delivererId && !item.deliveryCommission) {
+                        const deliverer = employees.find((e: any) => e.linkedUserId === item.delivererId);
+                        const commission = calculateDriverCommission(deliverer, bookingToSave, 'DELIVERY', commissionRules, itemFeeShare);
+                        if (commission > 0) {
+                            item.deliveryCommission = commission;
+                            await walletService.processWalletTransaction(
+                                item.delivererId, commission, bookingToSave.currency || 'USD', 'EARNING', '',
+                                `Delivery: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
+                                [{ bookingId: bookingToSave.id, itemId: item.id }]
+                            );
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("Commission trigger failed:", e);
+            }
+        }
 
         if (bookingToSave.items && bookingToSave.items.length > 0) {
             const updatedItems = await Promise.all(bookingToSave.items.map(async (item: any) => {
@@ -185,6 +242,46 @@ export class LogisticsService extends BaseService {
                 // This often happens if the current user (e.g. Driver) lacks permission to update User Stats.
                 console.warn("Referral trigger skipped due to error/permission:", e.message);
             }
+        }
+
+        // --- POPULATE INVOLVED DRIVERS INDEX ---
+        const driverIds = new Set<string>();
+
+        // Helper to add IDs and their linked User IDs
+        const addDriverId = (id: string | undefined, allEmployees: Employee[]) => {
+            if (!id) return;
+            driverIds.add(id);
+            // Also add the linked user ID if this is an employee ID
+            const emp = allEmployees.find(e => e.id === id || e.linkedUserId === id);
+            if (emp?.linkedUserId) driverIds.add(emp.linkedUserId);
+            if (emp?.id) driverIds.add(emp.id);
+        };
+
+        try {
+            const allEmployees = hrService ? await hrService.getEmployees() : await this.getCollection<Employee>('employees');
+
+            if (bookingToSave.driverId) addDriverId(bookingToSave.driverId, allEmployees);
+            if (bookingToSave.items) {
+                bookingToSave.items.forEach((item: ParcelItem) => {
+                    addDriverId(item.driverId, allEmployees);
+                    addDriverId(item.collectorId, allEmployees);
+                    addDriverId(item.delivererId, allEmployees);
+                });
+            }
+            bookingToSave.involvedDriverIds = Array.from(driverIds);
+            console.log(`Updated involvedDriverIds for Booking ${bookingToSave.id}:`, bookingToSave.involvedDriverIds);
+        } catch (e) {
+            console.warn("Failed to update involvement index:", e);
+            // Fallback to basic IDs if employee fetch fails
+            if (bookingToSave.driverId) driverIds.add(bookingToSave.driverId);
+            if (bookingToSave.items) {
+                bookingToSave.items.forEach((item: ParcelItem) => {
+                    if (item.driverId) driverIds.add(item.driverId);
+                    if (item.collectorId) driverIds.add(item.collectorId);
+                    if (item.delivererId) driverIds.add(item.delivererId);
+                });
+            }
+            bookingToSave.involvedDriverIds = Array.from(driverIds);
         }
 
         await this.saveDocument('parcel_bookings', bookingToSave);

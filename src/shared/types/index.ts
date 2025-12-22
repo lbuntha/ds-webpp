@@ -43,6 +43,12 @@ export interface ParcelItem {
   driverId?: string;
   driverName?: string;
   targetBranchId?: string;
+  collectorId?: string;
+  collectorName?: string;
+  delivererId?: string;
+  delivererName?: string;
+  pickupCommission?: number;
+  deliveryCommission?: number;
   modifications?: ParcelModification[];
 }
 
@@ -98,6 +104,7 @@ export type Permission =
   | 'MANAGE_ASSETS'
   | 'MANAGE_STAFF_LOANS'
   | 'MANAGE_BANKING'
+  | 'MANAGE_CUSTOMER_SETTLEMENTS'
   | 'PERFORM_CLOSING'
   | 'MANAGE_PARCELS' // Legacy/General - kept for backward compatibility
   // Granular Parcel/Logistics Permissions
@@ -119,9 +126,12 @@ export type Permission =
   // Driver Permissions
   | 'VIEW_DRIVER_JOBS'           // Driver: View assigned delivery jobs
   | 'VIEW_DRIVER_PICKUPS'        // Driver: View pickup assignments
-  | 'VIEW_DRIVER_EARNINGS';      // Driver: View earnings and commissions
+  | 'VIEW_DRIVER_EARNINGS'       // Driver: View earnings and commissions
+  | 'CUSTOMER_VIEW_REPORTS'      // Customer: View spending reports
+  | 'MANAGE_PARCEL_CONFIG'       // Admin: Manage parcel configuration
+  | 'MANAGE_LOGISTICS_CONFIG';   // Admin: Manage logistics settings
 
-export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse';
+export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse' | 'fleet-driver';
 
 export type UserStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE' | 'ACTIVE';
 
@@ -175,6 +185,8 @@ export interface ParcelStatusConfig {
 export interface DriverCommissionRule {
   id: string;
   zoneName: string; // e.g. "Default", "Phnom Penh", "Kandal"
+  commissionFor: 'DELIVERY' | 'PICKUP'; // NEW: What action this commission is for
+  driverSalaryType: 'WITH_BASE_SALARY' | 'WITHOUT_BASE_SALARY' | 'ALL'; // NEW: Driver salary classification
   type: 'PERCENTAGE' | 'FIXED_AMOUNT';
   value: number; // e.g. 70 (for 70%) or 1.50 (for $1.50)
   currency?: 'USD' | 'KHR'; // Only relevant for FIXED_AMOUNT
@@ -379,6 +391,9 @@ export interface Employee {
   branchId?: string | null;
   linkedUserId?: string | null;
   zone?: string; // NEW: Zone assignment for commission rules
+  hasBaseSalary?: boolean; // NEW: Whether driver receives a base salary
+  baseSalaryAmount?: number; // NEW: Optional - actual salary amount for reference
+  baseSalaryCurrency?: 'USD' | 'KHR'; // NEW: Currency for base salary
   createdAt: number;
 }
 
@@ -482,8 +497,18 @@ export interface SystemSettings {
   // Bank Accounts (Nostro) for Settlements
   defaultDriverSettlementBankIdUSD?: string;
   defaultDriverSettlementBankIdKHR?: string;
+  defaultDriverCashAccountIdUSD?: string; // NEW: Specific for Cash Settlements
+  defaultDriverCashAccountIdKHR?: string;
   defaultCustomerSettlementBankIdUSD?: string;
   defaultCustomerSettlementBankIdKHR?: string;
+
+  // Revenue & Tax Configuration (Centralized)
+  defaultRevenueAccountId?: string;
+  defaultRevenueAccountUSD?: string;
+  defaultRevenueAccountKHR?: string;
+  defaultTaxAccountId?: string;
+  defaultTaxAccountUSD?: string;
+  defaultTaxAccountKHR?: string;
 
   // Legacy Fallback
   defaultSettlementBankAccountId?: string;
@@ -545,6 +570,7 @@ export interface ParcelBooking {
   serviceTypeId: string;
   serviceTypeName: string;
   items: ParcelItem[];
+  involvedDriverIds?: string[]; // Denormalized index for querying item-level assignments
   distance: number;
   subtotal: number;
   discountAmount: number;

@@ -72,6 +72,9 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
     };
 
     const getRoutePath = (item: NavigationItem) => {
+        // Special case for Customer Settlements (finance feature, not customer-specific)
+        if (item.viewId === 'CUSTOMER_SETTLEMENTS') return '/app/customer-settlements';
+
         if (item.viewId.startsWith('CUSTOMER_')) return `/app/customer/${item.viewId.replace('CUSTOMER_', '').toLowerCase()}`;
         if (item.viewId.startsWith('DRIVER_')) return `/app/driver/${item.viewId.replace('DRIVER_', '').toLowerCase()}`;
         return `/app/${item.viewId.toLowerCase().replace(/_/g, '/')}`;

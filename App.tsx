@@ -26,6 +26,7 @@ import { InTransitAgingReport } from './components/reports/InTransitAgingReport'
 import { CustomerRetentionReport } from './components/reports/CustomerRetentionReport';
 import { Reports } from './components/Reports';
 import { AnalyticsDashboard } from './components/analytics/AnalyticsDashboard';
+import { CustomerSettlementReport } from './components/reports/CustomerSettlementReport';
 import { SettingsDashboard } from './components/settings/SettingsDashboard';
 import { UserList } from './components/UserList';
 import { UserProfileView } from './components/UserProfile';
@@ -107,6 +108,30 @@ function App() {
         };
     }, []);
 
+    // Hash-based routing support
+    useEffect(() => {
+        const handleHashChange = () => {
+            const hash = window.location.hash.replace('#', '');
+            console.log('🔗 Hash change detected:', hash);
+            if (hash) {
+                console.log('🔗 Setting activeView to:', hash);
+                setActiveView(hash);
+            }
+        };
+
+        // Check hash on mount
+        handleHashChange();
+
+        // Listen for hash changes
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
+
+    // Debug activeView changes
+    useEffect(() => {
+        console.log('📍 Current activeView:', activeView);
+    }, [activeView]);
+
     const loadData = async () => {
         if (!user) return;
         if (user.role === 'customer' || user.role === 'driver') return;
@@ -135,24 +160,40 @@ function App() {
             setBranches(brs);
             setCurrencies(currs);
             setTaxRates(taxes);
-            if (perms && Object.keys(perms).length > 0) setPermissions(perms as Record<UserRole, Permission[]>);
             setEmployees(emps);
             setCustomers(custs);
 
-            // Force re-seed menu from local constants to Firebase
-            // This ensures Firebase always has the latest menu structure
+            // Auto-sync permissions and menu for system-admin
             if (user.role === 'system-admin') {
-                // Check if menu exists, if zero items, seed defaults
-                const existingMenu = await firebaseService.getMenuItems();
-                if (!existingMenu || existingMenu.length === 0) {
-                    console.log('🔄 Seeding default menu (first run)...');
-                    await firebaseService.seedDefaultMenu();
-                    setMenuItems(DEFAULT_NAVIGATION);
+                // Sync permissions from constants to Firebase if missing or outdated
+                if (!perms || Object.keys(perms).length === 0) {
+                    console.log('🔄 Syncing permissions to Firebase (first run)...');
+                    await firebaseService.updateRolePermissions(ROLE_PERMISSIONS);
+                    setPermissions(ROLE_PERMISSIONS);
                 } else {
-                    setMenuItems(existingMenu);
+                    // Check if new permissions are missing
+                    const hasCustomerSettlements = perms['system-admin']?.includes('MANAGE_CUSTOMER_SETTLEMENTS');
+                    if (!hasCustomerSettlements) {
+                        console.log('🔄 Updating permissions with new MANAGE_CUSTOMER_SETTLEMENTS...');
+                        await firebaseService.updateRolePermissions(ROLE_PERMISSIONS);
+                        setPermissions(ROLE_PERMISSIONS);
+                    } else {
+                        setPermissions(perms as Record<UserRole, Permission[]>);
+                    }
                 }
+
+
+                // Force re-seed menu to fix any broken items
+                console.log('🔄 Force re-seeding menu from constants...');
+                await firebaseService.seedDefaultMenu();
+                setMenuItems(DEFAULT_NAVIGATION);
             } else {
                 // Non-admin: Load from Firebase or use defaults
+                if (perms && Object.keys(perms).length > 0) {
+                    setPermissions(perms as Record<UserRole, Permission[]>);
+                } else {
+                    setPermissions(ROLE_PERMISSIONS);
+                }
                 const menu = await firebaseService.getMenuItems();
                 setMenuItems(menu.length > 0 ? menu : DEFAULT_NAVIGATION);
             }
@@ -270,7 +311,17 @@ function App() {
 
         // If item requires a specific permission, check if user has it
         if (item.requiredPermission) {
-            return hasPermission(user, item.requiredPermission);
+            const hasPerm = hasPermission(user, item.requiredPermission);
+            // Debug logging for Customer Settlements
+            if (item.viewId === 'CUSTOMER_SETTLEMENTS') {
+                console.log('🔍 Customer Settlements Permission Check:', {
+                    viewId: item.viewId,
+                    requiredPermission: item.requiredPermission,
+                    userRole: user.role,
+                    hasPermission: hasPerm
+                });
+            }
+            return hasPerm;
         }
 
         // No permission required, show to all allowed roles
@@ -327,7 +378,12 @@ function App() {
 
                                 {/* Menu Item */}
                                 <button
-                                    onClick={() => setActiveView(item.viewId)}
+                                    onClick={() => {
+                                        if (item.viewId === 'CUSTOMER_SETTLEMENTS') {
+                                            console.log('🎯 Customer Settlements clicked, setting activeView to:', item.viewId);
+                                        }
+                                        setActiveView(item.viewId);
+                                    }}
                                     className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-all duration-200 ${activeView === item.viewId
                                         ? 'bg-slate-800 border-l-4 border-red-600 text-white'
                                         : 'hover:bg-slate-800 text-slate-400 hover:text-white'
@@ -336,7 +392,7 @@ function App() {
                                     <span className="mr-3"><MenuIcon iconKey={item.iconKey} className="w-4 h-4" /></span>
                                     {
                                         // @ts-ignore
-                                        t(item.label)
+                                        t(item.label as any)
                                     }
                                 </button>
                             </React.Fragment>
@@ -350,7 +406,7 @@ function App() {
                     <div className="space-y-1 mt-2">
                         {visibleMenuItems.map(i => (
                             <div key={i.id} className="flex justify-between border-b border-slate-800 pb-0.5">
-                                <span className="truncate w-20">{t(i.label)}</span>
+                                <span className="truncate w-20">{t(i.label as any)}</span>
                                 <span className="text-yellow-500">{i.section || 'None'}</span>
                             </div>
                         ))}
@@ -529,6 +585,10 @@ function App() {
                     {activeView === 'PARCELS_CONFIG' && <ParcelServiceSetup accounts={accounts} taxRates={taxRates} onBookService={(sid) => setActiveView('PARCELS_BOOKING')} />}
                     {activeView === 'PARCELS_AGING' && <InTransitAgingReport />}
                     {activeView === 'PARCELS_RETENTION' && <CustomerRetentionReport />}
+                    {activeView === 'CUSTOMER_SETTLEMENTS' && (() => {
+                        console.log('📊 Rendering CustomerSettlementReport component');
+                        return <CustomerSettlementReport />;
+                    })()}
 
                     {/* Legacy PARCELS view - kept for backward compatibility */}
                     {activeView === 'PARCELS' && (

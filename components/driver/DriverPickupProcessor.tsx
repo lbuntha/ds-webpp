@@ -159,6 +159,8 @@ export const DriverPickupProcessor: React.FC<Props> = ({ job, user, services, on
             status: 'PICKED_UP' as const,
             driverId: user.uid,
             driverName: user.name,
+            collectorId: user.uid,
+            collectorName: user.name,
             // Track modification history
             modifications: [
                 ...(activeItem.modifications || []),

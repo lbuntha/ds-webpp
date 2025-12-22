@@ -29,6 +29,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_ASSETS',
     'MANAGE_STAFF_LOANS',
     'MANAGE_BANKING',
+    'MANAGE_CUSTOMER_SETTLEMENTS',
     'PERFORM_CLOSING',
     'MANAGE_PARCELS',
     'VIEW_LOGISTICS_OVERVIEW',
@@ -48,12 +49,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_ASSETS',
     'MANAGE_STAFF_LOANS',
     'MANAGE_BANKING',
+    'MANAGE_CUSTOMER_SETTLEMENTS',
     'VIEW_LOGISTICS_OVERVIEW'
   ],
   'finance-manager': [
     'VIEW_DASHBOARD',
     'VIEW_JOURNAL',
-    'VIEW_REPORTS'
+    'VIEW_REPORTS',
+    'MANAGE_CUSTOMER_SETTLEMENTS'
   ],
   'customer': [
     'CUSTOMER_VIEW_DASHBOARD',
@@ -97,6 +100,7 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Permission[]> = {
     'MANAGE_ASSETS',
     'MANAGE_STAFF_LOANS',
     'MANAGE_BANKING',
+    'MANAGE_CUSTOMER_SETTLEMENTS',
     'VIEW_REPORTS',
     'PERFORM_CLOSING'
   ],
@@ -148,6 +152,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-journal', label: 'Journal', viewId: 'JOURNAL', iconKey: 'journal', order: 3, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'VIEW_JOURNAL', permissionGroup: 'FINANCE' },
   { id: 'nav-banking', label: 'Banking', viewId: 'BANKING', iconKey: 'banking', order: 6, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'MANAGE_BANKING', permissionGroup: 'FINANCE' },
   { id: 'nav-staff', label: 'Staff Loans', viewId: 'STAFF', iconKey: 'staff', order: 7, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'MANAGE_STAFF_LOANS', permissionGroup: 'FINANCE' },
+  { id: 'nav-customer-settlements', label: 'Customer Payouts', viewId: 'CUSTOMER_SETTLEMENTS', iconKey: 'money', order: 8, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], requiredPermission: 'MANAGE_CUSTOMER_SETTLEMENTS', permissionGroup: 'FINANCE' },
   { id: 'nav-closing', label: 'Closing', viewId: 'CLOSING', iconKey: 'closing', order: 9, allowedRoles: ['system-admin', 'accountant'], requiredPermission: 'PERFORM_CLOSING', permissionGroup: 'FINANCE' },
 
   // Logistics Group - Granular Items
@@ -182,7 +187,8 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-customer-parcels', label: 'My Parcels', viewId: 'CUSTOMER_PARCELS', iconKey: 'box', order: 201, allowedRoles: ['customer'], requiredPermission: 'VIEW_MY_PARCELS', permissionGroup: 'CUSTOMER' },
   { id: 'nav-customer-tracking', label: 'Tracking', viewId: 'CUSTOMER_TRACKING', iconKey: 'map', order: 202, allowedRoles: ['customer'], requiredPermission: 'TRACK_PARCELS', permissionGroup: 'CUSTOMER' },
   { id: 'nav-customer-wallet', label: 'My Wallet', viewId: 'CUSTOMER_WALLET', iconKey: 'wallet', order: 203, allowedRoles: ['customer'], requiredPermission: 'CUSTOMER_ACCESS_WALLET', permissionGroup: 'CUSTOMER' },
-  { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 204, allowedRoles: ['customer'], requiredPermission: 'VIEW_PROFILE', permissionGroup: 'CUSTOMER' }
+  { id: 'nav-customer-reports', label: 'Spending Report', viewId: 'CUSTOMER_REPORTS', iconKey: 'reports', order: 204, allowedRoles: ['customer'], requiredPermission: 'CUSTOMER_VIEW_REPORTS', permissionGroup: 'CUSTOMER' },
+  { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 205, allowedRoles: ['customer'], requiredPermission: 'VIEW_PROFILE', permissionGroup: 'CUSTOMER' }
 ];
 
 // List of Features for UI Mapping
@@ -199,6 +205,7 @@ export const FEATURE_LIST: { key: Permission; label: string }[] = [
   { key: 'PERFORM_CLOSING', label: 'Period Closing' },
   { key: 'MANAGE_SETTINGS', label: 'System Configuration' },
   { key: 'MANAGE_USERS', label: 'User Management' },
+  { key: 'MANAGE_CUSTOMER_SETTLEMENTS', label: 'customer_settlements' },
   // Logistics
   { key: 'VIEW_LOGISTICS_OVERVIEW', label: 'Logistics: Overview & List' },
   { key: 'CREATE_BOOKING', label: 'Logistics: Create Booking' },
@@ -206,6 +213,7 @@ export const FEATURE_LIST: { key: Permission; label: string }[] = [
   { key: 'MANAGE_WAREHOUSE', label: 'Logistics: Warehouse Ops' },
   { key: 'MANAGE_FLEET', label: 'Logistics: Fleet Management' },
   { key: 'MANAGE_LOGISTICS_CONFIG', label: 'Logistics: Settings/Products' },
+  { key: 'CUSTOMER_VIEW_REPORTS', label: 'Customer: Spending Report' },
 ];
 
 // --- PARCEL DEFAULTS ---

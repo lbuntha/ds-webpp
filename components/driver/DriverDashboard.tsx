@@ -47,9 +47,12 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     // Settlement
     const [isSettling, setIsSettling] = useState(false);
 
-    // Multi-Currency Inputs
-    const [payAmountUSD, setPayAmountUSD] = useState<number | ''>('');
-    const [payAmountKHR, setPayAmountKHR] = useState<number | ''>('');
+    // Multi-Currency Inputs (Bank)
+    const [payAmountBankUSD, setPayAmountBankUSD] = useState<number | ''>('');
+    const [payAmountBankKHR, setPayAmountBankKHR] = useState<number | ''>('');
+    // Multi-Currency Inputs (Cash)
+    const [payAmountCashUSD, setPayAmountCashUSD] = useState<number | ''>('');
+    const [payAmountCashKHR, setPayAmountCashKHR] = useState<number | ''>('');
 
     const [settleProof, setSettleProof] = useState('');
     const [companyBanks, setCompanyBanks] = useState<Account[]>([]);
@@ -117,10 +120,20 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     // Derived Data
     const availablePickups = bookings.filter(b => !b.driverId && b.status === 'PENDING');
-    const myPickups = bookings.filter(b => b.driverId === user.uid && b.status !== 'CANCELLED' && (b.items || []).some(i => i.status === 'PENDING'));
+    const myPickups = bookings.filter(b =>
+        (b.driverId === user.uid || b.involvedDriverIds?.includes(user.uid)) &&
+        b.status !== 'CANCELLED' &&
+        (b.items || []).some(i =>
+            (i.driverId === user.uid || i.collectorId === user.uid) &&
+            (i.status === 'PENDING' || i.status === 'AT_WAREHOUSE')
+        )
+    );
     const myActiveJobs = bookings.map(b => ({
         ...b,
-        activeItems: (b.items || []).filter(i => i.driverId === user.uid && (i.status === 'PICKED_UP' || (i.status === 'IN_TRANSIT' && !i.targetBranchId)))
+        activeItems: (b.items || []).filter(i =>
+            (i.driverId === user.uid || i.delivererId === user.uid) &&
+            (i.status === 'PICKED_UP' || i.status === 'AT_WAREHOUSE' || (i.status === 'IN_TRANSIT' && !i.targetBranchId))
+        )
     })).filter(b => b.activeItems.length > 0);
 
     const pendingHubHandover = bookings.flatMap(b => (b.items || []).map(i => ({ ...i, bookingId: b.id, senderName: b.senderName })))
@@ -148,7 +161,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const settlementCalc = useMemo(() => {
         // Find dynamic rate from collection, fallback to 4100
         const khrCurrency = currencies.find(c => c.code === 'KHR');
-        const exchangeRate = khrCurrency ? khrCurrency.exchangeRate : 4100;
+        const exchangeRate = khrCurrency ? khrCurrency.exchangeRate : 4000;
 
         const debtUSD = cashInHand.usd;
         const debtKHR = cashInHand.khr;
@@ -157,11 +170,13 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const totalDebtBase = debtUSD + (debtKHR / exchangeRate);
 
         // User Inputs
-        const inputUSD = Number(payAmountUSD) || 0;
-        const inputKHR = Number(payAmountKHR) || 0;
+        const bankUSD = Number(payAmountBankUSD) || 0;
+        const bankKHR = Number(payAmountBankKHR) || 0;
+        const cashUSD = Number(payAmountCashUSD) || 0;
+        const cashKHR = Number(payAmountCashKHR) || 0;
 
         // Total Provided in Base USD
-        const totalProvidedBase = inputUSD + (inputKHR / exchangeRate);
+        const totalProvidedBase = bankUSD + cashUSD + ((bankKHR + cashKHR) / exchangeRate);
 
         const difference = totalProvidedBase - totalDebtBase;
         const isBalanced = Math.abs(difference) < 0.05; // 5 cent buffer for rounding
@@ -171,11 +186,13 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             totalProvidedBase,
             difference,
             isBalanced,
-            inputUSD,
-            inputKHR,
+            bankUSD,
+            bankKHR,
+            cashUSD,
+            cashKHR,
             exchangeRate
         };
-    }, [cashInHand, payAmountUSD, payAmountKHR, currencies]);
+    }, [cashInHand, payAmountBankUSD, payAmountBankKHR, payAmountCashUSD, payAmountCashKHR, currencies]);
 
     // Handlers
     const handleParcelAction = async (bookingId: string, itemId: string, action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'TRANSFER', branchId?: string, proof?: string, updatedCOD?: { amount: number, currency: 'USD' | 'KHR' }) => {
@@ -186,7 +203,15 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             if (item.id === itemId) {
                 if (action === 'TRANSIT') return { ...item, status: 'IN_TRANSIT' as const };
                 if (action === 'DELIVER') {
-                    const newItem = { ...item, status: 'DELIVERED' as const, settlementStatus: 'UNSETTLED' as const, proofOfDelivery: proof };
+                    const newItem = {
+                        ...item,
+                        status: 'DELIVERED' as const,
+                        settlementStatus: 'UNSETTLED' as const,
+                        proofOfDelivery: proof,
+                        delivererId: user.uid,
+                        delivererName: user.name,
+                        targetBranchId: null // Clear to indicate Out for Delivery
+                    };
                     if (updatedCOD) {
                         newItem.productPrice = updatedCOD.amount;
                         newItem.codCurrency = updatedCOD.currency;
@@ -273,16 +298,21 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             return;
         }
 
-        // Ensure Banks are Configured
-        if (settlementCalc.inputUSD > 0 && !defaultBankUSD) {
-            return toast.error("System Error: No default USD settlement bank configured.");
-        }
-        if (settlementCalc.inputKHR > 0 && !defaultBankKHR) {
-            return toast.error("System Error: No default KHR settlement bank configured.");
-        }
+        const { bankUSD, bankKHR, cashUSD, cashKHR } = settlementCalc;
 
-        if (!settleProof && (settlementCalc.inputUSD > 0 || settlementCalc.inputKHR > 0)) {
-            toast.warning("Please upload proof of transfer.");
+        // Ensure Asset Accounts are Configured
+        if (bankUSD > 0 && !defaultBankUSD) return toast.error("System Error: No default USD settlement bank configured.");
+        if (bankKHR > 0 && !defaultBankKHR) return toast.error("System Error: No default KHR settlement bank configured.");
+
+        const defaultCashUSDId = settings.defaultDriverCashAccountIdUSD;
+        const defaultCashKHRId = settings.defaultDriverCashAccountIdKHR;
+
+        if (cashUSD > 0 && !defaultCashUSDId) return toast.error("System Error: No default USD cash account configured.");
+        if (cashKHR > 0 && !defaultCashKHRId) return toast.error("System Error: No default KHR cash account configured.");
+
+        const needsProof = bankUSD > 0 || bankKHR > 0;
+        if (needsProof && !settleProof) {
+            toast.warning("Please upload proof of transfer for bank portions.");
             return;
         }
 
@@ -297,52 +327,66 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 .filter(i => (i.codCurrency || 'USD') === 'KHR')
                 .map(i => ({ bookingId: i.bookingId, itemId: i.id }));
 
+            // For each currency, we pick ONE "Master" transaction to carry the items
+            // Master USD: Bank if exists, else Cash
+            const masterUsdMethod: 'BANK' | 'CASH' | null = bankUSD > 0 ? 'BANK' : (cashUSD > 0 ? 'CASH' : null);
+            // Master KHR: Bank if exists, else Cash
+            const masterKhrMethod: 'BANK' | 'CASH' | null = bankKHR > 0 ? 'BANK' : (cashKHR > 0 ? 'CASH' : null);
+
             const requestsToMake = [];
 
-            // 1. Make USD Request if applicable
-            if (settlementCalc.inputUSD > 0) {
+            // 1. Bank USD
+            if (bankUSD > 0) {
                 requestsToMake.push(
                     firebaseService.requestSettlement(
-                        user.uid,
-                        user.name,
-                        settlementCalc.inputUSD,
-                        'USD',
-                        defaultBankUSD!.id,
-                        settleProof || '',
-                        `Partial Settlement (USD Portion)`,
-                        usdItemsToSettle // Attach only USD items
+                        user.uid, user.name, bankUSD, 'USD', defaultBankUSD!.id, settleProof || '',
+                        `Settlement (Bank USD)`, masterUsdMethod === 'BANK' ? usdItemsToSettle : []
+                    )
+                );
+            }
+            // 2. Bank KHR
+            if (bankKHR > 0) {
+                requestsToMake.push(
+                    firebaseService.requestSettlement(
+                        user.uid, user.name, bankKHR, 'KHR', defaultBankKHR!.id, settleProof || '',
+                        `Settlement (Bank KHR)`, masterKhrMethod === 'BANK' ? khrItemsToSettle : []
                     )
                 );
             }
 
-            // 2. Make KHR Request if applicable
-            if (settlementCalc.inputKHR > 0) {
+            // 3. Cash USD
+            if (cashUSD > 0) {
                 requestsToMake.push(
                     firebaseService.requestSettlement(
-                        user.uid,
-                        user.name,
-                        settlementCalc.inputKHR,
-                        'KHR',
-                        defaultBankKHR!.id,
-                        settleProof || '',
-                        `Partial Settlement (KHR Portion)`,
-                        khrItemsToSettle // Attach only KHR items
+                        user.uid, user.name, cashUSD, 'USD', defaultCashUSDId!, '',
+                        `Settlement (Cash USD)`, masterUsdMethod === 'CASH' ? usdItemsToSettle : []
+                    )
+                );
+            }
+            // 4. Cash KHR
+            if (cashKHR > 0) {
+                requestsToMake.push(
+                    firebaseService.requestSettlement(
+                        user.uid, user.name, cashKHR, 'KHR', defaultCashKHRId!, '',
+                        `Settlement (Cash KHR)`, masterKhrMethod === 'CASH' ? khrItemsToSettle : []
                     )
                 );
             }
 
             if (requestsToMake.length > 0) {
                 await Promise.all(requestsToMake);
-                toast.success("Settlement requested successfully. " + (requestsToMake.length > 1 ? "(Split into 2 requests)" : ""));
+                toast.success(`Settlement requested successfully. (${requestsToMake.length} transactions)`);
                 setIsSettling(false);
                 setSettleProof('');
-                setPayAmountUSD('');
-                setPayAmountKHR('');
-                loadJobs(); // Refresh history
+                setPayAmountBankUSD('');
+                setPayAmountBankKHR('');
+                setPayAmountCashUSD('');
+                setPayAmountCashKHR('');
+                loadJobs();
             } else {
-                // Edge case: 0 amount settlement (Prepaid items only)
+                // Edge case: 0 amount settlement
                 await firebaseService.requestSettlement(
-                    user.uid, user.name, 0, 'USD', defaultBankUSD?.id || 'system', '', 'Zero-Value Settlement', itemsToSettle
+                    user.uid, user.name, 0, 'USD', defaultBankUSD?.id || 'system', '', 'Zero-Value Settlement', unsettledItems.map(i => ({ bookingId: i.bookingId, itemId: i.id }))
                 );
                 toast.success("Items cleared.");
                 setIsSettling(false);
@@ -459,6 +503,12 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     return (
         <div className="space-y-4">
+            <div className="flex justify-between items-center px-1">
+                <h2 className="text-lg font-bold text-gray-800">Driver Dashboard</h2>
+                <Button variant="outline" onClick={loadJobs} isLoading={loading} className="py-1 px-3 h-8 text-xs">
+                    {t('refresh')}
+                </Button>
+            </div>
             {/* Tabs */}
             <div className="flex space-x-1 bg-white p-1 rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
                 {[
@@ -494,6 +544,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                             key={job.id}
                             job={job}
                             type="PICKUP"
+                            currentDriverId={user.uid}
                             onAction={setProcessingJob}
                             onMapClick={(addr) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`, '_blank')}
                             onChatClick={(j) => openChat(j.id, (j.items || [])[0])}
@@ -509,6 +560,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                         <DriverDeliveryCard
                             key={job.id}
                             job={job}
+                            currentDriverId={user.uid}
                             onZoomImage={setZoomImage}
                             onUpdateCod={handleCodUpdate}
                             onChatClick={(bid, item) => openChat(bid, item)}
@@ -654,35 +706,69 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                             </div>
 
                             {/* Multi-Currency Inputs */}
-                            <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <p className="text-xs font-bold text-gray-500 uppercase">I am paying:</p>
-                                    <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100">
-                                        Rate: 1 USD = {settlementCalc.exchangeRate.toLocaleString()} KHR
+                            <div className="space-y-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase">{t('i_am_paying')}:</p>
+
+                                {/* Bank Transfer Section */}
+                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Option 1: Bank Transfer</h4>
+                                        <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 italic">
+                                            Rate: 1 USD = {settlementCalc.exchangeRate.toLocaleString()} KHR
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">Amount in USD</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                placeholder="0.00"
+                                                value={payAmountBankUSD}
+                                                onChange={e => setPayAmountBankUSD(parseFloat(e.target.value) || 0)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">Amount in KHR</label>
+                                            <input
+                                                type="number"
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                placeholder="0"
+                                                value={payAmountBankKHR}
+                                                onChange={e => setPayAmountBankKHR(parseFloat(e.target.value) || 0)}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Amount in USD</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-900"
-                                            placeholder="0.00"
-                                            value={payAmountUSD}
-                                            onChange={e => setPayAmountUSD(parseFloat(e.target.value))}
-                                        />
+
+                                {/* Cash Handover Section */}
+                                <div className="p-4 bg-indigo-50/30 rounded-xl border border-indigo-100">
+                                    <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-3">Option 2: Cash Handover</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-indigo-400 mb-1">Amount in USD</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                className="w-full border border-indigo-100 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                placeholder="0.00"
+                                                value={payAmountCashUSD}
+                                                onChange={e => setPayAmountCashUSD(parseFloat(e.target.value) || 0)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-indigo-400 mb-1">Amount in KHR</label>
+                                            <input
+                                                type="number"
+                                                className="w-full border border-indigo-100 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                placeholder="0"
+                                                value={payAmountCashKHR}
+                                                onChange={e => setPayAmountCashKHR(parseFloat(e.target.value) || 0)}
+                                            />
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Amount in KHR</label>
-                                        <input
-                                            type="number"
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-900"
-                                            placeholder="0"
-                                            value={payAmountKHR}
-                                            onChange={e => setPayAmountKHR(parseFloat(e.target.value))}
-                                        />
-                                    </div>
+                                    <p className="text-[9px] text-indigo-300 mt-2 italic text-center">Handover physical cash at the office.</p>
                                 </div>
                             </div>
 
@@ -703,9 +789,9 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                             </div>
 
                             {/* Banking Info Display */}
-                            {(settlementCalc.inputUSD > 0 || settlementCalc.inputKHR > 0) && (
+                            {(settlementCalc.bankUSD > 0 || settlementCalc.bankKHR > 0) && (
                                 <div className="mt-2 space-y-2">
-                                    {settlementCalc.inputUSD > 0 && defaultBankUSD && (
+                                    {settlementCalc.bankUSD > 0 && defaultBankUSD && (
                                         <div className="flex items-center gap-3 p-2 bg-blue-50 border border-blue-100 rounded-lg">
                                             {defaultBankUSD.qrCode && <img src={defaultBankUSD.qrCode} className="w-10 h-10 object-contain bg-white rounded" alt="QR" />}
                                             <div className="flex-1">
@@ -714,7 +800,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                                             </div>
                                         </div>
                                     )}
-                                    {settlementCalc.inputKHR > 0 && defaultBankKHR && (
+                                    {settlementCalc.bankKHR > 0 && defaultBankKHR && (
                                         <div className="flex items-center gap-3 p-2 bg-orange-50 border border-orange-100 rounded-lg">
                                             {defaultBankKHR.qrCode && <img src={defaultBankKHR.qrCode} className="w-10 h-10 object-contain bg-white rounded" alt="QR" />}
                                             <div className="flex-1">
@@ -726,16 +812,21 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                                 </div>
                             )}
 
-                            {(settlementCalc.inputUSD > 0 || settlementCalc.inputKHR > 0) && (
+                            {(settlementCalc.bankUSD > 0 || settlementCalc.bankKHR > 0) && (
                                 <ImageUpload label={t('proof_of_transfer')} value={settleProof} onChange={setSettleProof} />
                             )}
 
                             <div className="flex gap-2 pt-2 border-t border-gray-100 mt-2">
-                                <Button variant="outline" onClick={() => setIsSettling(false)} className="flex-1">{t('cancel')}</Button>
+                                <button
+                                    onClick={() => setIsSettling(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50"
+                                >
+                                    {t('cancel')}
+                                </button>
                                 <Button
                                     onClick={handleSettlement}
                                     isLoading={isSaving}
-                                    disabled={!settlementCalc.isBalanced || (settlementCalc.totalProvidedBase > 0 && !settleProof)}
+                                    disabled={!settlementCalc.isBalanced || ((settlementCalc.bankUSD > 0 || settlementCalc.bankKHR > 0) && !settleProof)}
                                     className={`flex-1 ${settlementCalc.isBalanced ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'}`}
                                 >
                                     {t('submit_request')}

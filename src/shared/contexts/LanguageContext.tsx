@@ -253,6 +253,7 @@ const translations = {
     // Customer Portal
     my_profile: "My Profile",
     new_booking: "New Booking",
+    spending_report: "Spending Report",
     delivery_reports: "Delivery Reports",
     hello: "Hello",
     track_shipment: "Track your shipments & spend.",
@@ -615,6 +616,7 @@ const translations = {
     // Customer Portal
     my_profile: "ប្រវត្តិរូបខ្ញុំ",
     new_booking: "ការកក់ថ្មី",
+    spending_report: "របាយការណ៍ចំណាយ",
     delivery_reports: "របាយការណ៍ដឹកជញ្ជូន",
     hello: "សួស្តី",
     track_shipment: "តាមដានការដឹកជញ្ជូន និងការចំណាយរបស់អ្នក",

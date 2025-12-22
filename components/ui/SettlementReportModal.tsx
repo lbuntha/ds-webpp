@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { WalletTransaction, ParcelBooking, Invoice, DriverCommissionRule, Employee, Account, JournalEntry, SystemSettings, CurrencyConfig, TaxRate } from '../../types';
 import { firebaseService } from '../../services/firebaseService';
+import { calculateDriverCommission, getApplicableCommissionRule } from '../../src/shared/utils/commissionCalculator';
 import { Button } from './Button';
 
 interface Props {
@@ -119,13 +120,8 @@ export const SettlementReportModal: React.FC<Props> = ({
                         allBookings = await firebaseService.getParcelBookings();
                     }
 
-                    // Commission Logic (Simple estimate for display)
-                    let defaultRule = commissionRules.find(r => r.isDefault) || { type: 'PERCENTAGE', value: 70 };
+                    // Commission Logic - Calculate BOTH pickup and delivery commissions
                     const driverEmp = employees.find(e => e.linkedUserId === transaction.userId);
-                    if (driverEmp && driverEmp.zone) {
-                        const zoneRule = commissionRules.find(r => r.zoneName === driverEmp.zone);
-                        if (zoneRule) defaultRule = zoneRule;
-                    }
 
                     for (const rel of transaction.relatedItems) {
                         const booking = allBookings.find(b => b.id === rel.bookingId);
@@ -133,55 +129,89 @@ export const SettlementReportModal: React.FC<Props> = ({
                             const bItems = booking.items || [];
                             const parcelItem = bItems.find(i => i.id === rel.itemId);
                             if (parcelItem) {
-                                // ESTIMATED COMMISSION CALCULATION
-                                // We want to display the commission in the SAME currency as the transaction (Settlement Request)
-                                // to avoid confusion (e.g. displaying KHR comm on a USD settlement).
-
-                                const totalBookingFee = booking.totalDeliveryFee || 0;
-                                const itemsCount = bItems.length || 1;
-                                let rawComm = 0;
-
-                                // 1. Calculate Raw Commission (in Booking's Source Currency)
-                                if (defaultRule.type === 'FIXED_AMOUNT') {
-                                    rawComm = defaultRule.value / itemsCount;
-                                } else {
-                                    rawComm = (totalBookingFee / itemsCount) * (defaultRule.value / 100);
-                                }
-
-                                // 2. Identify Source Currency
-                                // If booking has no currency, infer from item or default to USD (Legacy)
-                                const sourceCurrency = booking.currency || (parcelItem.codCurrency === 'KHR' ? 'KHR' : 'USD');
-
-                                // 3. Convert to Target (Transaction) Currency
                                 const targetCurrency = transaction.currency || 'USD';
                                 const RATE = 4000; // Standard display rate
 
-                                let finalComm = rawComm;
+                                // Calculate commissions
+                                const pRule = getApplicableCommissionRule(driverEmp, 'PICKUP', commissionRules);
+                                const pickupCommTotal = calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules);
+                                const deliveryCommTotal = calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules);
 
+                                const totalItems = bItems.length > 0 ? bItems.length : 1;
+
+                                // 1. Pro-rate Delivery (Per Item)
+                                let finalDeliveryComm = deliveryCommTotal / totalItems;
+
+                                // 2. Pickup (Per Item if Fixed, Pro-rated if Percentage)
+                                let finalPickupComm = 0;
+                                if (pRule?.type === 'FIXED_AMOUNT') {
+                                    finalPickupComm = pickupCommTotal;
+                                } else {
+                                    finalPickupComm = pickupCommTotal / totalItems;
+                                }
+
+                                // Split attribution for preview (Who did what?)
+                                const mods = parcelItem.modifications || [];
+                                const pickupMod = mods.find(m => m.newValue === 'PICKED_UP');
+                                const pickupDriverName = pickupMod?.userName || booking.driverName || 'Unknown';
+
+                                const dlvMod = mods.find(m => m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER');
+                                const dlvDriverName = dlvMod?.userName || (parcelItem.status !== 'PENDING' ? parcelItem.driverName : 'Unknown');
+
+                                // Currency Conversion
+                                const sourceCurrency = booking.currency || 'USD';
                                 if (sourceCurrency !== targetCurrency) {
                                     if (sourceCurrency === 'USD' && targetCurrency === 'KHR') {
-                                        finalComm = rawComm * RATE;
+                                        finalPickupComm *= RATE;
+                                        finalDeliveryComm *= RATE;
                                     } else if (sourceCurrency === 'KHR' && targetCurrency === 'USD') {
-                                        finalComm = rawComm / RATE;
+                                        finalPickupComm /= RATE;
+                                        finalDeliveryComm /= RATE;
                                     }
                                 }
 
-                                reportItems.push({
-                                    id: parcelItem.id,
-                                    date: booking.bookingDate,
-                                    reference: parcelItem.trackingCode || 'N/A',
-                                    description: `Delivery`,
-                                    amount: parcelItem.productPrice || 0,
-                                    currency: parcelItem.codCurrency || 'USD',
-                                    status: parcelItem.settlementStatus || 'UNSETTLED',
-                                    commission: finalComm,
-                                    commissionCurrency: targetCurrency, // Match Transaction Currency
-                                    details: {
-                                        sender: booking.senderName || 'Unknown Sender',
-                                        receiver: parcelItem.receiverName || 'Unknown Receiver',
-                                        type: 'PARCEL'
-                                    }
-                                });
+                                finalPickupComm = Math.round((finalPickupComm + Number.EPSILON) * 100) / 100;
+                                finalDeliveryComm = Math.round((finalDeliveryComm + Number.EPSILON) * 100) / 100;
+
+                                // Add PICKUP commission line item (if > 0)
+                                if (finalPickupComm > 0) {
+                                    reportItems.push({
+                                        id: `${parcelItem.id}-pickup`,
+                                        date: booking.bookingDate,
+                                        reference: parcelItem.trackingCode || 'N/A',
+                                        description: `Pickup (by ${pickupDriverName})`,
+                                        amount: parcelItem.productPrice || 0,
+                                        currency: parcelItem.codCurrency || 'USD',
+                                        status: parcelItem.settlementStatus || 'UNSETTLED',
+                                        commission: finalPickupComm,
+                                        commissionCurrency: targetCurrency,
+                                        details: {
+                                            sender: booking.senderName || 'Unknown Sender',
+                                            receiver: parcelItem.receiverName || 'Unknown Receiver',
+                                            type: 'PARCEL'
+                                        }
+                                    });
+                                }
+
+                                // Add DELIVERY commission line item (if > 0)
+                                if (finalDeliveryComm > 0) {
+                                    reportItems.push({
+                                        id: `${parcelItem.id}-delivery`,
+                                        date: booking.bookingDate,
+                                        reference: parcelItem.trackingCode || 'N/A',
+                                        description: `Delivery (by ${dlvDriverName})`,
+                                        amount: parcelItem.productPrice || 0,
+                                        currency: parcelItem.codCurrency || 'USD',
+                                        status: parcelItem.settlementStatus || 'UNSETTLED',
+                                        commission: finalDeliveryComm,
+                                        commissionCurrency: targetCurrency,
+                                        details: {
+                                            sender: booking.senderName || 'Unknown Sender',
+                                            receiver: parcelItem.receiverName || 'Unknown Receiver',
+                                            type: 'PARCEL'
+                                        }
+                                    });
+                                }
                             }
                         }
                     }
@@ -332,7 +362,7 @@ export const SettlementReportModal: React.FC<Props> = ({
                 });
             }
         } else if (transaction.type === 'SETTLEMENT') {
-            // Basic preview for settlement (complex logic handled in backend/approval, simplifying here for visibility of main accounts)
+            // Refined preview for settlement to show Commissions
             if (bankAcc) {
                 lines.push({
                     accountName: bankAcc.name,
@@ -342,14 +372,32 @@ export const SettlementReportModal: React.FC<Props> = ({
                     description: 'Settlement Received (Asset)'
                 });
             }
+
+            const totalCommBase = items.reduce((sum, i) => sum + (i.commission || 0), 0);
+            if (totalCommBase > 0) {
+                lines.push({
+                    accountName: 'Commissions Expense',
+                    accountCode: '6501002/1',
+                    debit: totalCommBase,
+                    credit: 0,
+                    description: 'Estimated Commission Expense'
+                });
+                lines.push({
+                    accountName: 'Commissions Payable',
+                    accountCode: '3210102/1',
+                    debit: 0,
+                    credit: totalCommBase,
+                    description: 'Credit to Driver Wallets'
+                });
+            }
+
             if (custAcc) {
-                // This is an estimate as Settlement splits into Revenue/Tax/Liability
                 lines.push({
                     accountName: custAcc.name,
                     accountCode: custAcc.code,
                     debit: 0,
-                    credit: baseAmount, // Displaying full amount going to credit side (Revenue + Liability)
-                    description: 'Credit Split (Revenue + Wallet Liability)'
+                    credit: baseAmount,
+                    description: 'COD Settlement (Revenue + Liability)'
                 });
             }
         }

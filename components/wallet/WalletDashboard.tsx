@@ -4,6 +4,7 @@ import { UserProfile, WalletTransaction, Account, AccountType, AccountSubType, P
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { firebaseService } from '../../src/shared/services/firebaseService';
+import { calculateDriverCommission, getApplicableCommissionRule } from '../../src/shared/utils/commissionCalculator';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { ImageUpload } from '../ui/ImageUpload';
 import { SettlementReportModal } from '../ui/SettlementReportModal';
@@ -28,6 +29,8 @@ interface LedgerItem {
 
 export const WalletDashboard: React.FC<Props> = ({ user }) => {
     const { t } = useLanguage();
+    // Rounding helper for financial accuracy
+    const round2 = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
 
     // Data State
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -46,6 +49,9 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
     // Form State
     const [amount, setAmount] = useState<number>(0);
     const [amountKHR, setAmountKHR] = useState<number>(0); // NEW: For multi-currency settlement
+    // NEW: Cash Handover Amounts
+    const [cashAmount, setCashAmount] = useState<number>(0);
+    const [cashAmountKHR, setCashAmountKHR] = useState<number>(0);
     const [description, setDescription] = useState('');
     const [attachment, setAttachment] = useState('');
 
@@ -54,8 +60,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         const fetchData = async () => {
             try {
                 // Use getUserBookings to fetch only allowed data for the specific user
-                const [txns, myBookings, accs, sysSettings, commRules, allEmployees, allCurrencies] = await Promise.all([
-                    firebaseService.getWalletTransactions(user.uid),
+                const [myBookings, accs, sysSettings, commRules, allEmployees, allCurrencies] = await Promise.all([
                     firebaseService.getUserBookings(user),
                     firebaseService.getAccounts(),
                     firebaseService.getSettings(),
@@ -64,7 +69,6 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                     firebaseService.getCurrencies()
                 ]);
 
-                setTransactions(txns);
                 setSettings(sysSettings);
                 setCommissionRules(commRules);
                 setEmployees(allEmployees);
@@ -85,12 +89,22 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         fetchData();
     }, [user]);
 
-    // Real-time Balance Listener
+    // Real-time Balance & Transaction Listener
     useEffect(() => {
-        const unsubscribe = firebaseService.subscribeToUser(user.uid, (updatedUser: UserProfile) => {
-            // Listener ensures profile is fresh
+        if (!user.uid) return;
+
+        const unsubscribeProfile = firebaseService.subscribeToUser(user.uid, (updatedUser: UserProfile) => {
+            // Profile updates
         });
-        return () => unsubscribe();
+
+        const unsubscribeTxns = firebaseService.subscribeToWalletTransactions(user.uid, (txns: WalletTransaction[]) => {
+            setTransactions(txns);
+        });
+
+        return () => {
+            unsubscribeProfile();
+            unsubscribeTxns();
+        };
     }, [user.uid]);
 
     // --- UNIFIED LEDGER CALCULATION ---
@@ -258,95 +272,65 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                     const totalItems = bItems.length;
                     const processedItems = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER').length;
 
-                    if (totalItems > 0 && processedItems > 0) {
-                        let totalCommission = 0;
-                        if (activeRule.type === 'FIXED_AMOUNT') {
-                            totalCommission = activeRule.value;
-                            // Fixed amount commissions might need currency awareness too, assuming definition is USD for now unless we add currency to rules
-                        } else {
-                            totalCommission = b.totalDeliveryFee * (activeRule.value / 100);
-                        }
+                    if (totalItems > 0) {
+                        const myEmployeeRecord = employees.find(e => e.linkedUserId === user.uid);
+                        const pRule = getApplicableCommissionRule(myEmployeeRecord, 'PICKUP', commissionRules);
 
-                        // Pro-rate commission based on progress
-                        const earnedCommission = totalCommission * (processedItems / totalItems);
+                        const pickupCommBase = calculateDriverCommission(myEmployeeRecord, b, 'PICKUP', commissionRules);
+                        const deliveryCommBase = calculateDriverCommission(myEmployeeRecord, b, 'DELIVERY', commissionRules);
 
-                        const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
-                        const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
+                        let myPickupComm = 0;
+                        let myDeliveryComm = 0;
+                        let myProcessedCount = 0;
 
-                        if (isMixed && earnedCommission > 0) {
-                            // --- MIXED CURRENCY SPLIT COMMISSION ---
-                            const khrItems = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
-                            const usdItems = bItems.filter(i => (i.codCurrency || 'USD') === 'USD').length;
-                            const RATE = 4000;
+                        bItems.forEach((item, idx) => {
+                            // Use actual saved commission if available, otherwise fall back to rule-based calculation
+                            const itemPickupComm = item.pickupCommission || (pRule?.type === 'FIXED_AMOUNT' ? pickupCommBase : round2(pickupCommBase / totalItems));
+                            const itemDeliveryComm = item.deliveryCommission || round2(deliveryCommBase / totalItems);
 
-                            // Calculate Base Per-Item Commission (in booking or fee currency)
-                            const commissionPerItem = totalCommission / totalItems; // 'totalCommission' is usually in 'b.currency'
+                            // 1. Pickup Attribution
+                            // Support new collectorId field, or fallback to modification history/item driverId
+                            const isPickupByMe = item.collectorId === user.uid ||
+                                (item.modifications?.some(m => m.newValue === 'PICKED_UP' && m.userId === user.uid)) ||
+                                (item.status !== 'PENDING' && !item.collectorId && item.driverId === user.uid);
 
-                            // 1. KHR Portion
-                            // Only earn for processed items that are KHR? Or just pro-rate the EARNED amount?
-                            // Logic: The 'earnedCommission' is already scaled by processedItems/totalItems.
-                            // But we need to split it by the *composition* of processed items?
-                            // Simpler approach: Split the 'earnedCommission' based on the ratio of KHR items in the WHOLE booking?
-                            // Better: Split based on *processed* items' composition if possible, but 'processedItems' is just a count here.
-                            // Let's assume uniform distribution logic used before: Split 'earnedCommission' by total items ratio.
-                            // Actually, if I delivered 1 USD item and 0 KHR items (out of 2), I should earn only USD commission.
-
-                            // Refined Logic: Check specifically which items were processed
-                            const processedItemsList = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER');
-                            const khrProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
-                            const usdProcessed = processedItemsList.filter(i => (i.codCurrency || 'USD') === 'USD').length;
-
-                            const commissionPerProcessedItem = totalCommission / totalItems; // Commission per item regardless of currency if fee is flat/percentage of total
-
-                            if (khrProcessed > 0) {
-                                const khrPartBase = commissionPerProcessedItem * khrProcessed;
-                                let khrFinal = khrPartBase;
-                                if (b.currency === 'USD') khrFinal = khrPartBase * RATE;
-
+                            if (isPickupByMe && itemPickupComm > 0) {
                                 ledger.push({
-                                    id: `earn-${b.id}-khr`,
+                                    id: `earn-pickup-${item.id}`,
                                     date: b.bookingDate,
-                                    description: `Commission (KHR): #${(b.id || '').slice(-6)}`,
+                                    description: `Pickup Commission: Booking #${(b.id || '').slice(-6)} (${idx + 1}/${totalItems})`,
                                     type: 'EARNING',
-                                    amount: khrFinal,
-                                    currency: 'KHR',
+                                    amount: itemPickupComm,
+                                    currency: b.currency || 'USD',
                                     status: 'EARNED',
                                     reference: (b.id || '').slice(-6),
                                     isCredit: true
                                 });
                             }
 
-                            if (usdProcessed > 0) {
-                                const usdPartBase = commissionPerProcessedItem * usdProcessed;
-                                let usdFinal = usdPartBase;
-                                if (b.currency === 'KHR') usdFinal = usdPartBase / RATE;
+                            // 2. Delivery Attribution
+                            const isProcessed = item.status === 'DELIVERED' || item.status === 'RETURN_TO_SENDER';
+                            const isDeliveryByMe = item.delivererId === user.uid ||
+                                (item.modifications?.some(m => (m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER') && m.userId === user.uid)) ||
+                                (isProcessed && !item.delivererId && item.driverId === user.uid);
 
+                            if (isDeliveryByMe && itemDeliveryComm > 0) {
                                 ledger.push({
-                                    id: `earn-${b.id}-usd`,
+                                    id: `earn-delivery-${item.id}`,
                                     date: b.bookingDate,
-                                    description: `Commission (USD): #${(b.id || '').slice(-6)}`,
+                                    description: `Delivery Commission: Booking #${(b.id || '').slice(-6)} (${idx + 1}/${totalItems})`,
                                     type: 'EARNING',
-                                    amount: usdFinal,
-                                    currency: 'USD',
+                                    amount: itemDeliveryComm,
+                                    currency: b.currency || 'USD',
                                     status: 'EARNED',
                                     reference: (b.id || '').slice(-6),
                                     isCredit: true
                                 });
                             }
+                        });
 
-                        } else if (earnedCommission > 0) {
-                            ledger.push({
-                                id: `earn-${b.id}`,
-                                date: b.bookingDate,
-                                description: `Commission: Booking #${(b.id || '').slice(-6)} (${processedItems}/${totalItems})`,
-                                type: 'EARNING',
-                                amount: earnedCommission,
-                                currency: b.currency || 'USD',
-                                status: 'EARNED',
-                                reference: (b.id || '').slice(-6),
-                                isCredit: true
-                            });
-                        }
+                        // Removed old bulk posting block as we now post per-item above
+
                     }
                 }
 
@@ -406,7 +390,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             usd -= (khrToOffset / RATE);
         }
 
-        return { usd, khr };
+        return { usd: round2(usd), khr: Math.round(khr) };
     }, [unifiedLedger]);
 
     // Balance Breakdown for Payout Logic (Customer Context)
@@ -460,18 +444,22 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         } else {
             setAmount(0);
             setAmountKHR(0);
+            setCashAmount(0);
+            setCashAmountKHR(0);
         }
     }, [modalOpen, balanceBreakdown, activeCurrency]);
 
     const handleTransaction = async () => {
-        if ((!amount || amount <= 0) && (!amountKHR || amountKHR <= 0)) return;
-
         // Determine correct bank for the user role
         // Customer -> Customer Config
         // Driver -> Driver Config
         const isDriver = user.role === 'driver' || user.role === 'warehouse'; // Warehouse treated as internal
         let targetBankIdUSD = isDriver ? settings.defaultDriverSettlementBankIdUSD : settings.defaultCustomerSettlementBankIdUSD;
         let targetBankIdKHR = isDriver ? settings.defaultDriverSettlementBankIdKHR : settings.defaultCustomerSettlementBankIdKHR;
+
+        // NEW: Cash Accounts
+        let targetCashIdUSD = isDriver ? settings.defaultDriverCashAccountIdUSD : null;
+        let targetCashIdKHR = isDriver ? settings.defaultDriverCashAccountIdKHR : null;
 
         // Fallback for legacy
         if (!targetBankIdUSD) targetBankIdUSD = settings.defaultSettlementBankAccountId;
@@ -481,6 +469,8 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         if (modalOpen === 'DEPOSIT') {
             if (amount > 0 && !targetBankIdUSD) return toast.error("System Error: No USD bank configured.");
             if (amountKHR > 0 && !targetBankIdKHR) return toast.error("System Error: No KHR bank configured.");
+            if (cashAmount > 0 && !targetCashIdUSD) return toast.error("System Error: No USD Cash account configured. Please check Settings.");
+            if (cashAmountKHR > 0 && !targetCashIdKHR) return toast.error("System Error: No KHR Cash account configured. Please check Settings.");
         }
 
         // Validate Withdrawal Limit
@@ -495,29 +485,69 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         try {
             if (modalOpen === 'DEPOSIT') {
                 const timestamp = Date.now();
-                // 1. Submit USD if exists
-                if (amount > 0) {
-                    await firebaseService.requestWalletTopUp(
-                        user.uid,
-                        amount,
-                        'USD',
-                        targetBankIdUSD!,
-                        attachment,
-                        (description || 'Settlement') + (amountKHR > 0 ? ' (Mixed Currency Batch)' : '')
-                    );
-                }
-                // 2. Submit KHR if exists
-                if (amountKHR > 0) {
-                    await firebaseService.requestWalletTopUp(
-                        user.uid,
-                        amountKHR,
-                        'KHR',
-                        targetBankIdKHR!,
-                        attachment,
-                        (description || 'Settlement') + (amount > 0 ? ' (Mixed Currency Batch)' : '')
-                    );
-                }
+                const isDriverFlow = isDriver && (amount > 0 || amountKHR > 0 || cashAmount > 0 || cashAmountKHR > 0);
 
+                if (isDriverFlow) {
+                    // Pre-calculate unsettled items
+                    const allUnsettled = bookings.flatMap(b => (b.items || [])
+                        .filter(i => i.status === 'DELIVERED' && i.settlementStatus !== 'SETTLED')
+                        .map(i => ({ bookingId: b.id, itemId: i.id, codCurrency: i.codCurrency || 'USD' }))
+                    );
+
+                    const usdItemsToSettle = allUnsettled.filter(i => (i.codCurrency === 'USD')).map(i => ({ bookingId: i.bookingId, itemId: i.itemId }));
+                    const khrItemsToSettle = allUnsettled.filter(i => (i.codCurrency === 'KHR')).map(i => ({ bookingId: i.bookingId, itemId: i.itemId }));
+
+                    // Masters
+                    const masterUsdMethod: 'BANK' | 'CASH' | null = amount > 0 ? 'BANK' : (cashAmount > 0 ? 'CASH' : null);
+                    const masterKhrMethod: 'BANK' | 'CASH' | null = amountKHR > 0 ? 'BANK' : (cashAmountKHR > 0 ? 'CASH' : null);
+
+                    const requests = [];
+
+                    // 1. Bank USD
+                    if (amount > 0) {
+                        requests.push(firebaseService.requestSettlement(
+                            user.uid, user.name || 'Driver', amount, 'USD', targetBankIdUSD!, attachment,
+                            (description || 'Settlement (Bank USD)'), masterUsdMethod === 'BANK' ? usdItemsToSettle : []
+                        ));
+                    }
+                    // 2. Bank KHR
+                    if (amountKHR > 0) {
+                        requests.push(firebaseService.requestSettlement(
+                            user.uid, user.name || 'Driver', amountKHR, 'KHR', targetBankIdKHR!, attachment,
+                            (description || 'Settlement (Bank KHR)'), masterKhrMethod === 'BANK' ? khrItemsToSettle : []
+                        ));
+                    }
+                    // 3. Cash USD
+                    if (cashAmount > 0) {
+                        requests.push(firebaseService.requestSettlement(
+                            user.uid, user.name || 'Driver', cashAmount, 'USD', targetCashIdUSD!, '',
+                            (description || 'Settlement (Cash USD)'), masterUsdMethod === 'CASH' ? usdItemsToSettle : []
+                        ));
+                    }
+                    // 4. Cash KHR
+                    if (cashAmountKHR > 0) {
+                        requests.push(firebaseService.requestSettlement(
+                            user.uid, user.name || 'Driver', cashAmountKHR, 'KHR', targetCashIdKHR!, '',
+                            (description || 'Settlement (Cash KHR)'), masterKhrMethod === 'CASH' ? khrItemsToSettle : []
+                        ));
+                    }
+
+                    if (requests.length > 0) await Promise.all(requests);
+                } else {
+                    // Legacy/Customer Flow
+                    if (amount > 0) {
+                        await firebaseService.requestWalletTopUp(
+                            user.uid, amount, 'USD', targetBankIdUSD!, attachment,
+                            (description || 'Deposit (USD)')
+                        );
+                    }
+                    if (amountKHR > 0) {
+                        await firebaseService.requestWalletTopUp(
+                            user.uid, amountKHR, 'KHR', targetBankIdKHR!, attachment,
+                            (description || 'Deposit (KHR)')
+                        );
+                    }
+                }
                 toast.success("Payment submitted! Please wait for approval.");
             } else {
                 // WITHDRAWAL: Include related items so Finance can do Net Settlement
@@ -540,6 +570,8 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             setModalOpen(null);
             setAmount(0);
             setAmountKHR(0);
+            setCashAmount(0);
+            setCashAmountKHR(0);
             setDescription('');
             setAttachment('');
         } catch (e: any) {
@@ -547,7 +579,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }
 
     const displayLedger = unifiedLedger.filter(t => t.currency === activeCurrency);
 
@@ -598,13 +630,15 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
                         {t('top_up')}
                     </button>
-                    <button
-                        onClick={() => setModalOpen('WITHDRAWAL')}
-                        className="flex-1 bg-black/20 text-white py-2 rounded-xl font-bold text-sm hover:bg-black/30 transition-colors flex items-center justify-center gap-2 backdrop-blur-sm"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        {t('request_payout')}
-                    </button>
+                    {user.role !== 'customer' && (
+                        <button
+                            onClick={() => setModalOpen('WITHDRAWAL')}
+                            className="flex-1 bg-black/20 text-white py-2 rounded-xl font-bold text-sm hover:bg-black/30 transition-colors flex items-center justify-center gap-2 backdrop-blur-sm"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            {t('request_payout')}
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -682,36 +716,60 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                             <div>
                                 {user.role === 'driver' && modalOpen === 'DEPOSIT' ? (
                                     // MULTI-CURRENCY INPUT FOR DRIVERS
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Settlement Amount (USD)</label>
-                                            <div className="relative">
-                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                    <span className="text-gray-500 font-bold">$</span>
+                                    <div className="space-y-6">
+                                        {/* Bank/Transfer Section */}
+                                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                                            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 text-center">Method 1: Bank/Transfer</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-gray-500 mb-1">USD Amount ($)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full border rounded-lg px-2 py-2 font-bold focus:ring-2 focus:ring-green-500 outline-none"
+                                                        value={amount || ''}
+                                                        onChange={e => setAmount(parseFloat(e.target.value) || 0)}
+                                                        placeholder="0.00"
+                                                    />
                                                 </div>
-                                                <input
-                                                    type="number"
-                                                    className="w-full border rounded-lg pl-8 pr-3 py-2 text-lg font-bold"
-                                                    value={amount}
-                                                    onChange={e => setAmount(parseFloat(e.target.value) || 0)}
-                                                    placeholder="0.00"
-                                                />
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-gray-500 mb-1">KHR Amount (៛)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full border rounded-lg px-2 py-2 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={amountKHR || ''}
+                                                        onChange={e => setAmountKHR(parseFloat(e.target.value) || 0)}
+                                                        placeholder="0"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Settlement Amount (KHR)</label>
-                                            <div className="relative">
-                                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                    <span className="text-gray-500 font-bold">៛</span>
+
+                                        {/* Cash Handover Section */}
+                                        <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                                            <h4 className="text-xs font-bold text-indigo-500 uppercase mb-3 text-center">Method 2: Cash Handover</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-indigo-400 mb-1">USD Amount ($)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full border border-indigo-200 rounded-lg px-2 py-2 font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                        value={cashAmount || ''}
+                                                        onChange={e => setCashAmount(parseFloat(e.target.value) || 0)}
+                                                        placeholder="0.00"
+                                                    />
                                                 </div>
-                                                <input
-                                                    type="number"
-                                                    className="w-full border rounded-lg pl-3 pr-8 py-2 text-lg font-bold"
-                                                    value={amountKHR}
-                                                    onChange={e => setAmountKHR(parseFloat(e.target.value) || 0)}
-                                                    placeholder="0"
-                                                />
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-indigo-400 mb-1">KHR Amount (៛)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full border border-indigo-200 rounded-lg px-2 py-2 font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                        value={cashAmountKHR || ''}
+                                                        onChange={e => setCashAmountKHR(parseFloat(e.target.value) || 0)}
+                                                        placeholder="0"
+                                                    />
+                                                </div>
                                             </div>
+                                            <p className="text-[10px] text-indigo-400 mt-2 text-center italic">Use this for physical cash handovers at the office.</p>
                                         </div>
                                     </div>
                                 ) : (
@@ -735,11 +793,25 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                                     {/* Bank Display - Logic to handle dual banks if needed, currently showing primary based on activeCurrency context or explicit selection */}
                                     {user.role === 'driver' ? (
                                         <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                                            <p className="text-xs text-blue-700 mb-2 uppercase font-bold text-center">Settlement Banks</p>
-                                            <div className="text-sm text-center">
-                                                {amount > 0 && <p>Please transfer <b>${amount}</b> to Company USD Account.</p>}
-                                                {amountKHR > 0 && <p>Please transfer <b>{amountKHR.toLocaleString()} ៛</b> to Company KHR Account.</p>}
-                                                {amount === 0 && amountKHR === 0 && <p className="text-gray-500 italic">Enter amount to see transfer details</p>}
+                                            <p className="text-xs text-blue-700 mb-2 uppercase font-bold text-center">Settlement Instructions</p>
+                                            <div className="text-sm text-center space-y-2">
+                                                {(amount > 0 || amountKHR > 0) && (
+                                                    <div className="bg-white/50 p-2 rounded border border-blue-100">
+                                                        <p className="font-bold text-xs text-blue-800 underline mb-1">Bank Transfer:</p>
+                                                        {amount > 0 && <p>Transfer <b>${amount}</b> to Company USD Account.</p>}
+                                                        {amountKHR > 0 && <p>Transfer <b>{amountKHR.toLocaleString()} ៛</b> to Company KHR Account.</p>}
+                                                    </div>
+                                                )}
+                                                {(cashAmount > 0 || cashAmountKHR > 0) && (
+                                                    <div className="bg-indigo-100/50 p-2 rounded border border-indigo-200">
+                                                        <p className="font-bold text-xs text-indigo-800 underline mb-1">Cash Handover:</p>
+                                                        {cashAmount > 0 && <p>Handover <b>${cashAmount}</b> cash to Accountant.</p>}
+                                                        {cashAmountKHR > 0 && <p>Handover <b>{cashAmountKHR.toLocaleString()} ៛</b> cash to Accountant.</p>}
+                                                    </div>
+                                                )}
+                                                {amount === 0 && amountKHR === 0 && cashAmount === 0 && cashAmountKHR === 0 && (
+                                                    <p className="text-gray-500 italic">Enter amount to see transfer details</p>
+                                                )}
                                             </div>
                                         </div>
                                     ) : (

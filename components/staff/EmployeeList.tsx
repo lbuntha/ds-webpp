@@ -22,6 +22,10 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
   const [phone, setPhone] = useState('');
   const [position, setPosition] = useState('');
   const [department, setDepartment] = useState('');
+  const [isDriver, setIsDriver] = useState(false);
+  const [hasBaseSalary, setHasBaseSalary] = useState(false);
+  const [baseSalaryAmount, setBaseSalaryAmount] = useState<number>(0);
+  const [baseSalaryCurrency, setBaseSalaryCurrency] = useState<'USD' | 'KHR'>('USD');
 
   const [loading, setLoading] = useState(false);
 
@@ -32,6 +36,10 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setPhone('');
     setPosition('');
     setDepartment('');
+    setIsDriver(false);
+    setHasBaseSalary(false);
+    setBaseSalaryAmount(0);
+    setBaseSalaryCurrency('USD');
   };
 
   const openAdd = () => {
@@ -46,6 +54,10 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setPhone(e.phone || '');
     setPosition(e.position || '');
     setDepartment(e.department || '');
+    setIsDriver(e.isDriver || false);
+    setHasBaseSalary(e.hasBaseSalary || false);
+    setBaseSalaryAmount(e.baseSalaryAmount || 0);
+    setBaseSalaryCurrency(e.baseSalaryCurrency || 'USD');
     setIsFormOpen(true);
   };
 
@@ -61,6 +73,10 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
       phone,
       position,
       department,
+      isDriver,
+      hasBaseSalary: isDriver ? hasBaseSalary : undefined,
+      baseSalaryAmount: isDriver && hasBaseSalary ? baseSalaryAmount : undefined,
+      baseSalaryCurrency: isDriver && hasBaseSalary ? baseSalaryCurrency : undefined,
       createdAt: editingId ? (employees.find(e => e.id === editingId)?.createdAt || Date.now()) : Date.now()
     };
 
@@ -102,6 +118,82 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
               <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
               <Input label="Position / Title" value={position} onChange={e => setPosition(e.target.value)} />
               <Input label="Department" value={department} onChange={e => setDepartment(e.target.value)} />
+            </div>
+
+            {/* Driver Configuration */}
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex items-center space-x-2 mb-4">
+                <input
+                  type="checkbox"
+                  id="isDriver"
+                  checked={isDriver}
+                  onChange={e => {
+                    setIsDriver(e.target.checked);
+                    if (!e.target.checked) {
+                      setHasBaseSalary(false);
+                      setBaseSalaryAmount(0);
+                    }
+                  }}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                />
+                <label htmlFor="isDriver" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  This employee is a driver
+                </label>
+              </div>
+
+              {isDriver && (
+                <div className="ml-6 space-y-4 bg-gray-50 p-4 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="hasBaseSalary"
+                      checked={hasBaseSalary}
+                      onChange={e => {
+                        setHasBaseSalary(e.target.checked);
+                        if (!e.target.checked) {
+                          setBaseSalaryAmount(0);
+                        }
+                      }}
+                      className="rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label htmlFor="hasBaseSalary" className="text-sm font-medium text-gray-700 cursor-pointer">
+                      Driver receives a base salary
+                    </label>
+                  </div>
+
+                  {hasBaseSalary && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label="Base Salary Amount"
+                        type="number"
+                        step="0.01"
+                        value={baseSalaryAmount}
+                        onChange={e => setBaseSalaryAmount(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
+                        <div className="flex rounded-md shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() => setBaseSalaryCurrency('USD')}
+                            className={`flex-1 py-2 text-xs font-bold border rounded-l-lg ${baseSalaryCurrency === 'USD' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                          >
+                            USD ($)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBaseSalaryCurrency('KHR')}
+                            className={`flex-1 py-2 text-xs font-bold border rounded-r-lg ${baseSalaryCurrency === 'KHR' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                          >
+                            KHR (៛)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-2 pt-4 border-t border-gray-100">

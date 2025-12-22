@@ -14,8 +14,11 @@ export const DriverCommissionSetup: React.FC = () => {
 
     // Form State
     const [zoneName, setZoneName] = useState('');
+    const [commissionFor, setCommissionFor] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
+    const [driverSalaryType, setDriverSalaryType] = useState<'WITH_BASE_SALARY' | 'WITHOUT_BASE_SALARY' | 'ALL'>('ALL');
     const [type, setType] = useState<'PERCENTAGE' | 'FIXED_AMOUNT'>('PERCENTAGE');
     const [value, setValue] = useState<number>(70);
+    const [currency, setCurrency] = useState<'USD' | 'KHR'>('USD');
     const [isDefault, setIsDefault] = useState(false);
 
     // Deletion confirm state
@@ -40,16 +43,22 @@ export const DriverCommissionSetup: React.FC = () => {
     const resetForm = () => {
         setEditingId(null);
         setZoneName('');
+        setCommissionFor('DELIVERY');
+        setDriverSalaryType('ALL');
         setType('PERCENTAGE');
         setValue(70);
+        setCurrency('USD');
         setIsDefault(false);
     };
 
     const handleEdit = (rule: DriverCommissionRule) => {
         setEditingId(rule.id);
         setZoneName(rule.zoneName);
+        setCommissionFor(rule.commissionFor || 'DELIVERY');
+        setDriverSalaryType(rule.driverSalaryType || 'ALL');
         setType(rule.type);
         setValue(rule.value);
+        setCurrency(rule.currency || 'USD');
         setIsDefault(rule.isDefault);
     };
 
@@ -70,10 +79,12 @@ export const DriverCommissionSetup: React.FC = () => {
             const rule: DriverCommissionRule = {
                 id: editingId || `comm-${Date.now()}`,
                 zoneName,
+                commissionFor,
+                driverSalaryType,
                 type,
                 value,
                 isDefault,
-                currency: 'USD'
+                currency: type === 'FIXED_AMOUNT' ? currency : undefined
             };
 
             await firebaseService.logisticsService.saveDriverCommissionRule(rule);
@@ -117,7 +128,54 @@ export const DriverCommissionSetup: React.FC = () => {
                         />
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Commission Type</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Commission For</label>
+                            <div className="flex rounded-md shadow-sm">
+                                <button
+                                    type="button"
+                                    onClick={() => setCommissionFor('DELIVERY')}
+                                    className={`flex-1 py-2 text-xs font-bold border rounded-l-lg ${commissionFor === 'DELIVERY' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    Delivery
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCommissionFor('PICKUP')}
+                                    className={`flex-1 py-2 text-xs font-bold border rounded-r-lg ${commissionFor === 'PICKUP' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    Pickup
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Driver Salary Type</label>
+                            <div className="flex rounded-md shadow-sm">
+                                <button
+                                    type="button"
+                                    onClick={() => setDriverSalaryType('ALL')}
+                                    className={`flex-1 py-2 text-xs font-bold border rounded-l-lg ${driverSalaryType === 'ALL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    All Drivers
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDriverSalaryType('WITH_BASE_SALARY')}
+                                    className={`flex-1 py-2 text-xs font-bold border ${driverSalaryType === 'WITH_BASE_SALARY' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    With Salary
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDriverSalaryType('WITHOUT_BASE_SALARY')}
+                                    className={`flex-1 py-2 text-xs font-bold border rounded-r-lg ${driverSalaryType === 'WITHOUT_BASE_SALARY' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    No Salary
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Amount Type</label>
                             <div className="flex rounded-md shadow-sm">
                                 <button
                                     type="button"
@@ -144,6 +202,28 @@ export const DriverCommissionSetup: React.FC = () => {
                             onChange={e => setValue(parseFloat(e.target.value))}
                             required
                         />
+
+                        {type === 'FIXED_AMOUNT' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
+                                <div className="flex rounded-md shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrency('USD')}
+                                        className={`flex-1 py-2 text-xs font-bold border rounded-l-lg ${currency === 'USD' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                    >
+                                        USD ($)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrency('KHR')}
+                                        className={`flex-1 py-2 text-xs font-bold border rounded-r-lg ${currency === 'KHR' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                    >
+                                        KHR (៛)
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex items-center space-x-2 pt-2">
                             <input
@@ -176,12 +256,23 @@ export const DriverCommissionSetup: React.FC = () => {
                             {rules.map(rule => (
                                 <div key={rule.id} className={`flex justify-between items-center p-4 border rounded-xl hover:shadow-sm transition-shadow bg-white ${rule.isDefault ? 'border-l-4 border-l-indigo-500' : 'border-gray-200'}`}>
                                     <div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <h4 className="font-bold text-gray-900">{rule.zoneName}</h4>
                                             {rule.isDefault && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold uppercase">Default</span>}
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${(rule.commissionFor || 'DELIVERY') === 'DELIVERY' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {rule.commissionFor || 'DELIVERY'}
+                                            </span>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${(rule.driverSalaryType || 'ALL') === 'ALL' ? 'bg-gray-100 text-gray-700' : (rule.driverSalaryType || 'ALL') === 'WITH_BASE_SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                {(rule.driverSalaryType || 'ALL') === 'ALL' ? 'All Drivers' : (rule.driverSalaryType || 'ALL') === 'WITH_BASE_SALARY' ? 'With Salary' : 'No Salary'}
+                                            </span>
                                         </div>
                                         <p className="text-sm text-gray-600 mt-1">
-                                            Driver gets: <span className="font-bold text-green-600">{rule.type === 'PERCENTAGE' ? `${rule.value}%` : `$${rule.value.toFixed(2)}`}</span> per booking
+                                            Driver gets: <span className="font-bold text-green-600">
+                                                {rule.type === 'PERCENTAGE'
+                                                    ? `${rule.value}%`
+                                                    : `${rule.currency === 'KHR' ? '៛' : '$'}${rule.value.toFixed(2)} ${rule.currency}`
+                                                }
+                                            </span> per {(rule.commissionFor || 'delivery').toLowerCase()}
                                         </p>
                                     </div>
                                     <div className="flex gap-2 items-center">

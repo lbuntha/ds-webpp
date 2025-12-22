@@ -43,7 +43,7 @@ export const DispatchConsole: React.FC = () => {
 
         if (!booking || !driver) return;
 
-        // Prefer Linked User ID for the driver so they can see it in their app
+        // CRITICAL: Always prefer Linked User ID for the driver so they can see it in their app
         const targetDriverId = driver.linkedUserId || driver.id;
 
         try {
@@ -52,7 +52,8 @@ export const DispatchConsole: React.FC = () => {
                 driverId: targetDriverId,
                 driverName: driver.name,
                 status: 'CONFIRMED', // Auto-confirm when admin dispatches
-                statusId: 'ps-pickup' // Map to Pickup workflow
+                statusId: 'ps-pickup', // Map to Pickup workflow
+                involvedDriverIds: [...(booking.involvedDriverIds || []), targetDriverId] // Prompt update
             };
             await firebaseService.saveParcelBooking(updatedBooking);
 
@@ -100,14 +101,18 @@ export const DispatchConsole: React.FC = () => {
                     status: 'IN_TRANSIT' as const, // Moving out of warehouse
                     driverId: targetDriverId,
                     driverName: driver.name,
-                    targetBranchId: undefined // CRITICAL: Clear to indicate Out for Delivery
+                    targetBranchId: null as any // Clear to indicate Out for Delivery
                 };
             }
             return item;
         });
 
         try {
-            const updatedBooking = { ...booking, items: updatedItems };
+            const updatedBooking: ParcelBooking = {
+                ...booking,
+                items: updatedItems,
+                involvedDriverIds: Array.from(new Set([...(booking.involvedDriverIds || []), targetDriverId]))
+            };
             await firebaseService.saveParcelBooking(updatedBooking);
 
             // Notification for Warehouse Transfer

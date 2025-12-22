@@ -163,6 +163,14 @@ const routes: RouteObject[] = [
                     </RoleBasedRoute>
                 ),
             },
+            {
+                path: 'customer-settlements',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_CUSTOMER_SETTLEMENTS">
+                        {withSuspense(lazy(() => import('../../components/reports/CustomerSettlementReport').then(m => ({ default: m.CustomerSettlementReport }))))}
+                    </PermissionRoute>
+                ),
+            },
             // Parcel/Logistics Routes - Permission-based access control
             {
                 path: 'parcels/overview',
@@ -386,7 +394,7 @@ const routes: RouteObject[] = [
             {
                 path: 'customer/reports',
                 element: (
-                    <PermissionRoute requiredPermission="VIEW_MY_PARCELS">
+                    <PermissionRoute requiredPermission="CUSTOMER_VIEW_REPORTS">
                         {withSuspense(CustomerReportView)}
                     </PermissionRoute>
                 ),

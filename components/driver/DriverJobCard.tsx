@@ -11,11 +11,17 @@ interface Props {
   onAction: (job: ParcelBooking) => void;
   onMapClick?: (address: string) => void;
   onChatClick?: (job: ParcelBooking) => void;
+  currentDriverId?: string;
 }
 
-export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick, onChatClick }) => {
+export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick, onChatClick, currentDriverId }) => {
   const { t } = useLanguage();
-  const items = job.items || [];
+
+  // Filter items to only show those where I am the driver or collector (if driverId is specified)
+  const items = (job.items || []).filter(i => {
+    if (!currentDriverId) return true; // Show all if no driver context
+    return (i.driverId === currentDriverId || i.collectorId === currentDriverId);
+  });
 
   const formatTime = (timestamp: number) => {
     if (!timestamp) return '';

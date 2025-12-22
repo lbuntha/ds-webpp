@@ -29,7 +29,7 @@ const translations = {
     next: "Next",
     reset: "Reset",
     remove: "Remove",
-    
+
     // Statuses
     status_PENDING: "Pending",
     status_CONFIRMED: "Accepted",
@@ -43,7 +43,7 @@ const translations = {
     status_APPROVED: "Approved",
     status_REJECTED: "Rejected",
     status_SETTLED: "Settled",
-    
+
     // Wallet & Settlement
     wallet: "Wallet",
     my_wallet: "My Wallet",
@@ -62,7 +62,8 @@ const translations = {
     wallet_debit: "Wallet Debit",
     transaction_type: "Transaction Type",
     pending_approval: "Pending Approval",
-    
+    i_am_paying: "I am paying",
+
     // Admin Sidebar
     analytics: "Analytics",
     journal: "General Journal",
@@ -78,6 +79,8 @@ const translations = {
     users: "User Management",
     manual: "User Manual",
     system: "System",
+    customer_payouts: "Customer Payouts",
+    customer_settlements: "Customer Settlements (Payouts)",
 
     // Financial Terms
     revenue: "Revenue",
@@ -97,7 +100,7 @@ const translations = {
     amount: "Amount",
     currency: "Currency",
     exchange_rate: "Exchange Rate",
-    
+
     // Reports
     trial_balance: "Trial Balance",
     balance_sheet: "Balance Sheet",
@@ -180,7 +183,7 @@ const translations = {
     items: "Items",
     fee: "Fee",
     warehouse: "Warehouse",
-    
+
     // Logistics Booking Form
     step_sender: "Sender & Route",
     step_items: "Parcel Items",
@@ -215,7 +218,7 @@ const translations = {
     showing: "Showing",
     reset_filters: "Reset Filters",
     booking_ref: "Ref",
-    
+
     // Customer Portal
     my_profile: "My Profile",
     new_booking: "New Booking",
@@ -226,7 +229,7 @@ const translations = {
     history: "History",
     spent: "Spent",
     new_order: "New Order",
-    
+
     // Customer Summary Report
     summary_report: "Summary Report",
     financial_overview: "Financial overview of your deliveries.",
@@ -255,7 +258,7 @@ const translations = {
     review_financials: "Review & Financials",
     cancel_booking: "Cancel Booking",
     confirm_cancel: "Are you sure you want to cancel this booking?",
-    
+
     // Driver Portal
     my_jobs: "My Jobs",
     pickups: "Pickups",
@@ -269,7 +272,7 @@ const translations = {
     completed: "Completed",
     failed_return: "Failed / Return",
     confirm_pickup: "Confirm Pickup",
-    
+
     // Profile & Customer Settings
     saved_locations: "Saved Locations",
     bank_accounts: "Bank Accounts",
@@ -301,7 +304,7 @@ const translations = {
     copied: "Copied!",
     confirm_delete_location: "Delete this location?",
     confirm_delete_bank: "Delete this bank account?",
-    
+
     // COD Rate Preference
     cod_pref_title: "COD Exchange Rate Preference",
     daily_rate_title: "Daily Exchange Rate",
@@ -351,7 +354,7 @@ const translations = {
     next: "បន្ទាប់",
     reset: "កំណត់ឡើងវិញ",
     remove: "លុបចេញ",
-    
+
     // Statuses
     status_PENDING: "រង់ចាំ",
     status_CONFIRMED: "បានទទួល",
@@ -365,7 +368,7 @@ const translations = {
     status_APPROVED: "អនុម័ត",
     status_REJECTED: "បដិសេធ",
     status_SETTLED: "ទូទាត់ហើយ",
-    
+
     // Wallet & Settlement
     wallet: "កាបូបលុយ",
     my_wallet: "កាបូបលុយខ្ញុំ",
@@ -384,6 +387,7 @@ const translations = {
     wallet_debit: "ឥណពន្ធកាបូប",
     transaction_type: "ប្រភេទប្រតិបត្តិការ",
     pending_approval: "រង់ចាំការអនុម័ត",
+    i_am_paying: "ខ្ញុំកំពុងបង់ប្រាក់",
 
     // Admin Sidebar
     analytics: "វិភាគទិន្នន័យ",
@@ -400,6 +404,8 @@ const translations = {
     users: "អ្នកប្រើប្រាស់",
     manual: "សៀវភៅណែនាំ",
     system: "ប្រព័ន្ធ",
+    customer_payouts: "ការទូទាត់សម្រាប់អតិថិជន",
+    customer_settlements: "ការទូទាត់សម្រាប់អតិថិជន",
 
     // Financial Terms
     revenue: "ចំណូល",
@@ -502,7 +508,7 @@ const translations = {
     items: "ទំនិញ",
     fee: "ថ្លៃសេវា",
     warehouse: "ឃ្លាំង",
-    
+
     // Logistics Booking Form
     step_sender: "អ្នកផ្ញើ & ផ្លូវ",
     step_items: "ទំនិញបញ្ញើ",
@@ -562,7 +568,7 @@ const translations = {
     delivery_fee: "ថ្លៃដឹក",
     cod_amount_table: "ចំនួន COD",
     no_transactions_period: "រកមិនឃើញប្រតិបត្តិការនៅក្នុងអំឡុងពេលនេះទេ។",
-    
+
     // Customer Booking Form
     sender_route: "អ្នកផ្ញើ & ផ្លូវ",
     parcel_details: "ព័ត៌មានលម្អិតអំពីកញ្ចប់",
@@ -577,7 +583,7 @@ const translations = {
     review_financials: "ពិនិត្យ & ហិរញ្ញវត្ថុ",
     cancel_booking: "បោះបង់ការកក់",
     confirm_cancel: "តើអ្នកប្រាកដថាចង់បោះបង់ការកក់នេះទេ?",
-    
+
     // Driver Portal
     my_jobs: "ការងារខ្ញុំ",
     pickups: "ការទទួល",
@@ -591,7 +597,7 @@ const translations = {
     completed: "បានបញ្ចប់",
     failed_return: "បរាជ័យ / ត្រឡប់",
     confirm_pickup: "បញ្ជាក់ការទទួល",
-    
+
     // Profile & Customer Settings
     saved_locations: "ទីតាំងដែលបានរក្សាទុក",
     bank_accounts: "គណនីធនាគារ",
