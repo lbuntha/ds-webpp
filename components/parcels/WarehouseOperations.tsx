@@ -73,15 +73,21 @@ export const WarehouseOperations: React.FC = () => {
     }, [barcodeModal]);
 
     // --- LOGIC: INBOUND (Driver -> Warehouse) ---
+    // Only show items that are EN ROUTE TO this warehouse (have targetBranchId)
+    // Items with a driver but NO targetBranchId are OUT FOR DELIVERY and should not appear here
     const inboundItems = bookings.flatMap(b =>
         (b.items || [])
             .filter(i => {
+                // Must have a target branch (i.e., heading to a warehouse)
+                if (!i.targetBranchId) return false;
+
+                // Filter by managed branch if applicable
                 if (currentUser?.managedBranchId && i.targetBranchId !== currentUser.managedBranchId) {
                     return false;
                 }
-                const withDriver = (i.status === 'PICKED_UP' || i.status === 'IN_TRANSIT') && i.driverId;
-                const unassignedTransit = i.status === 'IN_TRANSIT' && !i.driverId;
-                return withDriver || unassignedTransit;
+
+                // Item must be picked up or in transit (heading to warehouse)
+                return i.status === 'PICKED_UP' || i.status === 'IN_TRANSIT';
             })
             .map(i => ({
                 bookingId: b.id,
@@ -281,7 +287,7 @@ export const WarehouseOperations: React.FC = () => {
                             createdAt: Date.now(),
                             metadata: { type: 'BOOKING', bookingId: booking.id }
                         };
-                        await firebaseService.addNotification(notification);
+                        await firebaseService.sendNotification(notification);
                     }
                 }
                 await loadData();
