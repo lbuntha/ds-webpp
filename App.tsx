@@ -239,7 +239,10 @@ function App() {
     };
 
     const handleRegister = async (data: any) => {
-        await firebaseService.register(data.email, data.password, data.name, data);
+        // Updated to use email link flow
+        await firebaseService.sendRegistrationLink(data.email, data);
+        setAuthMode('RESET'); // Hack: Reset mode used to show "Success" message in legacy App
+        toast.info("Verification link sent to your email.");
     };
 
     const handleLogout = async () => {

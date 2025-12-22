@@ -6,7 +6,7 @@ import { LanguageSwitcher } from './ui/LanguageSwitcher';
 import { useLanguage } from '../contexts/LanguageContext';
 import { toast } from '../src/shared/utils/toast';
 
-type PageType = 'HOME' | 'ABOUT' | 'CONTACT' | 'HELP' | 'PRIVACY';
+type PageType = 'HOME' | 'ABOUT' | 'CONTACT' | 'HELP' | 'PRIVACY' | 'TERMS';
 
 interface Props {
   onLogin?: () => void;
@@ -235,43 +235,302 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
   );
 
   const PrivacyPolicy = () => (
-    <div className="pt-32 pb-20 max-w-3xl mx-auto px-6">
+    <div className="pt-32 pb-20 max-w-4xl mx-auto px-6">
       <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Privacy Policy</h1>
-      <p className="text-slate-500 mb-10">Last updated: {new Date().toLocaleDateString()}</p>
+      <p className="text-slate-500 mb-10">Last modified: February 14th, 2020</p>
 
-      <div className="prose prose-slate max-w-none">
-        <h3 className="text-xl font-bold text-slate-900 mb-4">1. Information We Collect</h3>
-        <p className="text-slate-600 mb-6">
-          We collect information you provide directly to us, such as when you create an account, request a delivery, or contact customer support. This includes:
-          <br />
-          - Name and Contact Information
-          <br />
-          - Delivery Addresses and Location Data
-          <br />
-          - Payment and Transaction Information
+      <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed">
+        <p className="mb-8">
+          Doorstep Technology is committed to protecting and respecting your privacy. This Privacy Policy sets out how we collect and process personal information about you when you visit the website www.doorsteps.tech or our app in Apple Store or Google Play, when you use our products and services (our "Services"), or when you otherwise do business or make contact with us.
+        </p>
+        <p className="mb-8 font-medium text-slate-900">
+          Please read this policy carefully to understand how we handle and treat your personal information.
         </p>
 
-        <h3 className="text-xl font-bold text-slate-900 mb-4">2. How We Use Your Information</h3>
-        <p className="text-slate-600 mb-6">
-          We use the information we collect to provide, maintain, and improve our services, such as:
-          <br />
-          - Processing and completing deliveries
-          <br />
-          - Calculating fees and processing payments
-          <br />
-          - Sending you technical notices and support messages
+        {/* What information do we collect? */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">What information do we collect?</h2>
+          <p className="mb-4">We may collect and process the following personal information from you:</p>
+          <div className="space-y-4">
+            <p><strong>Information you provide to us:</strong> We collect personal information when you voluntarily provide us with such information in the course of using our website, app or Services. For example, when you register to use our Services, we will collect your name, email address and organization information. We also collect personal information from you when you respond to a survey.</p>
+            <p><strong>Information we collect when you do business with us:</strong> We may process your personal information when you do business with us – for example, as a customer or prospective customer, or as a vendor, supplier, or other third party. For example, we may hold your business contact information and financial account information (if any) and other communications you have with us for the purposes of maintaining our business relations with you.</p>
+            <p><strong>Information we automatically collect:</strong> We may also collect certain technical information by automatic means when you visit our website and app, such as IP address, browser type and operating system, current location, referring URLs, your use of our website, and other clickstream data. We collect this information automatically through the use of various technologies, such as cookies.</p>
+            <p><strong>Personal information where we act as a data processor:</strong> We also process personal information on behalf of our customers in the context of supporting our products and services. Where a customer subscribes to our Services for their businesses, they will be the ones who control what event data is collected and stored on our systems. In such cases, we are data processors acting in accordance with the instructions of our customers.</p>
+          </div>
+        </section>
+
+        {/* What do we use your information for? */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">What do we use your information for?</h2>
+          <p className="mb-4">The personal information we collect from you may be used in one of the following ways:</p>
+          <ul className="list-disc list-inside space-y-2 ml-4">
+            <li>To deal with your inquiries and requests</li>
+            <li>To create and administer records about any online account that you register with us</li>
+            <li>To provide you with information and access to resources that you have requested from us</li>
+            <li>To provide you with technical support</li>
+            <li>To improve our website and app based on the information and feedback we receive from you</li>
+            <li>For website, app, and system administration and security</li>
+            <li>For general business purposes, including to improve customer service</li>
+            <li>To process transactions and to provide Services to our customers and end-users</li>
+            <li>For recruitment purposes, where you apply for a job with us</li>
+            <li>To administer a contest, promotion, survey, or other site and app features</li>
+            <li>To send periodic emails pertaining to your orders and updates</li>
+          </ul>
+        </section>
+
+        {/* How do we protect your information? */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">How do we protect your information?</h2>
+          <p>We implement a variety of security measures to maintain the safety of your personal information when you enter, submit, or access your personal information. We offer the use of a secure server. All supplied sensitive/credit information is transmitted via Secure Socket Layer (SSL) technology and then encrypted into our Payment gateway providers database only to be accessible by those authorized with special access rights to such systems, and are required to keep the information confidential. After a transaction, your private information (credit cards, identification, financials, etc.) will not be stored on our servers.</p>
+        </section>
+
+        {/* Do we use cookies? */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Do we use cookies?</h2>
+          <p className="mb-4">Yes. Cookies are small files that a site or its service provider transfers to your computer's hard drive through your Web browser (if you allow) that enables the sites or service providers systems to recognize your browser and capture and remember certain information.</p>
+          <p className="mb-4">We use cookies to understand and save your preferences for future visits, to advertise to you on other sites and compile aggregate data about site traffic and site interaction so that we can offer better site experiences and tools in the future.</p>
+          <p>You may refuse to accept cookies by activating the setting on your browser which allows you to refuse the setting of cookies. However, if you choose to disable cookies, you may be unable to access certain parts of our site.</p>
+        </section>
+
+        {/* Do we disclose any information to outside parties? */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Do we disclose any information to outside parties?</h2>
+          <p className="mb-4">We will only share your information with third parties in certain circumstances:</p>
+          <ul className="list-disc list-inside space-y-2 ml-4">
+            <li>We engage certain trusted third parties to perform functions and provide services to us, including cloud hosting services, off-site backups, email service providers, and customer support providers.</li>
+            <li>In the event of a corporate sale, merger, reorganization, dissolution or similar event, your personal information may be sold, disposed of, transferred or otherwise disclosed as part of that transaction.</li>
+            <li>We may also disclose information about you to third parties where we believe it necessary or appropriate under law.</li>
+            <li>We may use and share aggregated non-personal information with third parties for marketing, advertising and analytics purposes.</li>
+          </ul>
+          <p className="mt-4 font-medium text-slate-900">We do not sell or trade your personal information to third parties.</p>
+        </section>
+
+        {/* Third Party Links */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Third Party Links</h2>
+          <p>Occasionally, at our discretion, we may include or offer third party products or services on our website. If you access other websites using the links provided, the operators of these websites may collect information from you that will be used by them in accordance with their privacy policies. These third party sites have separate and independent privacy policies. We therefore have no responsibility or liability for the content and activities of these linked sites.</p>
+        </section>
+
+        {/* International Transfers */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">International Transfers</h2>
+          <p>If you are visiting our website or using our Services from outside Cambodia, please be aware that you are sending personal information to Cambodia where our servers are located. Cambodia may not have data protection laws that are as comprehensive or protective as those in your country of residence; however, our collection, storage and use of your personal information will at all times be in accordance with this Privacy Policy.</p>
+        </section>
+
+        {/* Your Rights */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Your Rights</h2>
+          <p className="mb-4">You may have the right to access a copy of the personal information we hold about you, or to request the correction, amendment or deletion of such information where it is inaccurate or processed in violation of the Privacy Shield Principles.</p>
+          <p>Furthermore, we commit to giving you an opportunity to opt-out if your personal information is to be disclosed to any other independent third parties, or to be used for a purpose materially different from those that are set out in this Privacy Policy. Where sensitive personal information is involved, we will always obtain your express opt-in consent.</p>
+        </section>
+
+        {/* Data Retention */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Data Retention</h2>
+          <p className="mb-4">We may retain your personal information as long as you continue to use the Services, have an account with us or for as long as is necessary to fulfil the purposes outlined in the policy. You can ask to close your account by contacting us and we will delete your personal information on request.</p>
+          <p>We may however retain personal information for an additional period as is permitted or required under applicable laws, for legal, tax or regulatory reasons, or for legitimate and lawful business purposes.</p>
+        </section>
+
+        {/* Changes to our Privacy Policy */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Changes to our Privacy Policy</h2>
+          <p>If we decide to change our privacy policy, we will post those changes on this page, and/or update the Privacy Policy modification date above.</p>
+        </section>
+
+        <div className="mt-12 p-6 bg-slate-50 rounded-xl border border-slate-200">
+          <p className="text-sm text-slate-600">
+            For questions about this Privacy Policy, please contact us at{' '}
+            <a href="mailto:info@DoorSteps.tech" className="text-red-600 hover:underline font-medium">info@DoorSteps.tech</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const TermsOfUse = () => (
+    <div className="pt-32 pb-20 max-w-4xl mx-auto px-6">
+      <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Terms and Conditions</h1>
+      <p className="text-slate-500 mb-10">Last modified: February 14th, 2020</p>
+
+      <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed">
+        <p className="mb-8">
+          The following terms ("Terms of Service") describe the terms and conditions applicable to your access to and use of the Services, as such term is defined in Section 1 below. This document is a legally binding agreement between you as the user of the Services (referred to as "you" or "your") and DoorStep and its Affiliates, where applicable (referred to as "we", "our", "us" or "DoorStep").
+        </p>
+        <p className="mb-8">
+          By signing up for the Services you are agreeing to be bound by these Terms of Service and any documents incorporated by reference. Any new features or tools that are added to the current Services shall also be subject to these Terms of Service.
+        </p>
+        <p className="mb-8 font-medium text-slate-900">
+          You must read, agree with and accept all of the terms and conditions contained and incorporated by reference in these Terms of Service.
         </p>
 
-        <h3 className="text-xl font-bold text-slate-900 mb-4">3. Data Security</h3>
-        <p className="text-slate-600 mb-6">
-          We implement appropriate technical and organizational measures to protect your personal data against unauthorized access, alteration, disclosure, or destruction.
-          We use secure cloud infrastructure and encryption for sensitive data.
-        </p>
+        {/* Section 1 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">1. General Conditions</h2>
+          <div className="space-y-4">
+            <p><strong>1.1</strong> The Services assist you in managing your business by providing an online marketplace through the DoorStep application that enables you to sale your Products and fulfil via drop-shipping to your Buyers. DoorStep has no control over, and will not be responsible or liable for: (a) any Products or Third Party Services you interact with, access, purchase or procure from Suppliers or other third parties; or (b) any liability arising out of any transactions between you and third parties, including between you and Suppliers or your Buyers.</p>
+            <p><strong>1.2</strong> In order to use the Services, you must at all times comply with these Terms of Service, the Policies, and any other operating rules, policies, guidelines and/or procedures that are incorporated by reference into such documents or that DoorStep communicates to you from time to time. Your failure to do so may result in an immediate suspension and/or termination of this Agreement and your use of the Services.</p>
+            <p><strong>1.3</strong> You must be 18 years or older or at least the age of majority in the jurisdiction where you reside or from which you use the Services.</p>
+            <p><strong>1.4</strong> You acknowledge and agree that the Services, including without limitation, any associated software, documentation, applications, websites, tools and products, any modifications, enhancements and updates thereto, and all intellectual property rights therein are exclusively owned by DoorStep.</p>
+            <p><strong>1.5</strong> You acknowledge and agree that we may amend these Terms of Service at any time by posting the relevant amended and restated Terms of Service here and such amendments are effective as of the date of posting. Your continued use of the Services after the amended Terms of Service are posted constitutes your agreement to, and acceptance of, the amended Terms of Service.</p>
+            <p><strong>1.6</strong> You may not use the Services for any illegal, fraudulent or unauthorized purpose nor may you, in the use of the Services, violate any laws in your jurisdiction, the laws in your Buyer's jurisdiction, or the laws of Kingdom of Cambodia.</p>
+            <p><strong>1.7</strong> You agree not to reproduce, duplicate, copy, sell, resell or exploit any portion of the Services, use of the Services, or access to the Services without our express written permission.</p>
+            <p><strong>1.8</strong> The Terms of Service may be available in languages other than English. To the extent of any inconsistencies or conflicts between these English Terms of Service and Terms of Service available in another language, the most current English version shall prevail.</p>
+            <p><strong>1.9</strong> Questions about these Terms of Service should be sent to <a href="mailto:info@DoorSteps.tech" className="text-red-600 hover:underline">info@DoorSteps.tech</a>.</p>
+          </div>
+        </section>
 
-        <h3 className="text-xl font-bold text-slate-900 mb-4">4. Contact Us</h3>
-        <p className="text-slate-600 mb-6">
-          If you have any questions about this Privacy Policy, please contact us at privacy@doorstep.com.kh.
-        </p>
+        {/* Section 2 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">2. Account Requirements</h2>
+          <div className="space-y-4">
+            <p><strong>2.1</strong> In order to use the Services, you must register for and maintain an active DoorStep account ("DoorStep Account") and provide certain information including your email address and any other information identified as being required. You agree to maintain accurate, complete, and up-to-date information for your DoorStep Account.</p>
+            <p><strong>2.2</strong> You are responsible for all activity and content, such as photos, images, videos, graphics, written content, audio files, code, information, or data uploaded, collected, generated, stored, displayed, distributed, transmitted or exhibited on or in connection with your DoorStep Account and your use of the Services.</p>
+            <p><strong>2.3</strong> You agree to maintain the security and secrecy of your DoorStep Account password(s) at all times. You must promptly notify DoorStep if you become aware of or reasonably suspect any security breach. DoorStep cannot and will not be liable for any loss or damage from your failure to maintain the security of your DoorStep Account and password.</p>
+          </div>
+        </section>
+
+        {/* Section 3 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">3. Our Rights</h2>
+          <div className="space-y-4">
+            <p><strong>3.1</strong> We reserve the right to modify (including but not limited to adding or removing features), discontinue or terminate the Services or any part thereof, or terminate your DoorStep Account or your access to the Services, for any reason without notice at any time.</p>
+            <p><strong>3.2</strong> We reserve the right to refuse the Services to anyone for any reason at any time. We may exercise this right on a case-by-case basis.</p>
+            <p><strong>3.3</strong> We may, but have no obligation to, remove without notice any Content or Comments that we determine in our sole discretion violate these Terms of Service, any third party's intellectual property, or any applicable laws or regulations.</p>
+            <p><strong>3.4</strong> Verbal or written abuse of any kind (including threats of abuse or retribution) of DoorStep's employees, members, or officers will result in immediate termination.</p>
+            <p><strong>3.5</strong> We reserve the right to provide the Services and any other of our services to your competitors and make no promise of exclusivity in any particular market segment.</p>
+          </div>
+        </section>
+
+        {/* Section 4 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">4. Products and Third Party Services</h2>
+          <div className="space-y-4">
+            <p><strong>4.1</strong> You acknowledge that the Services may enable or assist you in accessing, interacting with customers to purchasing your products, including via Third Party Services. Any use by you of Third Party Services or Products made available through the Services is entirely at your own risk and discretion.</p>
+            <p><strong>4.2</strong> DoorStep may from time to time, but is not obligated to, provide access to Suppliers via additional Third Party Services.</p>
+            <p><strong>4.3</strong> In addition to these Terms of Service, you also agree to be bound by any additional service specific terms applicable to Products and Third Party Services.</p>
+            <p><strong>4.4</strong> You, and not DoorStep, are solely responsible for all of the terms and conditions of any transactions involving the sale of Products, including payment, returns, warranties, shipping, handling, transportation, storage, liability, insurance fees, applicable taxes, title and licenses.</p>
+            <p><strong>4.5</strong> Under no circumstances shall DoorStep or its Affiliates be liable for any direct, indirect, incidental, special, consequential, punitive, or other damages whatsoever, that result from any Third Party Services, Products or your relationship with any Supplier or Buyer.</p>
+            <p><strong>4.6</strong> You agree to indemnify and hold us and our Affiliates harmless from any claim or demand arising out of your use of Third Party Services or Products.</p>
+          </div>
+        </section>
+
+        {/* Section 5 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">5. Privacy and User Data</h2>
+          <p>You understand that any information you provide to us in using the Services (not including credit card information), may be transferred unencrypted and involve (a) transmissions over various networks; and (b) changes to conform and adapt to technical requirements of connecting networks or devices. Credit card information is always encrypted during transfer over networks. Any personal information you provide will be treated in accordance with our Privacy Policy.</p>
+        </section>
+
+        {/* Section 6 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">6. Accuracy, Completeness and Timeliness of Information</h2>
+          <div className="space-y-4">
+            <p><strong>6.1</strong> We make no warranties with respect to the information made available by the Services, and we are not responsible if that information is not accurate, complete, up-to-date or otherwise does not meet your specific requirements.</p>
+            <p><strong>6.2</strong> Occasionally there may be information that contains typographical errors, inaccuracies or omissions. We undertake no obligation to correct, update, amend or clarify such information.</p>
+          </div>
+        </section>
+
+        {/* Section 7 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">7. Intellectual Property</h2>
+          <div className="space-y-4">
+            <p><strong>7.1</strong> You grant DoorStep a limited, non-exclusive, sublicensable, royalty-free license to access, use, reproduce, electronically distribute, transmit, perform, format, display, store, archive, and index the Content for the purpose of supporting your use of the Services.</p>
+            <p><strong>7.2</strong> You are solely responsible for the Content that you upload, publish, display, link to, or otherwise make available via the Services. DoorStep retains the authority to remove any Content that it deems in violation of these Terms of Service.</p>
+          </div>
+        </section>
+
+        {/* Section 8 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">8. Fees, Settlement and Other Charges</h2>
+          <div className="space-y-4">
+            <p><strong>8.1</strong> You will pay the Fees applicable to your subscription to the Services and any other applicable charges.</p>
+            <p><strong>8.2</strong> You are responsible to pay Suppliers for any Third Party Services or Products that you purchase.</p>
+            <p><strong>8.3</strong> Fees are paid in advance and will be billed in 30 day intervals. Users have approximately fourteen (14) calendar days to bring up and settle any issues with the billing.</p>
+            <p><strong>8.4</strong> All Fees are exclusive of any applicable taxes. Taxes are based on the jurisdiction of the billing address of your DoorStep Account.</p>
+            <p><strong>8.5</strong> Applicable Fees are subject to change upon thirty (30) days' notice from DoorStep.</p>
+            <p><strong>8.6</strong> Requests for order cancellations, refunds and returns are handled in accordance with the Merchant Policy.</p>
+            <p><strong>8.7</strong> Merchant Product fee bought by consumer and delivered by DoorStep will be settled (total remaining amount after deducting service fee) on a weekly basis. The remaining amount will be directly transferred to Merchant Bank Account.</p>
+          </div>
+        </section>
+
+        {/* Section 9 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">9. User Comments, Feedback and Other Submissions</h2>
+          <p>You agree that your Comments will not violate any right of any third-party, including copyright, trademark, privacy, personality or other rights. You further agree that your Comments will not contain libelous, defamatory or otherwise unlawful, abusive, hateful or obscene material. You are solely responsible for any Comments you make and their accuracy.</p>
+        </section>
+
+        {/* Section 10 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">10. Prohibited Uses</h2>
+          <p className="mb-4">In addition to other prohibitions as set forth in the Terms of Service, you are prohibited from using the Services:</p>
+          <ul className="list-disc list-inside space-y-2 ml-4">
+            <li>For any unlawful purpose</li>
+            <li>To solicit others to perform or participate in any unlawful acts</li>
+            <li>To violate any international or local laws, rules, or regulations</li>
+            <li>To infringe upon or violate intellectual property rights</li>
+            <li>To submit false or misleading information</li>
+            <li>To upload or transmit viruses or any other type of malicious code</li>
+            <li>To collect or track the personal information of others</li>
+            <li>To spam, phish, pharm, pretext, spider, crawl, or scrape</li>
+            <li>For any obscene or immoral purpose</li>
+            <li>To interfere with or circumvent the security features of the Services</li>
+          </ul>
+        </section>
+
+        {/* Section 11 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">11. Disclaimer of Warranties; Limitation of Liability</h2>
+          <div className="space-y-4">
+            <p><strong>11.1</strong> You expressly agree that your use of, or inability to use, the Services is at your sole risk. The Services is provided "as is" and "as available" for your use, without any representation, warranties or conditions of any kind, either express, implied or statutory.</p>
+            <p><strong>11.2</strong> In no event shall DoorStep or its Affiliates be liable for any injury, loss, claim, or any direct, indirect, incidental, punitive, special, or consequential damages of any kind, including lost profits, lost revenue, lost savings, loss of data, replacement costs, or any similar damages.</p>
+          </div>
+        </section>
+
+        {/* Section 12 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">12. Indemnification</h2>
+          <p>You agree to indemnify, defend and hold harmless DoorStep and its Affiliates from any claim or demand, including reasonable attorneys' fees, made by any third-party, due to or arising out of a claim alleging that you, the Content or any Product infringes or violates the intellectual property rights, privacy rights or other rights of a third party or violates applicable law.</p>
+        </section>
+
+        {/* Section 13 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">13. Dispute Resolution</h2>
+          <div className="space-y-4">
+            <p><strong>13.1</strong> Any issues or disputes that arise between you and Buyer in connection with your sale or attempted sale of Products via DoorStep must be reported directly to us through the Services and will be handled in accordance with the Merchant Policy.</p>
+            <p><strong>13.2</strong> By agreeing to these Terms of Service, you agree that you are required to resolve any claim that you may have against DoorStep on an individual basis in arbitration. These Terms of Service shall be governed by and interpreted in accordance with the laws of the Kingdom of Cambodia.</p>
+          </div>
+        </section>
+
+        {/* Section 14 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">14. Termination</h2>
+          <div className="space-y-4">
+            <p><strong>14.1</strong> These Terms of Service are effective unless and until terminated by either you or us. You may terminate these Terms of Service at any time by deleting the DoorStep application or by closing your DoorStep store.</p>
+            <p><strong>14.2</strong> If in our sole judgment you fail to comply with any term or provision of these Terms of Service, we may terminate these Terms of Service at any time without notice.</p>
+            <p><strong>14.3</strong> Upon termination: (a) DoorStep will cease providing you with the Services; (b) you will not be entitled to any refunds; and (c) any outstanding balance owed will immediately become due and payable in full.</p>
+          </div>
+        </section>
+
+        {/* Section 15 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">15. Severability</h2>
+          <p>In the event that any provision of these Terms of Service is determined by a court of competent jurisdiction to be unlawful, void or unenforceable, such provision shall nonetheless be enforceable to the fullest extent permitted by applicable law, and such determination shall not affect the validity and enforceability of any other remaining provisions.</p>
+        </section>
+
+        {/* Section 16 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">16. Waiver and Entire Agreement</h2>
+          <div className="space-y-4">
+            <p><strong>16.1</strong> The failure by us to exercise or enforce any right or provision of these Terms of Service shall not constitute a waiver of such right or provision.</p>
+            <p><strong>16.2</strong> These Terms of Service and any documents incorporated into these Terms of Service constitutes the entire agreement and understanding between you and us, and govern your use of the Services, superseding any prior or contemporaneous agreements.</p>
+          </div>
+        </section>
+
+        <div className="mt-12 p-6 bg-slate-50 rounded-xl border border-slate-200">
+          <p className="text-sm text-slate-600">
+            For questions about these Terms and Conditions, please contact us at{' '}
+            <a href="mailto:info@DoorSteps.tech" className="text-red-600 hover:underline font-medium">info@DoorSteps.tech</a>
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -284,9 +543,7 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActivePage('HOME')}>
-              <div className="h-10 w-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-600/20">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-              </div>
+              <img src="/logo/DoorStep.png" alt="Doorstep" className="h-7 w-auto object-contain" />
               <span className="text-2xl font-bold tracking-tight text-slate-900">Doorstep</span>
             </div>
 
@@ -309,11 +566,11 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
         </div>
       </nav>
 
-      {/* --- CONTENT SWITCHER --- */}
       {activePage === 'ABOUT' && <AboutUs />}
       {activePage === 'CONTACT' && <ContactUs />}
       {activePage === 'HELP' && <HelpCenter />}
       {activePage === 'PRIVACY' && <PrivacyPolicy />}
+      {activePage === 'TERMS' && <TermsOfUse />}
 
       {activePage === 'HOME' && (
         <>
@@ -348,7 +605,42 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
                   </button>
                 </div>
 
-                <div className="mt-12 flex flex-wrap justify-center gap-4 opacity-0 animate-fade-in-up" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
+                {/* App Download Buttons */}
+                <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+                  <span className="text-sm text-slate-500">Download the app:</span>
+                  <div className="flex gap-3">
+                    <a
+                      href="https://apps.apple.com/app/doorstep"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors shadow-lg hover:-translate-y-0.5 transform transition-transform"
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                      </svg>
+                      <div className="text-left">
+                        <div className="text-[10px] leading-none opacity-80">Download on the</div>
+                        <div className="text-sm font-semibold leading-tight">App Store</div>
+                      </div>
+                    </a>
+                    <a
+                      href="https://play.google.com/store/apps/details?id=com.doorstep"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors shadow-lg hover:-translate-y-0.5 transform transition-transform"
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 010 1.73l-2.808 1.626L15.206 12l2.492-2.491zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z" />
+                      </svg>
+                      <div className="text-left">
+                        <div className="text-[10px] leading-none opacity-80">Get it on</div>
+                        <div className="text-sm font-semibold leading-tight">Google Play</div>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="mt-12 flex flex-wrap justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
                   <FeaturePill
                     icon={<div className="w-2 h-2 rounded-full bg-green-500"></div>}
                     text="Works in Khmer & English"
@@ -683,7 +975,7 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
           <div className="grid md:grid-cols-4 gap-8">
             <div className="col-span-1 md:col-span-1">
               <div className="flex items-center gap-2 mb-4">
-                <div className="h-8 w-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold">D</div>
+                <img src="/logo/DoorStep.png" alt="Doorstep" className="h-6 w-auto object-contain" />
                 <span className="text-xl font-bold text-slate-900">Doorstep</span>
               </div>
               <p className="text-sm text-gray-500 leading-relaxed">
@@ -713,6 +1005,7 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
               <ul className="space-y-2 text-sm text-gray-600">
                 <li><button onClick={() => setActivePage('HELP')} className="hover:text-red-600">Help Center</button></li>
                 <li><button onClick={() => setActivePage('PRIVACY')} className="hover:text-red-600">Privacy Policy</button></li>
+                <li><button onClick={() => setActivePage('TERMS')} className="hover:text-red-600">Terms of Use</button></li>
               </ul>
             </div>
           </div>
