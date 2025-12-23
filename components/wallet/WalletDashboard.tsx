@@ -322,22 +322,10 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             }
         });
 
-        // --- NEW: Cross-Currency Offsetting Logic (For Driver Debt Management) ---
-        // If one currency is negative (debt) and other is positive (surplus), offset them.
-        const RATE = 4000;
-
-        if (usd < 0 && khr > 0) {
-            const usdToOffset = Math.min(Math.abs(usd), khr / RATE);
-            usd += usdToOffset;
-            khr -= (usdToOffset * RATE);
-        } else if (khr < 0 && usd > 0) {
-            const khrToOffset = Math.min(Math.abs(khr), usd * RATE);
-            khr += khrToOffset;
-            usd -= (khrToOffset / RATE);
-        }
-
+        // Show raw balances per currency (no cross-currency offsetting)
         return { usd: round2(usd), khr: Math.round(khr) };
     }, [unifiedLedger]);
+
 
     // Balance Breakdown for Payout Logic (Customer Context)
     const balanceBreakdown = useMemo(() => {

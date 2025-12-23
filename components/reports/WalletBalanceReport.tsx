@@ -146,6 +146,7 @@ export const WalletBalanceReport: React.FC = () => {
 
         });
 
+        // Show raw balances per currency (no cross-currency offsetting)
         return users
             .filter(u => (u.role === 'customer' || u.role === 'driver') && balanceMap[u.uid])
             .map(u => ({
@@ -158,6 +159,7 @@ export const WalletBalanceReport: React.FC = () => {
             }))
             .sort((a, b) => b.balanceUSD - a.balanceUSD);
     };
+
 
     const filteredData = useMemo(() => {
         return balances.filter(b => {

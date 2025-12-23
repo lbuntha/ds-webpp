@@ -55,6 +55,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const [payAmountCashKHR, setPayAmountCashKHR] = useState<number | ''>('');
 
     const [settleProof, setSettleProof] = useState('');
+    const [settlementReason, setSettlementReason] = useState('');
     const [companyBanks, setCompanyBanks] = useState<Account[]>([]);
     const [settings, setSettings] = useState<SystemSettings>({});
     const [settlementHistory, setSettlementHistory] = useState<WalletTransaction[]>([]);
@@ -312,11 +313,8 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const handleSettlement = async () => {
         if (unsettledItems.length === 0) return;
 
-        // Full settlement is generally required, unless exact 0 balance check is passed
-        if (!settlementCalc.isBalanced) {
-            toast.warning("Total provided amount must match the total COD collected.");
-            return;
-        }
+        // Note: Flexible settlement now allows any amount (shortage or overpayment)
+        // The difference is tracked in the driver's wallet balance
 
         const { bankUSD, bankKHR, cashUSD, cashKHR } = settlementCalc;
 
@@ -402,6 +400,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 setPayAmountBankKHR('');
                 setPayAmountCashUSD('');
                 setPayAmountCashKHR('');
+                setSettlementReason('');
                 loadJobs();
             } else {
                 // Edge case: 0 amount settlement
@@ -793,17 +792,30 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                             </div>
 
                             {/* Balance Check */}
-                            <div className={`p-3 rounded-lg border flex justify-between items-center ${settlementCalc.isBalanced ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className={`p-3 rounded-lg border flex justify-between items-center ${settlementCalc.isBalanced ? 'bg-green-50 border-green-200' :
+                                settlementCalc.difference < 0 ? 'bg-orange-50 border-orange-200' :
+                                    'bg-blue-50 border-blue-200'
+                                }`}>
                                 <div>
                                     <p className="text-xs text-gray-500">Total Value Provided (Est.)</p>
-                                    <p className={`font-bold ${settlementCalc.isBalanced ? 'text-green-700' : 'text-gray-900'}`}>
+                                    <p className="font-bold text-gray-900">
                                         ${settlementCalc.totalProvidedBase.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-xs text-gray-500">Difference</p>
-                                    <p className={`font-bold ${Math.abs(settlementCalc.difference) < 0.05 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {settlementCalc.difference > 0 ? '+' : ''}{settlementCalc.difference.toFixed(2)}
+                                    <p className={`font-bold ${settlementCalc.isBalanced ? 'text-green-600' :
+                                        settlementCalc.difference < 0 ? 'text-orange-600' :
+                                            'text-blue-600'
+                                        }`}>
+                                        {settlementCalc.isBalanced ? '✓ Exact Match' :
+                                            settlementCalc.difference < 0 ? `Shortage: ${settlementCalc.difference.toFixed(2)}` :
+                                                `Overpayment: +${settlementCalc.difference.toFixed(2)}`}
+                                    </p>
+                                    <p className="text-[9px] text-gray-400 mt-0.5">
+                                        {settlementCalc.isBalanced ? '' :
+                                            settlementCalc.difference < 0 ? 'Remaining will be debt' :
+                                                'Excess will be credit'}
                                     </p>
                                 </div>
                             </div>
@@ -836,6 +848,20 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                                 <ImageUpload label={t('proof_of_transfer')} value={settleProof} onChange={setSettleProof} />
                             )}
 
+                            {/* Reason field for shortage/overpayment */}
+                            {!settlementCalc.isBalanced && (
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 mb-1">Reason (optional)</label>
+                                    <textarea
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                        rows={2}
+                                        placeholder={settlementCalc.difference < 0 ? 'Why are you settling less than owed?' : 'Why are you settling more than owed?'}
+                                        value={settlementReason}
+                                        onChange={e => setSettlementReason(e.target.value)}
+                                    />
+                                </div>
+                            )}
+
                             <div className="flex gap-2 pt-2 border-t border-gray-100 mt-2">
                                 <button
                                     onClick={() => setIsSettling(false)}
@@ -846,8 +872,8 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                                 <Button
                                     onClick={handleSettlement}
                                     isLoading={isSaving}
-                                    disabled={!settlementCalc.isBalanced || ((settlementCalc.bankUSD > 0 || settlementCalc.bankKHR > 0) && !settleProof)}
-                                    className={`flex-1 ${settlementCalc.isBalanced ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'}`}
+                                    disabled={settlementCalc.totalProvidedBase <= 0 || ((settlementCalc.bankUSD > 0 || settlementCalc.bankKHR > 0) && !settleProof)}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700"
                                 >
                                     {t('submit_request')}
                                 </Button>
