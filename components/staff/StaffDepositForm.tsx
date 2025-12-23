@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Account, Branch, Employee, JournalEntry, CurrencyConfig, AccountType, AccountSubType } from '../../types';
+import { Account, Branch, Employee, JournalEntry, CurrencyConfig, AccountType, AccountSubType } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
-import { getFriendlyErrorMessage } from '../../utils/errorUtils';
+import { getFriendlyErrorMessage } from '../../src/shared/utils/errorUtils';
 
 interface Props {
   accounts: Account[];

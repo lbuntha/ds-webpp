@@ -1,15 +1,15 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { ParcelServiceType, ParcelItem, UserProfile, ParcelBooking, AppNotification, SavedLocation, GeoPoint, ParcelPromotion, CustomerSpecialRate, CurrencyConfig, Place } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { ParcelServiceType, ParcelItem, UserProfile, ParcelBooking, AppNotification, SavedLocation, GeoPoint, ParcelPromotion, CustomerSpecialRate, CurrencyConfig, Place } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { Toast } from '../ui/Toast';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { LocationPicker } from '../ui/LocationPicker';
 import { PlaceAutocomplete } from '../ui/PlaceAutocomplete';
-import { processImageForUpload } from '../../utils/imageUtils';
+import { processImageForUpload } from '../../src/shared/utils/imageUtils';
 
 interface Props {
     user: UserProfile;

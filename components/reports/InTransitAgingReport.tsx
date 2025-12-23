@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, ParcelItem } from '../../types';
+import { ParcelBooking, ParcelItem } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { TrackingTimeline } from '../customer/TrackingTimeline';
 
 interface TransitItem {

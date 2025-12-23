@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { ParcelBooking, ParcelItem, UserProfile, Place, ParcelServiceType } from '../../types';
+import { ParcelBooking, ParcelItem, UserProfile, Place, ParcelServiceType } from '../../src/shared/types';
 import { Button } from '../ui/Button';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { LocationPicker } from '../ui/LocationPicker';
 import { PlaceAutocomplete } from '../ui/PlaceAutocomplete'; // Import
 import { toast } from '../../src/shared/utils/toast';

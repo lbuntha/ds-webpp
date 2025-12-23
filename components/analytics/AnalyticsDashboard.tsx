@@ -1,8 +1,8 @@
 
 import React, { useMemo } from 'react';
-import { Account, JournalEntry, AccountType, Invoice, Bill } from '../../types';
+import { Account, JournalEntry, AccountType, Invoice, Bill } from '../../src/shared/types';
 import { Card } from '../ui/Card';
-import { AccountingService } from '../../services/accountingService';
+import { AccountingService } from '../../src/shared/services/accountingService';
 
 interface Props {
     accounts: Account[];

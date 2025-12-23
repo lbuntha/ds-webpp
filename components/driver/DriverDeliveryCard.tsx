@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { ParcelBooking, ParcelItem } from '../../types';
+import { ParcelBooking, ParcelItem } from '../../src/shared/types';
 import { Card } from '../ui/Card';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 
 interface Props {
   job: ParcelBooking;

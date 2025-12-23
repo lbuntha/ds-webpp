@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { ParcelServiceType, Account, AccountType, TaxRate, AccountSubType } from '../../types';
+import { ParcelServiceType, Account, AccountType, TaxRate, AccountSubType } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ImageUpload } from '../ui/ImageUpload';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {

@@ -116,10 +116,11 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             let isCredit = false;
 
             // Logic for Wallet Direction:
-            // DEPOSIT: Money IN to Wallet (Credit)
-            // EARNING: Money IN to Wallet (Credit)
+            // DEPOSIT: Money IN to Wallet (Credit) - Customer topping up
+            // EARNING: Money IN to Wallet (Credit) - Commission earned
             // REFUND: Money IN to Wallet (Credit)
-            // SETTLEMENT: Driver paying company -> Reduces Driver Debt -> Treated as Credit to Wallet Balance (restoring it to 0)
+            // SETTLEMENT: Offsets Cash Held liability - Shows as Credit to cancel the Debit
+            //             (Cash Held = -$20, Settlement = +$20, Net = $0)
             if (t.type === 'DEPOSIT' || t.type === 'EARNING' || t.type === 'REFUND' || t.type === 'SETTLEMENT') {
                 isCredit = true;
             }
@@ -151,8 +152,12 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
 
         bookings.forEach(b => {
             const isSender = (user.linkedCustomerId && b.senderId === user.linkedCustomerId) || b.senderName === user.name;
-            const isDriver = b.driverId === user.uid;
             const bItems = b.items || [];
+
+            // Check if user is a driver (booking-level or item-level)
+            const isDriver = b.driverId === user.uid ||
+                b.involvedDriverIds?.includes(user.uid) ||
+                bItems.some(i => i.driverId === user.uid || i.collectorId === user.uid || i.delivererId === user.uid);
 
             // A. If User is Sender (Customer)
             if (isSender) {
@@ -266,80 +271,20 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
 
             // B. If User is Driver
             if (isDriver) {
-                // Commission Earning (Credit to Driver Wallet)
-                // UPDATED: Accrue commission pro-rata based on completed items (Delivered or Returned)
-                if (b.status !== 'CANCELLED') {
-                    const totalItems = bItems.length;
-                    const processedItems = bItems.filter(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER').length;
-
-                    if (totalItems > 0) {
-                        const myEmployeeRecord = employees.find(e => e.linkedUserId === user.uid);
-                        const pRule = getApplicableCommissionRule(myEmployeeRecord, 'PICKUP', commissionRules);
-
-                        const pickupCommBase = calculateDriverCommission(myEmployeeRecord, b, 'PICKUP', commissionRules);
-                        const deliveryCommBase = calculateDriverCommission(myEmployeeRecord, b, 'DELIVERY', commissionRules);
-
-                        let myPickupComm = 0;
-                        let myDeliveryComm = 0;
-                        let myProcessedCount = 0;
-
-                        bItems.forEach((item, idx) => {
-                            // Use actual saved commission if available, otherwise fall back to rule-based calculation
-                            const itemPickupComm = item.pickupCommission || (pRule?.type === 'FIXED_AMOUNT' ? pickupCommBase : round2(pickupCommBase / totalItems));
-                            const itemDeliveryComm = item.deliveryCommission || round2(deliveryCommBase / totalItems);
-
-                            // 1. Pickup Attribution
-                            // Support new collectorId field, or fallback to modification history/item driverId
-                            const isPickupByMe = item.collectorId === user.uid ||
-                                (item.modifications?.some(m => m.newValue === 'PICKED_UP' && m.userId === user.uid)) ||
-                                (item.status !== 'PENDING' && !item.collectorId && item.driverId === user.uid);
-
-                            if (isPickupByMe && itemPickupComm > 0) {
-                                ledger.push({
-                                    id: `earn-pickup-${item.id}`,
-                                    date: b.bookingDate,
-                                    description: `Pickup Commission: Booking #${(b.id || '').slice(-6)} (${idx + 1}/${totalItems})`,
-                                    type: 'EARNING',
-                                    amount: itemPickupComm,
-                                    currency: b.currency || 'USD',
-                                    status: 'EARNED',
-                                    reference: (b.id || '').slice(-6),
-                                    isCredit: true
-                                });
-                            }
-
-                            // 2. Delivery Attribution
-                            const isProcessed = item.status === 'DELIVERED' || item.status === 'RETURN_TO_SENDER';
-                            const isDeliveryByMe = item.delivererId === user.uid ||
-                                (item.modifications?.some(m => (m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER') && m.userId === user.uid)) ||
-                                (isProcessed && !item.delivererId && item.driverId === user.uid);
-
-                            if (isDeliveryByMe && itemDeliveryComm > 0) {
-                                ledger.push({
-                                    id: `earn-delivery-${item.id}`,
-                                    date: b.bookingDate,
-                                    description: `Delivery Commission: Booking #${(b.id || '').slice(-6)} (${idx + 1}/${totalItems})`,
-                                    type: 'EARNING',
-                                    amount: itemDeliveryComm,
-                                    currency: b.currency || 'USD',
-                                    status: 'EARNED',
-                                    reference: (b.id || '').slice(-6),
-                                    isCredit: true
-                                });
-                            }
-                        });
-
-                        // Removed old bulk posting block as we now post per-item above
-
-                    }
-                }
+                // COMMISSIONS ARE NOW HANDLED VIA REAL TRANSACTIONS IN logisticsService.ts
+                // No virtual commission entries needed - they are recorded as EARNING transactions
+                // when item status becomes DELIVERED
 
                 // Cash Held Liability (Debit from Driver Wallet)
                 // Drivers owe this money to company until Settled.
+                // Cash is collected by the DELIVERER, not the collector (picker)
+
                 bItems.forEach(item => {
-                    // Include ALL delivered items regardless of settlement status to maintain history.
-                    // 'SETTLED' items are offset by the 'SETTLEMENT' transaction above.
-                    if (item.status === 'DELIVERED') {
+                    // Only show COD in deliverer's wallet (the person who collected cash from customer)
+                    const isDeliveredByMe = item.delivererId === user.uid ||
+                        (!item.delivererId && item.driverId === user.uid);
+
+                    if (item.status === 'DELIVERED' && isDeliveredByMe) {
                         ledger.push({
                             id: `held-${item.id}`,
                             date: b.bookingDate,
@@ -354,6 +299,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                     }
                 });
             }
+
         });
 
         return ledger.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -488,14 +434,20 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                 const isDriverFlow = isDriver && (amount > 0 || amountKHR > 0 || cashAmount > 0 || cashAmountKHR > 0);
 
                 if (isDriverFlow) {
-                    // Pre-calculate unsettled items
+                    // Pre-calculate unsettled items - ONLY items delivered by this driver
                     const allUnsettled = bookings.flatMap(b => (b.items || [])
-                        .filter(i => i.status === 'DELIVERED' && i.settlementStatus !== 'SETTLED')
+                        .filter(i =>
+                            i.status === 'DELIVERED' &&
+                            i.settlementStatus !== 'SETTLED' &&
+                            // Only include items this driver delivered (they collected the cash)
+                            (i.delivererId === user.uid || (!i.delivererId && i.driverId === user.uid))
+                        )
                         .map(i => ({ bookingId: b.id, itemId: i.id, codCurrency: i.codCurrency || 'USD' }))
                     );
 
                     const usdItemsToSettle = allUnsettled.filter(i => (i.codCurrency === 'USD')).map(i => ({ bookingId: i.bookingId, itemId: i.itemId }));
                     const khrItemsToSettle = allUnsettled.filter(i => (i.codCurrency === 'KHR')).map(i => ({ bookingId: i.bookingId, itemId: i.itemId }));
+
 
                     // Masters
                     const masterUsdMethod: 'BANK' | 'CASH' | null = amount > 0 ? 'BANK' : (cashAmount > 0 ? 'CASH' : null);

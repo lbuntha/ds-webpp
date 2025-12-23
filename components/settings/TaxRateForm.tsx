@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TaxRate } from '../../types';
+import { TaxRate } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';

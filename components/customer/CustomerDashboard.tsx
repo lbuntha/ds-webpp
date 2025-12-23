@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, UserProfile, ParcelItem } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { ParcelBooking, UserProfile, ParcelItem } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { TrackingTimeline } from './TrackingTimeline';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { ChatModal } from '../ui/ChatModal';
 import { toast } from '../../src/shared/utils/toast';
 

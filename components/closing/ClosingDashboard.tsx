@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
-import { Account, JournalEntry, SystemSettings, AccountType, Branch, CurrencyConfig, Invoice, Bill } from '../../types';
+import { Account, JournalEntry, SystemSettings, AccountType, Branch, CurrencyConfig, Invoice, Bill } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { AccountingService, HealthIssue } from '../../services/accountingService';
+import { AccountingService, HealthIssue } from '../../src/shared/services/accountingService';
 import { JournalEntryForm } from '../JournalEntryForm';
 import { toast } from '../../src/shared/utils/toast';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 
 interface Props {
     settings: SystemSettings;

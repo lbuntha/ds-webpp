@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Permission, UserProfile, UserRole, UserStatus, Account, AccountType, Branch } from '../types';
+import { Permission, UserProfile, UserRole, UserStatus, Account, AccountType, Branch } from '../src/shared/types';
 import { Card } from './ui/Card';
 import { Avatar } from './ui/Avatar';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
-import { FEATURE_LIST } from '../constants';
-import { firebaseService } from '../services/firebaseService';
+import { FEATURE_LIST } from '../src/shared/constants';
+import { firebaseService } from '../src/shared/services/firebaseService';
 import { toast } from '../src/shared/utils/toast';
 
 interface Props {

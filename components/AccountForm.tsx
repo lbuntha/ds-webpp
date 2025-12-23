@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { Account, AccountType, AccountSubType } from '../types';
+import { Account, AccountType, AccountSubType } from '../src/shared/types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Card } from './ui/Card';
 import { ImageUpload } from './ui/ImageUpload'; // Import ImageUpload
-import { TYPE_TO_SUBTYPE_MAP } from '../constants';
+import { TYPE_TO_SUBTYPE_MAP } from '../src/shared/constants';
 
 interface Props {
   initialData?: Account;

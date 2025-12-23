@@ -1,14 +1,14 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { ParcelBooking, ParcelItem, ParcelServiceType, Branch, Account, AccountType, Customer, TaxRate, ParcelPromotion, AccountSubType, CustomerSpecialRate, CurrencyConfig, Place } from '../../types';
+import { ParcelBooking, ParcelItem, ParcelServiceType, Branch, Account, AccountType, Customer, TaxRate, ParcelPromotion, AccountSubType, CustomerSpecialRate, CurrencyConfig, Place } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { LocationPicker } from '../ui/LocationPicker';
 import { PlaceAutocomplete } from '../ui/PlaceAutocomplete';
-import { processImageForUpload } from '../../utils/imageUtils';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { processImageForUpload } from '../../src/shared/utils/imageUtils';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {

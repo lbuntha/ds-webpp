@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, UserProfile, ParcelItem, Account, Branch, AccountType, AccountSubType, WalletTransaction, SystemSettings, AppNotification, CurrencyConfig, ParcelServiceType, Employee, DriverCommissionRule } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { ParcelBooking, UserProfile, ParcelItem, Account, Branch, AccountType, AccountSubType, WalletTransaction, SystemSettings, AppNotification, CurrencyConfig, ParcelServiceType, Employee, DriverCommissionRule } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
 import { ImageUpload } from '../ui/ImageUpload';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { ChatModal } from '../ui/ChatModal';
 import { SettlementReportModal } from '../ui/SettlementReportModal';
 import { toast } from '../../src/shared/utils/toast';
@@ -120,14 +120,21 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     // Derived Data
     const availablePickups = bookings.filter(b => !b.driverId && b.status === 'PENDING');
-    const myPickups = bookings.filter(b =>
-        (b.driverId === user.uid || b.involvedDriverIds?.includes(user.uid)) &&
-        b.status !== 'CANCELLED' &&
-        (b.items || []).some(i =>
-            (i.driverId === user.uid || i.collectorId === user.uid) &&
-            (i.status === 'PENDING' || i.status === 'AT_WAREHOUSE')
-        )
-    );
+    const myPickups = bookings.filter(b => {
+        // Must be assigned to this driver at booking level OR involved
+        const isMyBooking = b.driverId === user.uid || b.involvedDriverIds?.includes(user.uid);
+        if (!isMyBooking || b.status === 'CANCELLED') return false;
+
+        // Check if any items are pending pickup
+        const hasPendingItems = (b.items || []).some(i =>
+            (i.status === 'PENDING' || i.status === 'AT_WAREHOUSE') &&
+            // Item is either unassigned (new CONFIRMED booking) OR assigned to this driver
+            (!i.driverId || i.driverId === user.uid || i.collectorId === user.uid)
+        );
+
+        return hasPendingItems;
+    });
+
     const myActiveJobs = bookings.map(b => ({
         ...b,
         activeItems: (b.items || []).filter(i =>
@@ -196,8 +203,13 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     // Handlers
     const handleParcelAction = async (bookingId: string, itemId: string, action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'TRANSFER', branchId?: string, proof?: string, updatedCOD?: { amount: number, currency: 'USD' | 'KHR' }) => {
+        console.log('[DEBUG] handleParcelAction called:', { bookingId, itemId, action, proof: !!proof, updatedCOD });
         const booking = bookings.find(b => b.id === bookingId);
-        if (!booking) return;
+        if (!booking) {
+            console.error('[DEBUG] Booking not found!', bookingId);
+            return;
+        }
+        console.log('[DEBUG] Found booking:', booking.id, 'with items:', booking.items?.length);
 
         const updatedItems = (booking.items || []).map(item => {
             if (item.id === itemId) {
@@ -258,7 +270,13 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         }
         // FEE RECALCULATION END
 
-        await firebaseService.saveParcelBooking(finalBooking);
+        console.log('[DEBUG] Saving booking with updated items:', finalBooking.items?.map(i => ({ id: i.id, status: i.status })));
+        try {
+            await firebaseService.saveParcelBooking(finalBooking);
+            console.log('[DEBUG] Booking saved successfully!');
+        } catch (e) {
+            console.error('[DEBUG] Error saving booking:', e);
+        }
 
         // NOTIFICATION TRIGGER: If action is DELIVER, notify Customer
         if (action === 'DELIVER' && booking.senderId) {
@@ -278,8 +296,10 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             }
         }
 
+        console.log('[DEBUG] Calling loadJobs to refresh...');
         loadJobs();
     };
+
 
     const handleCodUpdate = async (bookingId: string, itemId: string, amount: number, currency: 'USD' | 'KHR') => {
         const booking = bookings.find(b => b.id === bookingId);

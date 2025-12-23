@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Account, Branch, StaffLoan, StaffLoanRepayment, AccountType, Employee, JournalEntry, CurrencyConfig } from '../../types';
+import { Account, Branch, StaffLoan, StaffLoanRepayment, AccountType, Employee, JournalEntry, CurrencyConfig } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { StaffLoanForm } from './StaffLoanForm';

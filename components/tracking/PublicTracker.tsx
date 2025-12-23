@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { firebaseService } from '../../services/firebaseService';
-import { ParcelBooking, ParcelItem } from '../../types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
+import { ParcelBooking, ParcelItem } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { TrackingTimeline } from '../customer/TrackingTimeline';

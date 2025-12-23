@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { WalletTransaction, Account, JournalEntry, Invoice, ParcelBooking, ParcelServiceType, DriverCommissionRule, Employee, AccountType, AccountSubType, AppNotification, CurrencyConfig, TaxRate, Branch } from '../../types';
+import { WalletTransaction, Account, JournalEntry, Invoice, ParcelBooking, ParcelServiceType, DriverCommissionRule, Employee, AccountType, AccountSubType, AppNotification, CurrencyConfig, TaxRate, Branch } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';

@@ -5,6 +5,7 @@ import { RoleBasedRoute } from './RoleBasedRoute';
 import { PermissionRoute } from './PermissionRoute';
 import { RoleBasedRedirect } from './RoleBasedRedirect';
 import { UserRole } from '../shared/types';
+import { ErrorBoundary } from '../shared/components/ErrorBoundary';
 
 
 // Lazy load components for code splitting
@@ -86,6 +87,7 @@ const routes: RouteObject[] = [
     {
         path: '/',
         element: <Navigate to="/landing" replace />,
+        errorElement: <ErrorBoundary />
     },
     {
         path: '/landing',

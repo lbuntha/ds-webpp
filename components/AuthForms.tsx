@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from './ui/Button';
-import { getFriendlyErrorMessage } from '../utils/errorUtils';
+import { getFriendlyErrorMessage } from '../src/shared/utils/errorUtils';
 
 interface AuthProps {
     mode: 'LOGIN' | 'REGISTER' | 'RESET' | 'EMAIL_SENT' | 'VERIFY';

@@ -1,14 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Account, Branch, JournalEntry, AccountType, AccountSubType, CurrencyConfig } from '../../types';
-import { AccountingService } from '../../services/accountingService';
+import { Account, Branch, JournalEntry, AccountType, AccountSubType, CurrencyConfig } from '../../src/shared/types';
+import { AccountingService } from '../../src/shared/services/accountingService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { TransferForm } from './TransferForm';
 import { AccountForm } from '../AccountForm';
 import { WalletRequests } from './WalletRequests';
 import { WalletDirectory } from './WalletDirectory';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 
 interface Props {
   accounts: Account[];

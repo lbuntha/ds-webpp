@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Account, AccountType, JournalEntry } from '../../types';
+import { Account, AccountType, JournalEntry } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { toast } from '../../src/shared/utils/toast';
 

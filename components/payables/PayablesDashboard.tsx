@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
-import { Account, Branch, Vendor, Bill, AccountType, BillStatus, JournalEntry, CurrencyConfig, BillPayment } from '../../types';
+import { Account, Branch, Vendor, Bill, AccountType, BillStatus, JournalEntry, CurrencyConfig, BillPayment } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { BillForm } from './BillForm';
 import { VendorList } from './VendorList';
 import { DirectPurchaseForm } from './DirectPurchaseForm';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 
 interface Props {
   bills: Bill[];

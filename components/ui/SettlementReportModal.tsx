@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { WalletTransaction, ParcelBooking, Invoice, DriverCommissionRule, Employee, Account, JournalEntry, SystemSettings, CurrencyConfig, TaxRate } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { WalletTransaction, ParcelBooking, Invoice, DriverCommissionRule, Employee, Account, JournalEntry, SystemSettings, CurrencyConfig, TaxRate } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { calculateDriverCommission, getApplicableCommissionRule } from '../../src/shared/utils/commissionCalculator';
 import { Button } from './Button';
 
@@ -174,13 +174,14 @@ export const SettlementReportModal: React.FC<Props> = ({
                                 finalDeliveryComm = Math.round((finalDeliveryComm + Number.EPSILON) * 100) / 100;
 
                                 // Add PICKUP commission line item (if > 0)
+                                // Amount is 0 because picker doesn't collect cash - only deliverer does
                                 if (finalPickupComm > 0) {
                                     reportItems.push({
                                         id: `${parcelItem.id}-pickup`,
                                         date: booking.bookingDate,
                                         reference: parcelItem.trackingCode || 'N/A',
                                         description: `Pickup (by ${pickupDriverName})`,
-                                        amount: parcelItem.productPrice || 0,
+                                        amount: 0, // Pickup doesn't collect cash
                                         currency: parcelItem.codCurrency || 'USD',
                                         status: parcelItem.settlementStatus || 'UNSETTLED',
                                         commission: finalPickupComm,
@@ -192,6 +193,7 @@ export const SettlementReportModal: React.FC<Props> = ({
                                         }
                                     });
                                 }
+
 
                                 // Add DELIVERY commission line item (if > 0)
                                 if (finalDeliveryComm > 0) {

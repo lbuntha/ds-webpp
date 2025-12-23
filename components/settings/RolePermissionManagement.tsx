@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { Permission, UserRole, PermissionGroup } from '../../types';
-import { PERMISSION_GROUPS } from '../../constants';
-import { usePermissions } from '../../contexts/PermissionsContext';
-import { firebaseService } from '../../services/firebaseService';
+import { Permission, UserRole, PermissionGroup } from '../../src/shared/types';
+import { PERMISSION_GROUPS } from '../../src/shared/constants';
+import { usePermissions } from '../../src/shared/contexts/PermissionsContext';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 const ROLES: UserRole[] = ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'];

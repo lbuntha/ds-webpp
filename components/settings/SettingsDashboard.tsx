@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Account, Branch, CurrencyConfig, TaxRate, JournalEntry, SystemSettings, AccountType, AccountSubType } from '../../types';
+import { Account, Branch, CurrencyConfig, TaxRate, JournalEntry, SystemSettings, AccountType, AccountSubType } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AccountForm } from '../AccountForm';
@@ -14,8 +14,8 @@ import { MenuManagement } from './MenuManagement';
 import { RolePermissionManagement } from './RolePermissionManagement';
 import { RouteManagement } from './RouteManagement';
 import { TransactionDefinitions } from './TransactionDefinitions'; // Import
-import { useLanguage } from '../../contexts/LanguageContext';
-import { MASTER_COA_DATA } from '../../constants';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
+import { MASTER_COA_DATA } from '../../src/shared/constants';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
@@ -81,6 +81,9 @@ export const SettingsDashboard: React.FC<Props> = ({
     // General Config State - Driver Commission Expense (COGS)
     const [driverCommExpUSD, setDriverCommExpUSD] = useState(settings?.driverCommissionExpenseAccountUSD || '');
     const [driverCommExpKHR, setDriverCommExpKHR] = useState(settings?.driverCommissionExpenseAccountKHR || '');
+
+    // Commission Exchange Rate (USD to KHR)
+    const [commissionExchangeRate, setCommissionExchangeRate] = useState(settings?.commissionExchangeRate || 4100);
 
     // Unified Settlement Accounts
     const [driverSettlementBankUSD, setDriverSettlementBankUSD] = useState(settings?.defaultDriverSettlementBankIdUSD || settings?.defaultSettlementBankAccountId || '');
@@ -283,6 +286,9 @@ export const SettingsDashboard: React.FC<Props> = ({
                 driverCommissionExpenseAccountUSD: driverCommExpUSD,
                 driverCommissionExpenseAccountKHR: driverCommExpKHR,
 
+                // Commission Exchange Rate
+                commissionExchangeRate: commissionExchangeRate,
+
                 // Settlement Accounts
                 defaultDriverSettlementBankIdUSD: driverSettlementBankUSD,
                 defaultDriverSettlementBankIdKHR: driverSettlementBankKHR,
@@ -441,6 +447,19 @@ export const SettingsDashboard: React.FC<Props> = ({
                                                 <option value="">-- Select KHR Expense --</option>
                                                 {getAccountsByCurrency(expenseAccounts, 'KHR').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
                                             </select>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Commission Exchange Rate (USD → KHR)</label>
+                                            <input
+                                                type="number"
+                                                className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                                value={commissionExchangeRate}
+                                                onChange={e => setCommissionExchangeRate(Number(e.target.value) || 4100)}
+                                                placeholder="4100"
+                                            />
+                                            <p className="text-[10px] text-gray-500 mt-1">Used to convert USD commissions to KHR when item COD is in KHR.</p>
                                         </div>
                                     </div>
                                 </div>

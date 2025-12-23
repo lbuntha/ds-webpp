@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, UserRole } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { UserProfile, UserRole } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Avatar';

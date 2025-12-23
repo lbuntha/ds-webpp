@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { ParcelStatusConfig } from '../../types';
+import { ParcelStatusConfig } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 export const ParcelStatusSetup: React.FC = () => {

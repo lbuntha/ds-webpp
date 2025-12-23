@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { FixedAsset, FixedAssetCategory, Branch } from '../../types';
+import { FixedAsset, FixedAssetCategory, Branch } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 

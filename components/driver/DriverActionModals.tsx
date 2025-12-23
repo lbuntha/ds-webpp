@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Branch } from '../../types';
+import { Branch } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { ImageUpload } from '../ui/ImageUpload';
 import { toast } from '../../src/shared/utils/toast';

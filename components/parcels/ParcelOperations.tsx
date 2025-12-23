@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, ParcelItem, Branch } from '../../types';
+import { ParcelBooking, ParcelItem, Branch } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 const ITEMS_PER_PAGE = 20;

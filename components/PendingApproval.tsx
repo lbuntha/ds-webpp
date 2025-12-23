@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
-import { firebaseService } from '../services/firebaseService';
+import { firebaseService } from '../src/shared/services/firebaseService';
 
 interface Props {
   onLogout: () => void;

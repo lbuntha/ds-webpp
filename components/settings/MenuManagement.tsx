@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { NavigationItem, UserRole } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { NavigationItem, UserRole } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../../constants';
+import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../../src/shared/constants';
 import { toast } from '../../src/shared/utils/toast';
 
 const ICON_OPTIONS = [

@@ -145,6 +145,57 @@ export const FEATURE_LIST: { key: Permission; label: string }[] = [
   { key: 'CUSTOMER_VIEW_REPORTS', label: 'Customer: Spending Reports' },
 ];
 
+export const PERMISSION_GROUPS: Record<PermissionGroup, Permission[]> = {
+  FINANCE: [
+    'VIEW_JOURNAL',
+    'CREATE_JOURNAL',
+    'MANAGE_RECEIVABLES',
+    'MANAGE_PAYABLES',
+    'MANAGE_ASSETS',
+    'MANAGE_STAFF_LOANS',
+    'MANAGE_BANKING',
+    'MANAGE_CUSTOMER_SETTLEMENTS',
+    'PERFORM_CLOSING'
+  ],
+  LOGISTICS: [
+    'MANAGE_PARCELS',
+    'VIEW_PARCELS_OVERVIEW',
+    'CREATE_PARCEL_BOOKING',
+    'MANAGE_PARCEL_OPERATIONS',
+    'MANAGE_PARCEL_WAREHOUSE',
+    'MANAGE_PARCEL_DISPATCH',
+    'MANAGE_PARCEL_FLEET',
+    'MANAGE_PARCEL_PLACES',
+    'MANAGE_PARCEL_PRODUCTS'
+  ],
+  REPORTS: [
+    'VIEW_REPORTS',
+    'VIEW_PARCEL_RETENTION',
+    'VIEW_PARCEL_AGING',
+    'CUSTOMER_VIEW_REPORTS'
+  ],
+  SETTINGS: [
+    'MANAGE_SETTINGS',
+    'MANAGE_USERS',
+    'MANAGE_PARCEL_CONFIG',
+    'MANAGE_LOGISTICS_CONFIG'
+  ],
+  SYSTEM: [
+    'VIEW_DASHBOARD'
+  ],
+  DRIVER: [
+    'VIEW_DRIVER_JOBS',
+    'VIEW_DRIVER_PICKUPS',
+    'VIEW_DRIVER_EARNINGS'
+  ],
+  CUSTOMER: [
+    'CREATE_BOOKING',
+    'VIEW_MY_PARCELS',
+    'TRACK_PARCELS',
+    'VIEW_PROFILE'
+  ]
+};
+
 // --- PARCEL DEFAULTS ---
 export const DEFAULT_PARCEL_STATUSES: ParcelStatusConfig[] = [
   { id: 'ps-pending', label: 'Pending', color: 'bg-gray-100 text-gray-800', order: 1, isDefault: true, triggersRevenue: false, isTerminal: false },

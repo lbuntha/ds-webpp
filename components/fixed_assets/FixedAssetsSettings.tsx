@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { FixedAssetCategory, Account } from '../../types';
+import { FixedAssetCategory, Account } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AssetCategoryForm } from './AssetCategoryForm';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 
 interface Props {
   accounts: Account[];

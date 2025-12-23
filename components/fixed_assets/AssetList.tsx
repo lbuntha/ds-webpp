@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { FixedAsset, Account } from '../../types';
+import { FixedAsset, Account } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 

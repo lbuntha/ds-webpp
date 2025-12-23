@@ -1,10 +1,10 @@
 
 import React, { useMemo, useState } from 'react';
-import { Account, AccountType, Branch, JournalEntry, ReportType, TrialBalanceRow } from '../types';
-import { AccountingService } from '../services/accountingService';
+import { Account, AccountType, Branch, JournalEntry, ReportType, TrialBalanceRow } from '../src/shared/types';
+import { AccountingService } from '../src/shared/services/accountingService';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useLanguage } from '../src/shared/contexts/LanguageContext';
 import { WalletBalanceReport } from './reports/WalletBalanceReport';
 import { InTransitAgingReport } from './reports/InTransitAgingReport';
 

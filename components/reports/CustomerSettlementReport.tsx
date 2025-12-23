@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, ParcelItem, Customer, UserProfile, CurrencyConfig } from '../../types';
+import { ParcelBooking, ParcelItem, Customer, UserProfile, CurrencyConfig } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 interface CustomerSummary {

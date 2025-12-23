@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
-import { Account, Branch, SystemSettings } from '../../types';
+import { Account, Branch, SystemSettings } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { MASTER_COA_DATA } from '../../constants';
+import { MASTER_COA_DATA } from '../../src/shared/constants';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {

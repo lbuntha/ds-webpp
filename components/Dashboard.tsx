@@ -1,9 +1,9 @@
 
 import React, { useMemo } from 'react';
-import { Account, Branch, JournalEntry, AccountType } from '../types';
-import { AccountingService } from '../services/accountingService';
+import { Account, Branch, JournalEntry, AccountType } from '../src/shared/types';
+import { AccountingService } from '../src/shared/services/accountingService';
 import { Card } from './ui/Card';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useLanguage } from '../src/shared/contexts/LanguageContext';
 
 interface Props {
     transactions: JournalEntry[];

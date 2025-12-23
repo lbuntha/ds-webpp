@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { UserRole, Permission } from '../../types';
+import { UserRole, Permission } from '../../src/shared/types';
 import { AppRoute } from '../../routing/routeRegistry';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 const ROLES: UserRole[] = ['system-admin', 'accountant', 'finance-manager', 'warehouse', 'driver', 'customer'];

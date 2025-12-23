@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { TRANSACTION_DEFINITIONS } from '../../constants';
-import { SystemSettings, Account } from '../../types';
+import { TRANSACTION_DEFINITIONS } from '../../src/shared/constants';
+import { SystemSettings, Account } from '../../src/shared/types';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {

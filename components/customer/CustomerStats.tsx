@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { UserProfile } from '../../types';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { UserProfile } from '../../src/shared/types';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 
 interface Props {
   user: UserProfile;

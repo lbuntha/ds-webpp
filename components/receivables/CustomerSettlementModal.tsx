@@ -1,11 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Customer, Account, WalletTransaction, AccountType, AccountSubType, Invoice } from '../../types';
+import { Customer, Account, WalletTransaction, AccountType, AccountSubType, Invoice } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ImageUpload } from '../ui/ImageUpload';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ParcelBooking, ParcelItem, UserProfile, ParcelModification } from '../../types';
+import { ParcelBooking, ParcelItem, UserProfile, ParcelModification } from '../../src/shared/types';
 import { Button } from '../ui/Button';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { ChatModal } from '../ui/ChatModal';
 import { toast } from '../../src/shared/utils/toast';
 

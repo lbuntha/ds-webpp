@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Account, Branch, FixedAsset, AccountType, AccountSubType, FixedAssetCategory, JournalEntry } from '../../types';
+import { Account, Branch, FixedAsset, AccountType, AccountSubType, FixedAssetCategory, JournalEntry } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AssetList } from './AssetList';
 import { AssetForm } from './AssetForm';
 import { FixedAssetsSettings } from './FixedAssetsSettings';
 import { DepreciationScheduleReport } from './DepreciationScheduleReport';
-import { firebaseService } from '../../services/firebaseService';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { firebaseService } from '../../src/shared/services/firebaseService';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {

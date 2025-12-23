@@ -1,5 +1,5 @@
-import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Permission } from '../types';
 
 /**

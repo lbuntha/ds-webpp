@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { ParcelBooking } from '../../types';
+import { ParcelBooking } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 
 interface Props {
   job: ParcelBooking;

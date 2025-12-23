@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, UserProfile, AppNotification } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { ChatMessage, UserProfile, AppNotification } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 import { Button } from './Button';
 

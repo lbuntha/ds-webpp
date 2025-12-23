@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { ParcelBooking, Employee, ParcelItem, AppNotification } from '../../types';
+import { ParcelBooking, Employee, ParcelItem, AppNotification } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 export const DispatchConsole: React.FC = () => {

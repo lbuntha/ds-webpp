@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { Customer, Account, Invoice } from '../../types';
+import { Customer, Account, Invoice } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { CustomerForm } from './CustomerForm';
 import { CustomerSettlementModal } from './CustomerSettlementModal';
 import { CustomerRateModal } from './CustomerRateModal'; // Import
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from './ui/Card';
-import { firebaseService } from '../services/firebaseService';
-import { UserRole } from '../types';
+import { firebaseService } from '../src/shared/services/firebaseService';
+import { UserRole } from '../src/shared/types';
 
 interface MenuSection {
   id: string;

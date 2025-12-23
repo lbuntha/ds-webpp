@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { Permission, UserRole, UserProfile } from '../types';
 import { ROLE_PERMISSIONS } from '../constants';
 import { firebaseService } from '../services/firebaseService';

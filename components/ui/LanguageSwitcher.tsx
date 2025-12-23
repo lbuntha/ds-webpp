@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 
 export const LanguageSwitcher: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { language, setLanguage } = useLanguage();

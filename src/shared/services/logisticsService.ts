@@ -58,10 +58,20 @@ export class LogisticsService extends BaseService {
     async getUserBookings(user: UserProfile): Promise<ParcelBooking[]> {
         try {
             if (user.role === 'driver') {
-                // Fetch jobs assigned to this driver
-                const q = query(collection(this.db, 'parcel_bookings'), where('driverId', '==', user.uid));
-                const snap = await getDocs(q);
-                return snap.docs.map(d => d.data() as ParcelBooking);
+                // Fetch jobs where this driver is involved (booking-level or item-level)
+                // Query 1: driverId matches
+                const q1 = query(collection(this.db, 'parcel_bookings'), where('driverId', '==', user.uid));
+                // Query 2: involvedDriverIds contains this driver (for item-level assignments)
+                const q2 = query(collection(this.db, 'parcel_bookings'), where('involvedDriverIds', 'array-contains', user.uid));
+
+                const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+
+                // Merge and deduplicate
+                const bookingsMap = new Map<string, ParcelBooking>();
+                snap1.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
+                snap2.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
+
+                return Array.from(bookingsMap.values());
             } else if (user.role === 'customer') {
                 let q;
                 if (user.linkedCustomerId) {
@@ -84,18 +94,20 @@ export class LogisticsService extends BaseService {
         }
     }
 
+
     // --- Ops (Driver Specific) ---
     async getDriverJobs(driverId: string): Promise<ParcelBooking[]> {
         // Driver needs:
         // 1. Jobs assigned to them (driverId == uid)
         // 2. Available jobs (status == 'PENDING' AND driverId == null/undefined)
+        // 3. In-progress jobs where they are assigned at item level
 
         try {
-            // Query 1: Involved in this booking
+            // Query 1: Involved in this booking (index)
             const q1 = query(collection(this.db, 'parcel_bookings'), where('involvedDriverIds', 'array-contains', driverId));
             const snap1 = await getDocs(q1);
 
-            // Query 2: Assigned directly (fallback for old records)
+            // Query 2: Assigned directly at booking level (fallback for old records)
             const q2a = query(collection(this.db, 'parcel_bookings'), where('driverId', '==', driverId));
             const snap2a = await getDocs(q2a);
 
@@ -103,11 +115,24 @@ export class LogisticsService extends BaseService {
             const q3 = query(collection(this.db, 'parcel_bookings'), where('status', '==', 'PENDING'));
             const snap3 = await getDocs(q3);
 
+            // Query 4: In-progress bookings (CONFIRMED/IN_TRANSIT) - fallback for item-level assignments
+            const q4 = query(collection(this.db, 'parcel_bookings'), where('status', 'in', ['CONFIRMED', 'IN_TRANSIT']));
+            const snap4 = await getDocs(q4);
+
             const bookingsMap = new Map<string, ParcelBooking>();
 
             snap1.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
             snap2a.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
             snap3.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
+
+            // For Query 4, only add if driver is actually involved at item level
+            snap4.docs.forEach(d => {
+                const booking = d.data() as ParcelBooking;
+                const isInvolved = (booking.items || []).some(i =>
+                    i.driverId === driverId || i.collectorId === driverId || i.delivererId === driverId
+                );
+                if (isInvolved) bookingsMap.set(d.id, booking);
+            });
 
             return Array.from(bookingsMap.values());
         } catch (e) {
@@ -115,6 +140,7 @@ export class LogisticsService extends BaseService {
             return [];
         }
     }
+
 
     // Updated to accept wallet service for referral triggering
     async saveParcelBooking(b: ParcelBooking, paymentAccountId?: string, walletService?: any, configService?: any, hrService?: any) {
@@ -129,40 +155,70 @@ export class LogisticsService extends BaseService {
                 const commissionRules = await this.getDriverCommissionRules();
                 const employees = await hrService.getEmployees();
 
+                // Fetch commission exchange rate from system settings
+                let commissionExchangeRate = 4100; // Default fallback
+                if (configService?.getSettings) {
+                    const settings = await configService.getSettings();
+                    commissionExchangeRate = settings?.commissionExchangeRate || 4100;
+                }
+
                 for (const item of bookingToSave.items) {
                     const oldItem = oldBooking?.items?.find((i: ParcelItem) => i.id === item.id);
                     const itemFeeShare = (bookingToSave.totalDeliveryFee || 0) / (bookingToSave.items.length || 1);
 
-                    // 1. Pickup Commission
-                    // Trigger if item is now in ANY status after PENDING, and it wasn't before
-                    const isAfterPickup = ['PICKED_UP', 'AT_WAREHOUSE', 'IN_TRANSIT', 'DELIVERED'].includes(item.status || '');
-                    const wasBeforePickup = !oldItem || oldItem.status === 'PENDING' || !oldItem.status;
+                    // COMMISSIONS ONLY TRIGGER ON DELIVERED STATUS
+                    // Both pickup and delivery commissions are calculated when the item is delivered
+                    const isNowDelivered = item.status === 'DELIVERED';
+                    const wasNotDelivered = !oldItem || oldItem.status !== 'DELIVERED';
 
-                    if (isAfterPickup && wasBeforePickup && item.collectorId && !item.pickupCommission) {
-                        const collector = employees.find((e: any) => e.linkedUserId === item.collectorId);
-                        const commission = calculateDriverCommission(collector, bookingToSave, 'PICKUP', commissionRules, itemFeeShare);
-                        if (commission > 0) {
-                            item.pickupCommission = commission;
-                            await walletService.executeReferralRule?.(item.collectorId, '', {}); // Placeholder if needed, but we use processWalletTransaction
-                            await walletService.processWalletTransaction(
-                                item.collectorId, commission, bookingToSave.currency || 'USD', 'EARNING', '',
-                                `Pickup: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
-                                [{ bookingId: bookingToSave.id, itemId: item.id }]
-                            );
+                    // Commission currency follows the item's COD currency
+                    const commissionCurrency = item.codCurrency || bookingToSave.currency || 'USD';
+                    const bookingCurrency = bookingToSave.currency || 'USD';
+
+                    // Helper function to convert commission to target currency
+                    const convertCommission = (amount: number): number => {
+                        if (bookingCurrency === commissionCurrency) return amount;
+                        if (bookingCurrency === 'USD' && commissionCurrency === 'KHR') {
+                            return Math.round(amount * commissionExchangeRate);
                         }
-                    }
+                        if (bookingCurrency === 'KHR' && commissionCurrency === 'USD') {
+                            return Math.round((amount / commissionExchangeRate) * 100) / 100;
+                        }
+                        return amount;
+                    };
 
-                    // 2. Delivery Commission
-                    if (item.status === 'DELIVERED' && oldItem?.status !== 'DELIVERED' && item.delivererId && !item.deliveryCommission) {
-                        const deliverer = employees.find((e: any) => e.linkedUserId === item.delivererId);
-                        const commission = calculateDriverCommission(deliverer, bookingToSave, 'DELIVERY', commissionRules, itemFeeShare);
-                        if (commission > 0) {
-                            item.deliveryCommission = commission;
-                            await walletService.processWalletTransaction(
-                                item.delivererId, commission, bookingToSave.currency || 'USD', 'EARNING', '',
-                                `Delivery: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
-                                [{ bookingId: bookingToSave.id, itemId: item.id }]
-                            );
+
+                    if (isNowDelivered && wasNotDelivered) {
+                        // 1. Pickup Commission (to collector who picked up)
+                        if (item.collectorId && !item.pickupCommission) {
+                            const collector = employees.find((e: any) => e.linkedUserId === item.collectorId);
+                            let commission = calculateDriverCommission(collector, bookingToSave, 'PICKUP', commissionRules, itemFeeShare);
+                            commission = convertCommission(commission);
+                            if (commission > 0) {
+                                item.pickupCommission = commission;
+                                item.pickupCommissionCurrency = commissionCurrency;
+                                await walletService.processWalletTransaction(
+                                    item.collectorId, commission, commissionCurrency, 'EARNING', '',
+                                    `Pickup: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
+                                    [{ bookingId: bookingToSave.id, itemId: item.id }]
+                                );
+                            }
+                        }
+
+                        // 2. Delivery Commission (to deliverer who delivered)
+                        if (item.delivererId && !item.deliveryCommission) {
+                            const deliverer = employees.find((e: any) => e.linkedUserId === item.delivererId);
+                            let commission = calculateDriverCommission(deliverer, bookingToSave, 'DELIVERY', commissionRules, itemFeeShare);
+                            commission = convertCommission(commission);
+                            if (commission > 0) {
+                                item.deliveryCommission = commission;
+                                item.deliveryCommissionCurrency = commissionCurrency;
+                                await walletService.processWalletTransaction(
+                                    item.delivererId, commission, commissionCurrency, 'EARNING', '',
+                                    `Delivery: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
+                                    [{ bookingId: bookingToSave.id, itemId: item.id }]
+                                );
+                            }
                         }
                     }
                 }

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, Customer } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { ParcelBooking, Customer } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 

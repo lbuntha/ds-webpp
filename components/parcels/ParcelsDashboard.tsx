@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Account, Branch, ParcelServiceType, Customer, TaxRate } from '../../types';
+import { Account, Branch, ParcelServiceType, Customer, TaxRate } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { ParcelBookingForm } from './ParcelBookingForm';
 import { ParcelList } from './ParcelList';
@@ -12,8 +12,8 @@ import { DriverManagement } from './DriverManagement';
 import { DispatchConsole } from './DispatchConsole';
 import { WarehouseOperations } from './WarehouseOperations';
 import { PlaceManagement } from './PlaceManagement'; // Import
-import { firebaseService } from '../../services/firebaseService';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { firebaseService } from '../../src/shared/services/firebaseService';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { InTransitAgingReport } from '../reports/InTransitAgingReport';
 import { CustomerRetentionReport } from '../reports/CustomerRetentionReport'; // Import
 

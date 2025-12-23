@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
-import { Account, Branch, Customer, Invoice, AccountType, TaxRate, CurrencyConfig } from '../../types';
+import { Account, Branch, Customer, Invoice, AccountType, TaxRate, CurrencyConfig } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { InvoiceForm } from './InvoiceForm';
 import { CustomerList } from './CustomerList';
-import { getFriendlyErrorMessage } from '../../utils/errorUtils';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { getFriendlyErrorMessage } from '../../src/shared/utils/errorUtils';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { WalletRequests } from '../banking/WalletRequests'; 
 
 interface Props {

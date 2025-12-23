@@ -2,7 +2,7 @@ import { BaseService } from './baseService';
 import { SystemSettings, Branch, CurrencyConfig, TaxRate, UserProfile, UserRole, Permission, SavedLocation, AppNotification, NavigationItem } from '../types';
 import { doc, getDoc, setDoc, updateDoc, query, collection, where, getDocs, onSnapshot, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../../../constants';
+import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../constants';
 
 export class ConfigService extends BaseService {
     // Settings

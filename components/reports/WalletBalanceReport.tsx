@@ -128,54 +128,22 @@ export const WalletBalanceReport: React.FC = () => {
                 }
             }
 
-            // B. Driver Logic (Refined for Split Commissions)
+            // B. Driver Logic - Cash Held Only (Commissions are now real EARNING transactions in wallet_transactions)
             bItems.forEach(item => {
-                const totalItemsForBooking = bItems.length > 0 ? bItems.length : 1;
+                // Find who delivered this item
                 const mods = item.modifications || [];
-
-                // 1. Pickup Commission
-                const pickupMod = mods.find(m => m.newValue === 'PICKED_UP');
-                const pickupUid = pickupMod?.userId || (item.status !== 'PENDING' ? item.driverId : null);
-
-                if (pickupUid && balanceMap[pickupUid]) {
-                    const emp = employees.find(e => e.linkedUserId === pickupUid);
-                    const rule = getApplicableCommissionRule(emp, 'PICKUP', rules);
-                    const base = calculateDriverCommission(emp, b, 'PICKUP', rules);
-
-                    let earned = 0;
-                    if (rule?.type === 'FIXED_AMOUNT') {
-                        earned = base;
-                    } else {
-                        earned = round2(base / totalItemsForBooking);
-                    }
-
-                    const isKHR = b.currency === 'KHR';
-                    if (isKHR) balanceMap[pickupUid].khr = round2(balanceMap[pickupUid].khr + earned);
-                    else balanceMap[pickupUid].usd = round2(balanceMap[pickupUid].usd + earned);
-                }
-
-                // 2. Delivery Commission
                 const isProcessed = item.status === 'DELIVERED' || item.status === 'RETURN_TO_SENDER';
                 const dlvMod = mods.find(m => m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER');
-                const dlvUid = dlvMod?.userId || (isProcessed ? item.driverId : null);
+                const dlvUid = dlvMod?.userId || item.delivererId || (isProcessed ? item.driverId : null);
 
-                if (dlvUid && balanceMap[dlvUid]) {
-                    const emp = employees.find(e => e.linkedUserId === dlvUid);
-                    const base = calculateDriverCommission(emp, b, 'DELIVERY', rules);
-                    const earned = round2(base / totalItemsForBooking);
-
-                    const isKHR = b.currency === 'KHR';
-                    if (isKHR) balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr + earned);
-                    else balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd + earned);
-                }
-
-                // 3. Cash Held (Debit from Delivery Driver)
+                // Cash Held (Debit from Delivery Driver) - Driver owes this to company
                 if (item.status === 'DELIVERED' && dlvUid && balanceMap[dlvUid]) {
                     const amount = item.productPrice || 0;
                     if (item.codCurrency === 'KHR') balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr - amount);
                     else balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd - amount);
                 }
             });
+
         });
 
         return users

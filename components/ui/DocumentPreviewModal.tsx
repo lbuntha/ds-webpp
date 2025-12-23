@@ -1,5 +1,5 @@
 import React from 'react';
-import { Invoice, Bill, StaffLoan, LoanStatus, BillStatus, InvoiceStatus } from '../../types';
+import { Invoice, Bill, StaffLoan, LoanStatus, BillStatus, InvoiceStatus } from '../../src/shared/types';
 import { Button } from './Button';
 
 interface Props {

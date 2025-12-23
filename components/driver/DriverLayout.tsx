@@ -1,14 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
-import { UserProfile, Permission } from '../../types';
+import { UserProfile, Permission } from '../../src/shared/types';
 import { DriverDashboard } from './DriverDashboard';
 import { CustomerProfile } from '../customer/CustomerProfile';
 import { NotificationBell } from '../ui/NotificationBell';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { WalletDashboard } from '../wallet/WalletDashboard';
 import { PublicTracker } from '../tracking/PublicTracker';
 import { LanguageSwitcher } from '../ui/LanguageSwitcher';
-import { usePermissions } from '../../contexts/PermissionsContext';
+import { usePermissions } from '../../src/shared/contexts/PermissionsContext';
 
 interface Props {
     user: UserProfile;

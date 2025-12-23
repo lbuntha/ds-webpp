@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Account, Branch, Employee, JournalEntry, CurrencyConfig, AccountType } from '../../types';
+import { Account, Branch, Employee, JournalEntry, CurrencyConfig, AccountType } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';

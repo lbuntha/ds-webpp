@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ParcelBooking, ParcelItem, Employee, UserProfile, AppNotification } from '../../types';
+import { ParcelBooking, ParcelItem, Employee, UserProfile, AppNotification } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { firebaseService } from '../../services/firebaseService';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { firebaseService } from '../../src/shared/services/firebaseService';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { toast } from '../../src/shared/utils/toast';
 
 const DELAY_REASONS = [

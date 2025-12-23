@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/Button';
 import { LanguageSwitcher } from './ui/LanguageSwitcher';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useLanguage } from '../src/shared/contexts/LanguageContext';
 import { toast } from '../src/shared/utils/toast';
 
 type PageType = 'HOME' | 'ABOUT' | 'CONTACT' | 'HELP' | 'PRIVACY' | 'TERMS';

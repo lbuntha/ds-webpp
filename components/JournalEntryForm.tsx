@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Account, Branch, JournalEntry, JournalEntryLine, CurrencyConfig } from '../types';
+import { Account, Branch, JournalEntry, JournalEntryLine, CurrencyConfig } from '../src/shared/types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Card } from './ui/Card';
-import { AccountingService } from '../services/accountingService';
+import { AccountingService } from '../src/shared/services/accountingService';
 import { ImageUpload } from './ui/ImageUpload';
-import { getFriendlyErrorMessage } from '../utils/errorUtils';
+import { getFriendlyErrorMessage } from '../src/shared/utils/errorUtils';
 
 interface Props {
   accounts: Account[];

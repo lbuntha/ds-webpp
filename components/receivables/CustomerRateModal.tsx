@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Customer, ParcelServiceType, CustomerSpecialRate } from '../../types';
-import { firebaseService } from '../../services/firebaseService';
+import { Customer, ParcelServiceType, CustomerSpecialRate } from '../../src/shared/types';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';

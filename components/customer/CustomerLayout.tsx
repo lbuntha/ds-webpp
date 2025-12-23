@@ -1,18 +1,18 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, Customer, Permission } from '../../types';
+import { UserProfile, Customer, Permission } from '../../src/shared/types';
 import { CustomerDashboard } from './CustomerDashboard';
 import { CustomerProfile } from './CustomerProfile';
 import { CustomerBooking } from './CustomerBooking';
 import { CustomerSummaryReport } from './CustomerSummaryReport';
 import { NotificationBell } from '../ui/NotificationBell';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { LanguageSwitcher } from '../ui/LanguageSwitcher';
 import { WalletDashboard } from '../wallet/WalletDashboard';
-import { firebaseService } from '../../services/firebaseService';
+import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { PublicTracker } from '../tracking/PublicTracker';
-import { usePermissions } from '../../contexts/PermissionsContext';
+import { usePermissions } from '../../src/shared/contexts/PermissionsContext';
 
 interface Props {
     user: UserProfile;

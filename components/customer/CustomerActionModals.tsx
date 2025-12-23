@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '../ui/Button';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 
 interface CancelModalProps {
   isOpen: boolean;

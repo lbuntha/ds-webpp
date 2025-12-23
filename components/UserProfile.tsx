@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile } from '../src/shared/types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Card } from './ui/Card';

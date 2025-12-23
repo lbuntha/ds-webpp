@@ -133,6 +133,8 @@ export type Permission =
 
 export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse' | 'fleet-driver';
 
+export type PermissionGroup = 'FINANCE' | 'LOGISTICS' | 'REPORTS' | 'SETTINGS' | 'SYSTEM' | 'DRIVER' | 'CUSTOMER';
+
 export type UserStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'INACTIVE' | 'ACTIVE';
 
 export interface SavedLocation {
@@ -522,6 +524,9 @@ export interface SystemSettings {
 
   // Transaction Rule Mapping (Rule ID -> Account ID)
   transactionRules?: Record<string, string>;
+
+  // Commission Exchange Rate (for converting USD commissions to KHR)
+  commissionExchangeRate?: number; // Defaults to 4100 if not set
 }
 
 export interface ParcelServiceType {
