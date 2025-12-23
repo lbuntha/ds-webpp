@@ -17,11 +17,29 @@ interface Props {
 export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick, onChatClick, currentDriverId }) => {
   const { t } = useLanguage();
 
-  // Filter items to only show those where I am the driver or collector (if driverId is specified)
+  // Filter items based on type and driver assignment
   const items = (job.items || []).filter(i => {
-    if (!currentDriverId) return true; // Show all if no driver context
-    return (i.driverId === currentDriverId || i.collectorId === currentDriverId);
+    // First, check driver assignment if currentDriverId is provided
+    if (currentDriverId && !(i.driverId === currentDriverId || i.collectorId === currentDriverId)) {
+      return false;
+    }
+
+    // For PICKUP type, only show items that need to be picked up
+    if (type === 'PICKUP') {
+      return i.status === 'PENDING' || i.status === 'AT_WAREHOUSE';
+    }
+
+    return true;
   });
+
+  // Don't render the card if no items match the criteria
+  if (items.length === 0) {
+    return null;
+  }
+
+  // Derive the display status from the items (not the booking)
+  const displayStatus = items[0].status;
+
 
   const formatTime = (timestamp: number) => {
     if (!timestamp) return '';
@@ -33,6 +51,7 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
     const label = t(`status_${status}`);
     return label === `status_${status}` ? status : label;
   };
+
 
   const isAvailable = type === 'AVAILABLE';
 
@@ -62,7 +81,7 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
             ) : (
               <div className="flex flex-col items-end gap-1">
                 <span className="text-[10px] bg-red-100 text-red-800 px-2 py-1 rounded font-bold uppercase">
-                  {getStatusLabel(job.status)}
+                  {getStatusLabel(displayStatus)}
                 </span>
                 <Button onClick={() => onAction(job)} className="text-xs h-7 py-0 bg-indigo-600 hover:bg-indigo-700">{t('process_pickup')}</Button>
               </div>

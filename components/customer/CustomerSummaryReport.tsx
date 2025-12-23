@@ -61,10 +61,16 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
         let totalItems = 0;
 
         reportData.forEach(b => {
-            // Don't count fees for cancelled orders
-            if (b.status !== 'CANCELLED') {
-                deliveryFees += b.totalDeliveryFee;
+            const bItems = b.items || [];
+            const bookingItemCount = bItems.length || 1;
+            const deliveredItems = bItems.filter(i => i.status === 'DELIVERED').length;
+
+            // Only count delivery fees for delivered items (pro-rated)
+            if (b.status !== 'CANCELLED' && deliveredItems > 0) {
+                const proRatedFee = (b.totalDeliveryFee / bookingItemCount) * deliveredItems;
+                deliveryFees += proRatedFee;
             }
+
 
             (b.items || []).forEach(item => {
                 totalItems++;
@@ -182,12 +188,15 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
                                 </tr>
                             ) : (
                                 reportData.map(b => {
+                                    // Only count COD for DELIVERED items
                                     let usd = 0;
                                     let khr = 0;
                                     (b.items || []).forEach(i => {
-                                        const val = i.productPrice || 0;
-                                        if (i.codCurrency === 'KHR') khr += val;
-                                        else usd += val;
+                                        if (i.status === 'DELIVERED') {
+                                            const val = i.productPrice || 0;
+                                            if (i.codCurrency === 'KHR') khr += val;
+                                            else usd += val;
+                                        }
                                     });
 
                                     const itemsCount = (b.items || []).length;
@@ -199,8 +208,8 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
                                             <td className="px-4 py-3 text-gray-600">{itemsCount} Items</td>
                                             <td className="px-4 py-3 text-center">
                                                 <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${b.status === 'COMPLETED' || ((b.items || []).every(i => i.status === 'DELIVERED')) ? 'bg-green-100 text-green-800' :
-                                                        b.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                            'bg-gray-100 text-gray-800'
+                                                    b.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                                        'bg-gray-100 text-gray-800'
                                                     }`}>
                                                     {b.status === 'PENDING' && (b.items || []).some(i => i.status === 'IN_TRANSIT') ? 'IN TRANSIT' : b.status}
                                                 </span>
