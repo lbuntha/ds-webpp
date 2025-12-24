@@ -85,6 +85,7 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
         if (bookingStatus === 'CONFIRMED') return 'CONFIRMED';
 
         // Safe to access methods on safeItems array
+        if (safeItems.some(i => i.status === 'OUT_FOR_DELIVERY')) return 'OUT_FOR_DELIVERY';
         if (safeItems.some(i => i.status === 'IN_TRANSIT')) return 'IN_TRANSIT';
         if (safeItems.some(i => i.status === 'PICKED_UP')) return 'PICKED_UP';
         if (safeItems.some(i => i.status === 'AT_WAREHOUSE')) return 'AT_WAREHOUSE';

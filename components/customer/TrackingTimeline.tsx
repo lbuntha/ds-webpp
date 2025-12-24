@@ -30,7 +30,8 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
     const getStepStatus = (status: string) => {
         const s = (status || 'PENDING').toUpperCase();
         if (s === 'CANCELLED' || s === 'RETURN_TO_SENDER') return -1; // Special states
-        if (s === 'DELIVERED' || s === 'COMPLETED') return 4;
+        if (s === 'DELIVERED' || s === 'COMPLETED') return 5;
+        if (s === 'OUT_FOR_DELIVERY') return 4;
         if (s === 'IN_TRANSIT' || s === 'AT_WAREHOUSE') return 3;
         if (s === 'PICKED_UP') return 2;
         if (s === 'CONFIRMED') return 1;
@@ -42,6 +43,7 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
         { label: 'Confirmed', icon: '👍' },
         { label: 'Picked Up', icon: '📦' },
         { label: 'In Transit', icon: '🚚' },
+        { label: 'Out for Delivery', icon: '🛵' },
         { label: 'Delivered', icon: '🏡' }
     ];
 

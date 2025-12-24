@@ -7,7 +7,7 @@ import { toast } from '../../src/shared/utils/toast';
 
 // --- Action Confirmation (Delivery/Return) ---
 interface ActionConfirmationProps {
-  action: 'TRANSIT' | 'DELIVER' | 'RETURN';
+  action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'OUT_FOR_DELIVERY';
   isOpen: boolean;
   onConfirm: (proof?: string, cod?: { amount: number, currency: 'USD' | 'KHR' }) => void;
   onCancel: () => void;

@@ -148,10 +148,10 @@ export const WarehouseOperations: React.FC = () => {
                 if (i.id === item.id) {
                     return {
                         ...i,
-                        status: 'IN_TRANSIT' as const,
+                        status: 'OUT_FOR_DELIVERY' as const,
                         driverId: targetDriverId,
                         driverName: driver?.name,
-                        targetBranchId: undefined,
+                        targetBranchId: undefined, // Ensure target is cleared for delivery
                         modifications: [
                             ...(i.modifications || []),
                             {
@@ -171,6 +171,11 @@ export const WarehouseOperations: React.FC = () => {
             let bookingStatus = booking.status;
             if (updatedItems.some(i => i.status === 'IN_TRANSIT')) {
                 bookingStatus = 'IN_TRANSIT';
+            } else if (updatedItems.some(i => i.status === 'OUT_FOR_DELIVERY')) {
+                // If we have items out for delivery, booking can reflect that or stay IN_TRANSIT/CONFIRMED depending on logic.
+                // Keeping it consistent with previous logic or updating if booking status supports it.
+                // Assuming Booking status can be 'IN_TRANSIT' for general movement.
+                bookingStatus = 'IN_TRANSIT';
             }
 
             await firebaseService.saveParcelBooking({
@@ -178,6 +183,24 @@ export const WarehouseOperations: React.FC = () => {
                 items: updatedItems,
                 status: bookingStatus
             });
+
+            // NOTIFICATION TRIGGER: Notify Customer
+            if (booking.senderId) {
+                const customerUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
+                if (customerUid) {
+                    const notification: AppNotification = {
+                        id: `notif-oud-${Date.now()}`,
+                        targetAudience: customerUid,
+                        title: 'Parcel Out for Delivery',
+                        message: `Your parcel to ${item.receiverName} is out for delivery!`,
+                        type: 'INFO',
+                        read: false,
+                        createdAt: Date.now(),
+                        metadata: { type: 'BOOKING', bookingId: booking.id }
+                    };
+                    await firebaseService.sendNotification(notification);
+                }
+            }
 
             await loadData();
 

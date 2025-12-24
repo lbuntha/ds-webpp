@@ -37,7 +37,7 @@ export interface ParcelItem {
   codCurrency?: 'USD' | 'KHR';
   settlementStatus?: 'UNSETTLED' | 'SETTLED';
   notes?: string;
-  status?: 'PENDING' | 'PICKED_UP' | 'AT_WAREHOUSE' | 'IN_TRANSIT' | 'DELIVERED' | 'RETURN_TO_SENDER' | 'CANCELLED';
+  status?: 'PENDING' | 'PICKED_UP' | 'AT_WAREHOUSE' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'RETURN_TO_SENDER' | 'CANCELLED';
   delayReason?: string; // New field for delay tracking
   weight?: number;
   driverId?: string;

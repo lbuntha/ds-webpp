@@ -7,7 +7,7 @@ import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 interface Props {
   job: ParcelBooking;
   onZoomImage: (url: string) => void;
-  onAction: (bookingId: string, itemId: string, action: 'DELIVER' | 'RETURN' | 'TRANSFER') => void;
+  onAction: (bookingId: string, itemId: string, action: 'DELIVER' | 'RETURN' | 'TRANSFER' | 'OUT_FOR_DELIVERY') => void;
   onUpdateCod: (bookingId: string, itemId: string, amount: number, currency: 'USD' | 'KHR') => Promise<void>;
   onChatClick: (bookingId: string, item: ParcelItem) => void;
   hasBranches: boolean;
@@ -48,7 +48,7 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
     <div className="space-y-3">
       {items.filter(i => {
         // Filter by status (Picked up or already at warehouse waiting for delivery)
-        const isCorrectStatus = i.status === 'PICKED_UP' || i.status === 'AT_WAREHOUSE' || (i.status === 'IN_TRANSIT' && !i.targetBranchId);
+        const isCorrectStatus = i.status === 'PICKED_UP' || i.status === 'AT_WAREHOUSE' || i.status === 'OUT_FOR_DELIVERY' || (i.status === 'IN_TRANSIT' && !i.targetBranchId);
         // Filter by driver identity
         const isMyItem = !currentDriverId || i.driverId === currentDriverId || i.delivererId === currentDriverId;
         return isCorrectStatus && isMyItem;
@@ -75,7 +75,10 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
                       {job.bookingDate} • {formatTime(job.createdAt)}
                     </p>
                   </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${item.status === 'IN_TRANSIT' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${item.status === 'IN_TRANSIT' ? 'bg-orange-100 text-orange-800' :
+                    item.status === 'OUT_FOR_DELIVERY' ? 'bg-purple-100 text-purple-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
                     {getStatusLabel(item.status || 'PICKED_UP')}
                   </span>
                 </div>
@@ -157,7 +160,7 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
                 className="flex-1 bg-green-600 text-white py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-green-700"
                 onClick={() => onAction(job.id, item.id, 'DELIVER')}
               >
-                {t('confirm_pickup')} / {t('status_DELIVERED')}
+                {t('status_DELIVERED')}
               </button>
               <button
                 className="flex-1 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg text-xs font-bold hover:bg-gray-50"

@@ -37,6 +37,7 @@ export const CustomerOrderCard: React.FC<Props> = ({ booking, derivedStatus, onC
             case 'PICKED_UP': return <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold bg-blue-100 text-blue-700 border border-blue-200 animate-pulse">Picked Up</span>;
             case 'IN_TRANSIT': return <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold bg-orange-100 text-orange-700 border border-orange-200 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 animate-ping"></span> On The Way</span>;
             case 'AT_WAREHOUSE': return <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">At Warehouse</span>;
+            case 'OUT_FOR_DELIVERY': return <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span> Out for Delivery</span>;
             case 'DELIVERED': return <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold bg-green-100 text-green-700 border border-green-200">Delivered</span>;
             case 'CANCELLED': return <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold bg-red-100 text-red-700 border border-red-200">Cancelled</span>;
             case 'RETURNED': return <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold bg-red-100 text-red-700 border border-red-200">Returned</span>;

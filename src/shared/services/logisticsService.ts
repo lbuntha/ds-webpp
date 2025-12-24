@@ -25,6 +25,7 @@ export class LogisticsService extends BaseService {
             { id: 'ps-pending', label: 'Pending', color: 'bg-gray-100 text-gray-800', order: 1, isDefault: true, triggersRevenue: false, isTerminal: false },
             { id: 'ps-pickup', label: 'Picked Up', color: 'bg-blue-100 text-blue-800', order: 2, isDefault: false, triggersRevenue: false, isTerminal: false },
             { id: 'ps-transit', label: 'In Transit', color: 'bg-yellow-100 text-yellow-800', order: 3, isDefault: false, triggersRevenue: false, isTerminal: false },
+            { id: 'ps-out-for-delivery', label: 'Out for Delivery', color: 'bg-purple-100 text-purple-800', order: 3.5, isDefault: false, triggersRevenue: false, isTerminal: false },
             { id: 'ps-delivered', label: 'Delivered', color: 'bg-green-100 text-green-800', order: 4, isDefault: false, triggersRevenue: true, isTerminal: true },
             { id: 'ps-returned', label: 'Returned', color: 'bg-orange-100 text-orange-800', order: 5, isDefault: false, triggersRevenue: false, isTerminal: true },
             { id: 'ps-cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800', order: 6, isDefault: false, triggersRevenue: false, isTerminal: true },

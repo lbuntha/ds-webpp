@@ -37,7 +37,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const [processingJob, setProcessingJob] = useState<ParcelBooking | null>(null);
 
     // Modals
-    const [actionModal, setActionModal] = useState<{ isOpen: boolean; bookingId: string; itemId: string; action: 'TRANSIT' | 'DELIVER' | 'RETURN' } | null>(null);
+    const [actionModal, setActionModal] = useState<{ isOpen: boolean; bookingId: string; itemId: string; action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'OUT_FOR_DELIVERY' } | null>(null);
     const [transferModal, setTransferModal] = useState<{ isOpen: boolean; bookingId: string; itemId: string } | null>(null);
     const [confirmJob, setConfirmJob] = useState<ParcelBooking | null>(null);
     const [zoomImage, setZoomImage] = useState<string | null>(null);
@@ -140,7 +140,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         ...b,
         activeItems: (b.items || []).filter(i =>
             (i.driverId === user.uid || i.delivererId === user.uid) &&
-            (i.status === 'PICKED_UP' || i.status === 'AT_WAREHOUSE' || (i.status === 'IN_TRANSIT' && !i.targetBranchId))
+            (i.status === 'PICKED_UP' || i.status === 'AT_WAREHOUSE' || i.status === 'OUT_FOR_DELIVERY' || (i.status === 'IN_TRANSIT' && !i.targetBranchId))
         )
     })).filter(b => b.activeItems.length > 0);
 
@@ -203,7 +203,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     }, [cashInHand, payAmountBankUSD, payAmountBankKHR, payAmountCashUSD, payAmountCashKHR, currencies]);
 
     // Handlers
-    const handleParcelAction = async (bookingId: string, itemId: string, action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'TRANSFER', branchId?: string, proof?: string, updatedCOD?: { amount: number, currency: 'USD' | 'KHR' }) => {
+    const handleParcelAction = async (bookingId: string, itemId: string, action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'TRANSFER' | 'OUT_FOR_DELIVERY', branchId?: string, proof?: string, updatedCOD?: { amount: number, currency: 'USD' | 'KHR' }) => {
         console.log('[DEBUG] handleParcelAction called:', { bookingId, itemId, action, proof: !!proof, updatedCOD });
         const booking = bookings.find(b => b.id === bookingId);
         if (!booking) {
@@ -232,6 +232,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                     return newItem;
                 }
                 if (action === 'TRANSFER') return { ...item, status: 'IN_TRANSIT' as const, targetBranchId: branchId, driverId: user.uid, driverName: user.name };
+                if (action === 'OUT_FOR_DELIVERY') return { ...item, status: 'OUT_FOR_DELIVERY' as const };
                 if (action === 'RETURN') return { ...item, status: 'RETURN_TO_SENDER' as const };
             }
             return item;
@@ -277,6 +278,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             console.log('[DEBUG] Booking saved successfully!');
         } catch (e) {
             console.error('[DEBUG] Error saving booking:', e);
+            toast.error("Failed to update status. Please try again.");
         }
 
         // NOTIFICATION TRIGGER: If action is DELIVER, notify Customer
@@ -296,6 +298,8 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 await firebaseService.sendNotification(notif);
             }
         }
+
+
 
         console.log('[DEBUG] Calling loadJobs to refresh...');
         loadJobs();
@@ -456,6 +460,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const label = getStatusLabel(status);
         switch (status) {
             case 'PENDING': return <span className="text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded text-xs font-bold">{label}</span>;
+            case 'OUT_FOR_DELIVERY': return <span className="text-purple-600 bg-purple-100 px-2 py-0.5 rounded text-xs font-bold">{label}</span>;
             case 'APPROVED': return <span className="text-green-600 bg-green-100 px-2 py-0.5 rounded text-xs font-bold">{label}</span>;
             case 'REJECTED': return <span className="text-red-600 bg-red-100 px-2 py-0.5 rounded text-xs font-bold">{label}</span>;
             default: return <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs font-bold">{label}</span>;
