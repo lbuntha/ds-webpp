@@ -96,7 +96,8 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-banking', label: 'banking', viewId: 'BANKING', iconKey: 'banking', order: 23, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
   { id: 'nav-staff', label: 'staff_loans', viewId: 'STAFF', iconKey: 'staff', order: 24, allowedRoles: ['system-admin', 'accountant'] },
   { id: 'nav-reports', label: 'reports', viewId: 'REPORTS', iconKey: 'reports', order: 26, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
-  { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 27, allowedRoles: ['system-admin', 'accountant'] },
+  { id: 'nav-settled-parcels', label: 'Settled Parcels', viewId: 'SETTLED_PARCELS', iconKey: 'checkCircle', order: 27, allowedRoles: ['system-admin', 'finance-manager'], requiredPermission: 'MANAGE_CUSTOMER_SETTLEMENTS' },
+  { id: 'nav-closing', label: 'closing', viewId: 'CLOSING', iconKey: 'closing', order: 28, allowedRoles: ['system-admin', 'accountant'] },
 
   // Customer Navigation
   { id: 'nav-customer-dashboard', label: 'Dashboard', viewId: 'CUSTOMER_PARCELS', iconKey: 'dashboard', order: 50, requiredPermission: 'VIEW_MY_PARCELS', allowedRoles: ['customer'] },

@@ -121,24 +121,37 @@ export const WalletRequests: React.FC = () => {
 
             // --- 2. DETERMINE ACCOUNTS (PRIORITIZE MAPPED RULES) ---
 
-            // Rule 4: Settle to Company
+            // Fetch user profile first to determine if this is a customer or driver settlement
+            const userProfile = await firebaseService.getDocument('users', txn.userId) as any;
+            const isCustomerPayout = userProfile?.role === 'customer';
+
+            // Rule 4: Settle to Company (primarily for drivers)
             const rule4AccId = settings.transactionRules ? settings.transactionRules['4'] : null;
 
             let settlementBankId = txn.bankAccountId;
 
-            // If txn bank is generic 'system', try to use rule map or fallback settings
+            // If txn bank is generic 'system', use appropriate bank based on user role
             if (!settlementBankId || settlementBankId === 'system' || settlementBankId === 'system-payout') {
-                if (rule4AccId) {
-                    settlementBankId = rule4AccId;
-                } else {
+                if (isCustomerPayout) {
+                    // Customer payout: Use customer settlement settings
                     settlementBankId = isUSD
-                        ? (settings.defaultDriverSettlementBankIdUSD || settings.defaultDriverSettlementBankId)
-                        : (settings.defaultDriverSettlementBankIdKHR || settings.defaultDriverSettlementBankId);
+                        ? (settings.defaultCustomerSettlementBankIdUSD || settings.defaultCustomerSettlementBankId)
+                        : (settings.defaultCustomerSettlementBankIdKHR || settings.defaultCustomerSettlementBankId);
+                } else {
+                    // Driver payout: Use driver settlement settings (or Rule 4)
+                    if (rule4AccId) {
+                        settlementBankId = rule4AccId;
+                    } else {
+                        settlementBankId = isUSD
+                            ? (settings.defaultDriverSettlementBankIdUSD || settings.defaultDriverSettlementBankId)
+                            : (settings.defaultDriverSettlementBankIdKHR || settings.defaultDriverSettlementBankId);
+                    }
                 }
             }
 
             if (!settlementBankId) {
-                throw new Error(`Master Settlement Account for ${txn.currency} is not configured (Rule 4 or Settings).`);
+                const roleType = isCustomerPayout ? 'Customer' : 'Driver';
+                throw new Error(`${roleType} Settlement Account for ${txn.currency} is not configured in Settings.`);
             }
 
             // Verify bank account exists
@@ -158,7 +171,6 @@ export const WalletRequests: React.FC = () => {
                 : (isUSD ? (settings.customerWalletAccountUSD || settings.defaultCustomerWalletAccountId) : (settings.customerWalletAccountKHR || settings.defaultCustomerWalletAccountId));
 
             // Fallback to User Profile override if exists (Legacy support)
-            const userProfile = await firebaseService.getDocument('users', txn.userId) as any;
             if (userProfile && userProfile.walletAccountId) {
                 if (userProfile.role === 'driver') defaultDriverAccId = userProfile.walletAccountId;
                 if (userProfile.role === 'customer') defaultCustAccId = userProfile.walletAccountId;
@@ -362,26 +374,26 @@ export const WalletRequests: React.FC = () => {
                 };
 
                 // --- BALANCING / PAYOUT LOGIC ---
-                if (userProfile?.role === 'customer') {
+                if (isCustomerPayout) {
                     // --- CUSTOMER PAYOUT (Money OUT) ---
+                    // SIMPLIFIED: Revenue, fees, and commissions were already posted during Driver Settlement.
+                    // For Customer Settlement, we only need:
+                    // 1. Debit Customer Wallet Liability (reduce what company owes customer)
+                    // 2. Credit Bank (money paid out to customer)
 
-                    // A. REVENUE & TAX (Credit)
-                    if (globalRevAccId) {
-                        jeLines.push({
-                            accountId: globalRevAccId, debit: 0, credit: totalRevenueUSD,
-                            originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: totalRevenueUSD,
-                            description: 'Delivery Income'
-                        });
-                    }
-                    if (globalTaxAccId) {
-                        jeLines.push({
-                            accountId: globalTaxAccId, debit: 0, credit: totalTaxUSD,
-                            originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: totalTaxUSD,
-                            description: 'Tax Payable'
-                        });
-                    }
+                    // A. DEBIT: Customer Wallet Liability
+                    jeLines.push({
+                        accountId: defaultCustAccId,
+                        debit: baseAmount,
+                        credit: 0,
+                        originalCurrency: txn.currency,
+                        originalExchangeRate: rate,
+                        originalDebit: safeAmount,
+                        originalCredit: 0,
+                        description: `Payout to ${txn.userName}`
+                    });
 
-                    // B. CASH PAYOUT (Credit Bank)
+                    // B. CREDIT: Bank/Cash (Money Out)
                     jeLines.push({
                         accountId: settlementBankId,
                         debit: 0,
@@ -390,73 +402,7 @@ export const WalletRequests: React.FC = () => {
                         originalExchangeRate: rate,
                         originalDebit: 0,
                         originalCredit: safeAmount,
-                        description: `Payout to ${txn.userName}`
-                    });
-
-                    // C. DRIVER OFFSET (Debit Driver for Gross COD)
-                    const driversToDebit: Record<string, number> = {};
-                    if (txn.relatedItems) {
-                        txn.relatedItems.forEach(rel => {
-                            const booking = bookings.find(b => b.id === rel.bookingId);
-                            const item = booking?.items?.find(i => i.id === rel.itemId);
-                            if (item) {
-                                const collectorId = booking?.driverId || item.driverId;
-                                const itemCOD = Number(item.productPrice) || 0;
-                                let itemCODUSD = itemCOD;
-                                if (item.codCurrency === 'KHR') {
-                                    itemCODUSD = itemCOD / 4100;
-                                }
-
-                                const wAcc = getWalletAcc(collectorId || '');
-                                if (wAcc) {
-                                    driversToDebit[wAcc] = (driversToDebit[wAcc] || 0) + itemCODUSD;
-                                }
-                            }
-                        });
-                    }
-
-                    Object.entries(driversToDebit).forEach(([accId, amount]) => {
-                        jeLines.push({
-                            accountId: accId, debit: amount, credit: 0,
-                            originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: amount, originalCredit: 0,
-                            description: 'COD Collection Receivable'
-                        });
-                    });
-
-                    // D. COMMISSION EXPENSE (Debit) & PAYABLE (Credit)
-                    if (expAcc && totalCommissionUSD > 0) {
-                        const isExpKHR = expAcc.currency === 'KHR';
-                        const expAmountNative = Number((isExpKHR ? (commBase * rate) : commBase).toFixed(2));
-                        const expCurrency = isExpKHR ? 'KHR' : 'USD';
-                        const expRate = isExpKHR ? rate : 1;
-
-                        jeLines.push({
-                            accountId: expAcc.id, debit: commBase, credit: 0,
-                            originalCurrency: expCurrency, originalExchangeRate: expRate, originalDebit: expAmountNative, originalCredit: 0,
-                            description: 'Driver Commissions'
-                        });
-
-                        Object.entries(commissionByAccount).forEach(([accId, amount]) => {
-                            if (amount > 0) {
-                                jeLines.push({
-                                    accountId: accId, debit: 0, credit: amount,
-                                    originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: amount,
-                                    description: 'Commission Earning'
-                                });
-                            }
-                        });
-                    }
-
-                    // E. BALANCING (Customer Wallet Pass-Through)
-                    jeLines.push({
-                        accountId: defaultCustAccId, debit: 0, credit: baseAmount,
-                        originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: safeAmount,
-                        description: 'Net COD Liability'
-                    });
-                    jeLines.push({
-                        accountId: defaultCustAccId, debit: baseAmount, credit: 0,
-                        originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: safeAmount, originalCredit: 0,
-                        description: 'Payout Clearance'
+                        description: `Settlement Payout to ${txn.userName}`
                     });
 
                 } else {
@@ -631,7 +577,15 @@ export const WalletRequests: React.FC = () => {
             if (txn.relatedItems && txn.relatedItems.length > 0) {
                 const parcelItems = txn.relatedItems.filter(i => i.itemId !== 'invoice');
                 if (parcelItems.length > 0) {
-                    await firebaseService.settleParcelItems(parcelItems);
+                    // Use appropriate settlement type based on user role
+                    const settlementType = isCustomerPayout ? 'customer' : 'driver';
+                    // Pass currency and transaction ID for audit trail
+                    await firebaseService.settleParcelItems(
+                        parcelItems,
+                        settlementType,
+                        txn.currency as 'USD' | 'KHR',
+                        txn.id
+                    );
                 }
             }
 

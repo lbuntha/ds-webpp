@@ -135,7 +135,7 @@ export const CustomerSettlementReport: React.FC = () => {
             if (!summary) return;
 
             (b.items || []).forEach(item => {
-                if (item.status === 'DELIVERED' && item.settlementStatus !== 'SETTLED') {
+                if (item.status === 'DELIVERED' && item.customerSettlementStatus !== 'SETTLED') {
                     const cod = Number(item.productPrice) || 0;
                     const fee = (Number(b.totalDeliveryFee) || 0) / (b.items?.length || 1);
 
@@ -211,11 +211,11 @@ export const CustomerSettlementReport: React.FC = () => {
                         allTxns.forEach(t => {
                             if (t.status === 'REJECTED' || t.status === 'FAILED') return;
                             const val = t.amount;
-                            if (t.type === 'DEPOSIT' || t.type === 'EARNING' || t.type === 'REFUND' || t.type === 'SETTLEMENT') {
-                                // Credit
+                            if (t.type === 'DEPOSIT' || t.type === 'EARNING' || t.type === 'REFUND') {
+                                // Credit (money IN to customer wallet)
                                 if (t.currency === 'KHR') khr += val; else usd += val;
-                            } else {
-                                // Debit (WITHDRAWAL)
+                            } else if (t.type === 'SETTLEMENT' || t.type === 'WITHDRAWAL') {
+                                // Debit (money OUT to customer - payout)
                                 if (t.currency === 'KHR') khr -= val; else usd -= val;
                             }
                         });
@@ -319,7 +319,7 @@ export const CustomerSettlementReport: React.FC = () => {
         bookings.forEach(b => {
             if (b.senderId !== selectedCustomerId) return;
             (b.items || []).forEach(item => {
-                if (item.status === 'DELIVERED' && item.settlementStatus !== 'SETTLED') {
+                if (item.status === 'DELIVERED' && item.customerSettlementStatus !== 'SETTLED') {
                     let fee = (Number(b.totalDeliveryFee) || 0) / (b.items?.length || 1);
                     let feeCurrency = b.currency || 'USD';
 

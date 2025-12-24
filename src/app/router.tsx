@@ -173,6 +173,14 @@ const routes: RouteObject[] = [
                     </PermissionRoute>
                 ),
             },
+            {
+                path: 'settled-parcels',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_CUSTOMER_SETTLEMENTS">
+                        {withSuspense(lazy(() => import('../../components/reports/SettledParcelsReport').then(m => ({ default: m.SettledParcelsReport }))))}
+                    </PermissionRoute>
+                ),
+            },
             // Parcel/Logistics Routes - Permission-based access control
             {
                 path: 'parcels/overview',

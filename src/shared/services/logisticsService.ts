@@ -437,7 +437,12 @@ export class LogisticsService extends BaseService {
         });
     }
 
-    async settleParcelItems(items: { bookingId: string, itemId: string }[]) {
+    async settleParcelItems(
+        items: { bookingId: string, itemId: string }[],
+        settlementType: 'driver' | 'customer' = 'customer',
+        currency?: 'USD' | 'KHR',
+        transactionId?: string
+    ) {
         const bookingUpdates: Record<string, string[]> = {};
         items.forEach(i => {
             if (!bookingUpdates[i.bookingId]) bookingUpdates[i.bookingId] = [];
@@ -451,7 +456,22 @@ export class LogisticsService extends BaseService {
                 const booking = snap.data() as ParcelBooking;
                 const updatedItems = booking.items.map(i => {
                     if (itemIds.includes(i.id)) {
-                        return { ...i, settlementStatus: 'SETTLED' };
+                        // Use different fields for driver vs customer settlement
+                        if (settlementType === 'driver') {
+                            return {
+                                ...i,
+                                driverSettlementStatus: 'SETTLED',
+                                driverSettledCurrency: currency || i.codCurrency || 'USD',
+                                driverSettlementTxnId: transactionId
+                            };
+                        } else {
+                            return {
+                                ...i,
+                                customerSettlementStatus: 'SETTLED',
+                                customerSettledCurrency: currency || i.codCurrency || 'USD',
+                                customerSettlementTxnId: transactionId
+                            };
+                        }
                     }
                     return i;
                 });

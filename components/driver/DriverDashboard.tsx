@@ -149,7 +149,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     // Flatten items with sender context for settlement calculation
     const unsettledItems = bookings.flatMap(b => (b.items || []).map(i => ({ ...i, bookingId: b.id, sender: b.senderName }))).filter(i =>
-        i.driverId === user.uid && i.status === 'DELIVERED' && (!i.settlementStatus || i.settlementStatus === 'UNSETTLED')
+        i.driverId === user.uid && i.status === 'DELIVERED' && (!i.driverSettlementStatus || i.driverSettlementStatus === 'UNSETTLED')
     );
 
     const cashInHand = useMemo(() => {

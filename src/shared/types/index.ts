@@ -35,7 +35,13 @@ export interface ParcelItem {
   destinationLocation?: GeoPoint;
   productPrice: number;
   codCurrency?: 'USD' | 'KHR';
-  settlementStatus?: 'UNSETTLED' | 'SETTLED';
+  settlementStatus?: 'UNSETTLED' | 'SETTLED'; // Legacy field (deprecated)
+  driverSettlementStatus?: 'UNSETTLED' | 'SETTLED'; // Driver → Company settlement
+  driverSettledCurrency?: 'USD' | 'KHR'; // Currency that was settled
+  driverSettlementTxnId?: string; // Transaction ID for audit
+  customerSettlementStatus?: 'UNSETTLED' | 'SETTLED'; // Company → Customer settlement
+  customerSettledCurrency?: 'USD' | 'KHR'; // Currency that was settled
+  customerSettlementTxnId?: string; // Transaction ID for audit
   notes?: string;
   status?: 'PENDING' | 'PICKED_UP' | 'AT_WAREHOUSE' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'RETURN_TO_SENDER' | 'CANCELLED';
   delayReason?: string; // New field for delay tracking

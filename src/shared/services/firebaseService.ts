@@ -173,7 +173,9 @@ export class FirebaseService {
 
     sendChatMessage(msg: any) { return this.logisticsService.sendChatMessage(msg); }
     subscribeToChat(id: string, cb: any) { return this.logisticsService.subscribeToChat(id, cb); }
-    settleParcelItems(items: any[]) { return this.logisticsService.settleParcelItems(items); }
+    settleParcelItems(items: any[], settlementType: 'driver' | 'customer' = 'customer', currency?: 'USD' | 'KHR', transactionId?: string) {
+        return this.logisticsService.settleParcelItems(items, settlementType, currency, transactionId);
+    }
 
     // Special Rates
     getCustomerSpecialRates(customerId: string) { return this.logisticsService.getCustomerSpecialRates(customerId); }

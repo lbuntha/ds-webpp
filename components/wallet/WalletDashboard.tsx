@@ -119,10 +119,19 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             // DEPOSIT: Money IN to Wallet (Credit) - Customer topping up
             // EARNING: Money IN to Wallet (Credit) - Commission earned
             // REFUND: Money IN to Wallet (Credit)
-            // SETTLEMENT: Offsets Cash Held liability - Shows as Credit to cancel the Debit
-            //             (Cash Held = -$20, Settlement = +$20, Net = $0)
-            if (t.type === 'DEPOSIT' || t.type === 'EARNING' || t.type === 'REFUND' || t.type === 'SETTLEMENT') {
+            // SETTLEMENT: 
+            //   - For DRIVERS: Offsets Cash Held liability (Credit) - Driver pays company
+            //   - For CUSTOMERS: Money OUT (Debit) - Company pays customer payout
+            if (t.type === 'DEPOSIT' || t.type === 'EARNING' || t.type === 'REFUND') {
                 isCredit = true;
+            }
+
+            // SETTLEMENT depends on user role
+            if (t.type === 'SETTLEMENT') {
+                // Customers: Settlement means payout to them (money OUT = Debit)
+                // Drivers: Settlement means they paid company (offsets debt = Credit)
+                const isCustomer = user.role === 'customer' || user.linkedCustomerId;
+                isCredit = !isCustomer; // false for customers, true for drivers
             }
 
             // WITHDRAWAL: Money OUT of Wallet (Debit)
@@ -354,8 +363,11 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                 feeTotal += item.amount;
             } else if (item.type === 'WITHDRAWAL') {
                 paidOut += item.amount;
-            } else if (item.type === 'DEPOSIT' || item.type === 'EARNING' || item.type === 'SETTLEMENT') {
+            } else if (item.type === 'DEPOSIT' || item.type === 'EARNING') {
                 deposits += item.amount;
+            } else if (item.type === 'SETTLEMENT') {
+                // For customers, SETTLEMENT is money paid OUT to them
+                paidOut += item.amount;
             }
         });
 
@@ -426,7 +438,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                     const allUnsettled = bookings.flatMap(b => (b.items || [])
                         .filter(i =>
                             i.status === 'DELIVERED' &&
-                            i.settlementStatus !== 'SETTLED' &&
+                            i.driverSettlementStatus !== 'SETTLED' &&
                             // Only include items this driver delivered (they collected the cash)
                             (i.delivererId === user.uid || (!i.delivererId && i.driverId === user.uid))
                         )

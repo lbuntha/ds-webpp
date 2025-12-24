@@ -65,7 +65,16 @@ export const WalletBalanceReport: React.FC = () => {
         // 2. Process Wallet Transactions (Approved Only)
         txns.forEach(t => {
             if (t.status === 'APPROVED' && balanceMap[t.userId]) {
-                const isCredit = ['DEPOSIT', 'EARNING', 'REFUND', 'SETTLEMENT'].includes(t.type);
+                // Find user role to determine SETTLEMENT direction
+                const txnUser = users.find(u => u.uid === t.userId);
+                const isCustomerUser = txnUser?.role === 'customer';
+
+                // SETTLEMENT: Credit for drivers (offsets debt), Debit for customers (payout)
+                let isCredit = ['DEPOSIT', 'EARNING', 'REFUND'].includes(t.type);
+                if (t.type === 'SETTLEMENT') {
+                    isCredit = !isCustomerUser; // false for customers, true for drivers
+                }
+
                 const val = t.amount;
                 if (t.currency === 'KHR') {
                     balanceMap[t.userId].khr = round2(balanceMap[t.userId].khr + (isCredit ? val : -val));
