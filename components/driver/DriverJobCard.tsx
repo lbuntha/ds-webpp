@@ -20,8 +20,12 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
   // Filter items based on type and driver assignment
   const items = (job.items || []).filter(i => {
     // First, check driver assignment if currentDriverId is provided
-    if (currentDriverId && !(i.driverId === currentDriverId || i.collectorId === currentDriverId)) {
-      return false;
+    if (currentDriverId) {
+      // If item is explicitly assigned to someone else, hide it.
+      // But if it is unassigned (driverId is null/undefined), show it (as it belongs to the booking we accepted).
+      if (i.driverId && i.driverId !== currentDriverId && i.collectorId !== currentDriverId) {
+        return false;
+      }
     }
 
     // For PICKUP type, only show items that need to be picked up
@@ -80,8 +84,9 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
               <Button onClick={() => onAction(job)} className="text-xs px-3 bg-green-600 hover:bg-green-700">{t('accept_job')}</Button>
             ) : (
               <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] bg-red-100 text-red-800 px-2 py-1 rounded font-bold uppercase">
-                  {getStatusLabel(displayStatus)}
+                <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${displayStatus === 'PENDING' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                  {type === 'PICKUP' && displayStatus === 'PENDING' ? 'ACCEPTED' : getStatusLabel(displayStatus)}
                 </span>
                 <Button onClick={() => onAction(job)} className="text-xs h-7 py-0 bg-indigo-600 hover:bg-indigo-700">{t('process_pickup')}</Button>
               </div>

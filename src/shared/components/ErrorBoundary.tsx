@@ -55,18 +55,24 @@ export class ErrorBoundary extends Component<Props, State> {
                             </div>
                         )}
 
+                        {this.state.error?.toString().includes('Failed to fetch dynamically imported module') && (
+                            <div className="mb-4 text-amber-600 bg-amber-50 p-3 rounded-lg text-sm">
+                                <strong>Tip:</strong> This usually happens when a new version is deployed or your connection is interrupted.
+                            </div>
+                        )}
+
                         <div className="flex flex-col gap-3">
                             <button
-                                onClick={this.handleReset}
+                                onClick={() => window.location.reload()}
                                 className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-red-200 transition-all active:scale-95"
                             >
-                                Return to Safety
+                                Reload Page
                             </button>
                             <button
-                                onClick={() => window.location.reload()}
+                                onClick={this.handleReset}
                                 className="w-full bg-white hover:bg-slate-50 text-slate-600 font-semibold py-3 px-6 border border-slate-200 rounded-xl transition-all"
                             >
-                                Try Refreshing
+                                Return to Dashboard
                             </button>
                         </div>
                     </div>
@@ -74,7 +80,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     <div className="mt-8 text-slate-400 text-xs font-medium uppercase tracking-widest">
                         Doorstep Logistics Engine
                     </div>
-                </div>
+                </div >
             );
         }
 

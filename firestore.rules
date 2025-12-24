@@ -46,7 +46,7 @@ service cloud.firestore {
 
       allow create: if isAuthenticated();
 
-          isSystemAdmin() || isWarehouse() || isFinance()
+      allow update: if isSystemAdmin() || isWarehouse() || isFinance()
           || (isDriver() && resource.data.driverId == request.auth.uid)
           || (isDriver() && resource.data.involvedDriverIds.hasAny([request.auth.uid]))
           || (isDriver() && (resource.data.get('driverId', '') == '') && request.resource.data.driverId == request.auth.uid)
