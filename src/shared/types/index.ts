@@ -169,6 +169,8 @@ export interface UserProfile {
     earnings: number; // Total earned from referrals
   };
   // Tracking Stats
+  walletBalanceUSD?: number; // Cached Balance
+  walletBalanceKHR?: number; // Cached Balance
   completedOrderCount?: number;
   joinedAt?: number; // Timestamp of registration
   createdAt?: number; // Legacy timestamp
@@ -392,6 +394,7 @@ export interface Employee {
   vehiclePlateNumber?: string;
   branchId?: string | null;
   linkedUserId?: string | null;
+  walletAccountId?: string; // Driver Wallet Liability Account
   zone?: string; // NEW: Zone assignment for commission rules
   hasBaseSalary?: boolean; // NEW: Whether driver receives a base salary
   baseSalaryAmount?: number; // NEW: Optional - actual salary amount for reference

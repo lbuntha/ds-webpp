@@ -338,105 +338,204 @@ export const WalletRequests: React.FC = () => {
                     });
                 }
 
-                // --- BALANCING LOGIC ---
-                // 1. Debit Asset for the actual payment
-                jeLines.push({
-                    accountId: settlementBankId,
-                    debit: baseAmount,
-                    credit: 0,
-                    originalCurrency: txn.currency,
-                    originalExchangeRate: rate,
-                    originalDebit: safeAmount,
-                    originalCredit: 0,
-                    description: `Settlement: ${txn.description || 'Payment'}`
-                });
+                // --- PRE-CALCULATION For Settlement/Payout ---
+                const commBase = Number(totalCommissionUSD.toFixed(2));
 
-                if (txn.relatedItems && txn.relatedItems.length > 0) {
-                    // MASTER TRANSACTION: Handle items, revenue, and commissions
-
-                    // a) Credit Revenue (Income)
-                    Object.entries(revenueByAccount).forEach(([accId, amountUSD]) => {
-                        if (amountUSD > 0) {
-                            jeLines.push({
-                                accountId: accId, debit: 0, credit: Number(amountUSD.toFixed(2)),
-                                originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: Number(amountUSD.toFixed(2)),
-                                description: 'Delivery Income'
-                            });
-                        }
-                    });
-
-                    // b) Credit Tax (Liability)
-                    Object.entries(taxByAccount).forEach(([accId, amountUSD]) => {
-                        if (amountUSD > 0) {
-                            jeLines.push({
-                                accountId: accId, debit: 0, credit: Number(amountUSD.toFixed(2)),
-                                originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: Number(amountUSD.toFixed(2)),
-                                description: 'Tax Payable'
-                            });
-                        }
-                    });
-
-                    // c) Credit Customer Wallet (Total COD Collected)
-                    const netCustomerLiabilityBase = Number(totalProductPriceUSD.toFixed(2));
-                    if (netCustomerLiabilityBase > 0) {
-                        jeLines.push({
-                            accountId: defaultCustAccId, debit: 0, credit: netCustomerLiabilityBase,
-                            originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: netCustomerLiabilityBase,
-                            description: 'Net COD Payable'
-                        });
-                    }
-
-                    // d) BALANCE with Driver Wallet
-                    // Proper Balancing Equation: Credits (Revenue + Tax + COD) - Debits (Cash/Bank Received)
-                    // This ensures the Journal Entry sums to zero.
-                    const totalCreditsBase = round2(totalRevenueUSD + totalTaxUSD + totalProductPriceUSD);
-                    const balancingAmountBase = round2(totalCreditsBase - baseAmount);
-                    if (Math.abs(balancingAmountBase) > 0.001) {
-                        jeLines.push({
-                            accountId: defaultDriverAccId,
-                            debit: balancingAmountBase > 0 ? balancingAmountBase : 0,
-                            credit: balancingAmountBase < 0 ? Math.abs(balancingAmountBase) : 0,
-                            originalCurrency: 'USD',
-                            originalExchangeRate: 1,
-                            originalDebit: balancingAmountBase > 0 ? balancingAmountBase : 0,
-                            originalCredit: balancingAmountBase < 0 ? Math.abs(balancingAmountBase) : 0,
-                            description: balancingAmountBase > 0 ? 'Settlement Offset (Partial)' : 'Settlement Overpayment'
-                        });
-                    }
+                // Determine Expense Account (Shared logic)
+                let expAccId = rule10AccId;
+                if (!expAccId) {
+                    expAccId = isUSD ? settings.driverCommissionExpenseAccountUSD : settings.driverCommissionExpenseAccountKHR;
+                }
+                let expAcc = null;
+                if (expAccId) {
+                    expAcc = accounts.find(a => a.id === expAccId);
                 } else {
-                    // CONTRIBUTOR TRANSACTION: Just move funds to driver wallet
+                    const targetCode = isUSD ? '6501002' : '6501001';
+                    expAcc = accounts.find(a => a.code === targetCode || a.name.includes('Commission'));
+                }
+
+                // Helper to find driver wallet
+                const getWalletAcc = (uid: string) => {
+                    const emp = employees.find(e => e.linkedUserId === uid);
+                    if (emp?.walletAccountId) return emp.walletAccountId;
+                    return defaultDriverAccId;
+                };
+
+                // --- BALANCING / PAYOUT LOGIC ---
+                if (userProfile?.role === 'customer') {
+                    // --- CUSTOMER PAYOUT (Money OUT) ---
+
+                    // A. REVENUE & TAX (Credit)
+                    if (globalRevAccId) {
+                        jeLines.push({
+                            accountId: globalRevAccId, debit: 0, credit: totalRevenueUSD,
+                            originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: totalRevenueUSD,
+                            description: 'Delivery Income'
+                        });
+                    }
+                    if (globalTaxAccId) {
+                        jeLines.push({
+                            accountId: globalTaxAccId, debit: 0, credit: totalTaxUSD,
+                            originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: totalTaxUSD,
+                            description: 'Tax Payable'
+                        });
+                    }
+
+                    // B. CASH PAYOUT (Credit Bank)
                     jeLines.push({
-                        accountId: defaultDriverAccId,
+                        accountId: settlementBankId,
                         debit: 0,
                         credit: baseAmount,
                         originalCurrency: txn.currency,
                         originalExchangeRate: rate,
                         originalDebit: 0,
                         originalCredit: safeAmount,
-                        description: 'Wallet Credit (Settlement Partial)'
+                        description: `Payout to ${txn.userName}`
                     });
-                }
 
-                // 5. Driver Commission (Expense & Liability)
-                if (totalCommissionUSD > 0) {
-                    const commBase = Number(totalCommissionUSD.toFixed(2));
+                    // C. DRIVER OFFSET (Debit Driver for Gross COD)
+                    const driversToDebit: Record<string, number> = {};
+                    if (txn.relatedItems) {
+                        txn.relatedItems.forEach(rel => {
+                            const booking = bookings.find(b => b.id === rel.bookingId);
+                            const item = booking?.items?.find(i => i.id === rel.itemId);
+                            if (item) {
+                                const collectorId = booking?.driverId || item.driverId;
+                                const itemCOD = Number(item.productPrice) || 0;
+                                let itemCODUSD = itemCOD;
+                                if (item.codCurrency === 'KHR') {
+                                    itemCODUSD = itemCOD / 4100;
+                                }
 
-                    // Determine correct Expense Account from rule mapping OR settings
-                    let expAccId = rule10AccId;
-                    if (!expAccId) {
-                        expAccId = isUSD ? settings.driverCommissionExpenseAccountUSD : settings.driverCommissionExpenseAccountKHR;
+                                const wAcc = getWalletAcc(collectorId || '');
+                                if (wAcc) {
+                                    driversToDebit[wAcc] = (driversToDebit[wAcc] || 0) + itemCODUSD;
+                                }
+                            }
+                        });
                     }
 
-                    let expAcc = null;
-                    if (expAccId) {
-                        expAcc = accounts.find(a => a.id === expAccId);
+                    Object.entries(driversToDebit).forEach(([accId, amount]) => {
+                        jeLines.push({
+                            accountId: accId, debit: amount, credit: 0,
+                            originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: amount, originalCredit: 0,
+                            description: 'COD Collection Receivable'
+                        });
+                    });
+
+                    // D. COMMISSION EXPENSE (Debit) & PAYABLE (Credit)
+                    if (expAcc && totalCommissionUSD > 0) {
+                        const isExpKHR = expAcc.currency === 'KHR';
+                        const expAmountNative = Number((isExpKHR ? (commBase * rate) : commBase).toFixed(2));
+                        const expCurrency = isExpKHR ? 'KHR' : 'USD';
+                        const expRate = isExpKHR ? rate : 1;
+
+                        jeLines.push({
+                            accountId: expAcc.id, debit: commBase, credit: 0,
+                            originalCurrency: expCurrency, originalExchangeRate: expRate, originalDebit: expAmountNative, originalCredit: 0,
+                            description: 'Driver Commissions'
+                        });
+
+                        Object.entries(commissionByAccount).forEach(([accId, amount]) => {
+                            if (amount > 0) {
+                                jeLines.push({
+                                    accountId: accId, debit: 0, credit: amount,
+                                    originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: amount,
+                                    description: 'Commission Earning'
+                                });
+                            }
+                        });
+                    }
+
+                    // E. BALANCING (Customer Wallet Pass-Through)
+                    jeLines.push({
+                        accountId: defaultCustAccId, debit: 0, credit: baseAmount,
+                        originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: safeAmount,
+                        description: 'Net COD Liability'
+                    });
+                    jeLines.push({
+                        accountId: defaultCustAccId, debit: baseAmount, credit: 0,
+                        originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: safeAmount, originalCredit: 0,
+                        description: 'Payout Clearance'
+                    });
+
+                } else {
+                    // --- DRIVER SETTLEMENT LOGIC (Money IN - STANDARD) ---
+                    jeLines.push({
+                        accountId: settlementBankId,
+                        debit: baseAmount,
+                        credit: 0,
+                        originalCurrency: txn.currency,
+                        originalExchangeRate: rate,
+                        originalDebit: safeAmount,
+                        originalCredit: 0,
+                        description: `Settlement: ${txn.description || 'Payment'}`
+                    });
+
+                    if (txn.relatedItems && txn.relatedItems.length > 0) {
+                        // a) Revenue
+                        Object.entries(revenueByAccount).forEach(([accId, amountUSD]) => {
+                            if (amountUSD > 0) {
+                                jeLines.push({
+                                    accountId: accId, debit: 0, credit: Number(amountUSD.toFixed(2)),
+                                    originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: Number(amountUSD.toFixed(2)),
+                                    description: 'Delivery Income'
+                                });
+                            }
+                        });
+
+                        // b) Tax
+                        Object.entries(taxByAccount).forEach(([accId, amountUSD]) => {
+                            if (amountUSD > 0) {
+                                jeLines.push({
+                                    accountId: accId, debit: 0, credit: Number(amountUSD.toFixed(2)),
+                                    originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: Number(amountUSD.toFixed(2)),
+                                    description: 'Tax Payable'
+                                });
+                            }
+                        });
+
+                        // c) Customer Wallet (Liability)
+                        const netCustomerLiabilityBase = Number(totalProductPriceUSD.toFixed(2));
+                        if (netCustomerLiabilityBase > 0) {
+                            jeLines.push({
+                                accountId: defaultCustAccId, debit: 0, credit: netCustomerLiabilityBase,
+                                originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: netCustomerLiabilityBase,
+                                description: 'Net COD Payable'
+                            });
+                        }
+
+                        // d) Balance with Driver Wallet
+                        const totalCreditsBase = round2(totalRevenueUSD + totalTaxUSD + totalProductPriceUSD);
+                        const balancingAmountBase = round2(totalCreditsBase - baseAmount);
+                        if (Math.abs(balancingAmountBase) > 0.001) {
+                            jeLines.push({
+                                accountId: defaultDriverAccId,
+                                debit: balancingAmountBase > 0 ? balancingAmountBase : 0,
+                                credit: balancingAmountBase < 0 ? Math.abs(balancingAmountBase) : 0,
+                                originalCurrency: 'USD',
+                                originalExchangeRate: 1,
+                                originalDebit: balancingAmountBase > 0 ? balancingAmountBase : 0,
+                                originalCredit: balancingAmountBase < 0 ? Math.abs(balancingAmountBase) : 0,
+                                description: balancingAmountBase > 0 ? 'Settlement Offset (Partial)' : 'Settlement Overpayment'
+                            });
+                        }
                     } else {
-                        const targetCode = isUSD ? '6501002' : '6501001';
-                        expAcc = accounts.find(a => a.code === targetCode || a.name.includes('Commission'));
+                        // CONTRIBUTOR TRANSACTION
+                        jeLines.push({
+                            accountId: defaultDriverAccId,
+                            debit: 0,
+                            credit: baseAmount,
+                            originalCurrency: txn.currency,
+                            originalExchangeRate: rate,
+                            originalDebit: 0,
+                            originalCredit: safeAmount,
+                            description: 'Wallet Credit (Settlement Partial)'
+                        });
                     }
 
-                    if (expAcc) {
-                        // a) Debit Commission Expense (Total)
+                    // 5. Driver Commission (Using shared variables)
+                    if (totalCommissionUSD > 0 && expAcc) {
                         const isExpKHR = expAcc.currency === 'KHR';
                         const expAmountNative = Number((isExpKHR ? (commBase * rate) : commBase).toFixed(2));
                         const expCurrency = isExpKHR ? 'KHR' : 'USD';
@@ -453,7 +552,6 @@ export const WalletRequests: React.FC = () => {
                             description: `Driver Commissions Expense (Total)`
                         });
 
-                        // b) Credit Each Driver's Wallet
                         Object.entries(commissionByAccount).forEach(([accId, amountUSD]) => {
                             if (amountUSD > 0) {
                                 jeLines.push({

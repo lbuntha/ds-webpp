@@ -464,20 +464,20 @@ export const SettingsDashboard: React.FC<Props> = ({
                                     </div>
                                 </div>
 
-                                {/* Settlement Assets */}
-                                {/* Customer Top-Up Assets (Cash In Bank) */}
+                                {/* Customer Settlement Payout (Money OUT) */}
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                    <h5 className="text-xs font-bold text-gray-500 uppercase mb-3">Customer Top-Up Asset (Cash/Bank)</h5>
+                                    <h5 className="text-xs font-bold text-gray-500 uppercase mb-3">Customer Settlement Payout Asset (Bank/Cash)</h5>
+                                    <p className="text-[10px] text-gray-500 mb-3 italic">This is the bank account used when paying out settlements to customers (e.g., COD payouts).</p>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-bold text-green-700 mb-1">USD Top-Up Asset ($)</label>
+                                            <label className="block text-xs font-bold text-green-700 mb-1">USD Settlement Asset ($)</label>
                                             <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={customerSettlementBankUSD} onChange={e => setCustomerSettlementBankUSD(e.target.value)}>
                                                 <option value="">-- Select USD Asset --</option>
                                                 {getAccountsByCurrency(bankAccounts, 'USD').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-blue-700 mb-1">KHR Top-Up Asset (៛)</label>
+                                            <label className="block text-xs font-bold text-blue-700 mb-1">KHR Settlement Asset (៛)</label>
                                             <select className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={customerSettlementBankKHR} onChange={e => setCustomerSettlementBankKHR(e.target.value)}>
                                                 <option value="">-- Select KHR Asset --</option>
                                                 {getAccountsByCurrency(bankAccounts, 'KHR').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
