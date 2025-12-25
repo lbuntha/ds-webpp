@@ -542,7 +542,7 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActivePage('HOME')}>
-              <img src="/logo/DoorStep.png" alt="Doorstep" className="h-7 w-auto object-contain" />
+              <img src="/logo/icon.png" alt="Doorstep" className="h-7 w-auto object-contain" />
               <span className="text-2xl font-bold tracking-tight text-slate-900">Doorstep</span>
             </div>
 
@@ -974,7 +974,7 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
           <div className="grid md:grid-cols-4 gap-8">
             <div className="col-span-1 md:col-span-1">
               <div className="flex items-center gap-2 mb-4">
-                <img src="/logo/DoorStep.png" alt="Doorstep" className="h-6 w-auto object-contain" />
+                <img src="/logo/icon.png" alt="Doorstep" className="h-6 w-auto object-contain" />
                 <span className="text-xl font-bold text-slate-900">Doorstep</span>
               </div>
               <p className="text-sm text-gray-500 leading-relaxed">

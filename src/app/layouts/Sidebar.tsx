@@ -123,7 +123,7 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
 
             {/* Header */}
             <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} border-b border-slate-800`}>
-                <img src="/logo/DoorStep.png" alt="DoorStep Logo" className="h-8 w-8 object-contain flex-shrink-0" />
+                <img src="/logo/icon.png" alt="DoorStep Logo" className="h-8 w-8 object-contain flex-shrink-0" />
                 {!isCollapsed && (
                     <span className="font-bold text-lg truncate tracking-tight transition-opacity duration-200">
                         {settings.companyName || 'Doorstep'}

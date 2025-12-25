@@ -68,7 +68,7 @@ export const AuthForms: React.FC<AuthProps> = ({ mode, onSubmit, onModeChange, o
             <div className="hidden lg:flex lg:w-5/12 bg-slate-900 relative overflow-hidden flex-col justify-between p-12 text-white">
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-10">
-                        <img src="/logo/DoorStep.png" alt="Doorstep" className="h-8 w-8 object-contain" />
+                        <img src="/logo/icon.png" alt="Doorstep" className="h-8 w-8 object-contain" />
                         <span className="text-2xl font-bold tracking-tight text-white drop-shadow-sm">Doorstep</span>
                     </div>
                     <h1 className="text-4xl font-extrabold leading-tight mb-6">
@@ -107,7 +107,7 @@ export const AuthForms: React.FC<AuthProps> = ({ mode, onSubmit, onModeChange, o
                 <div className="mx-auto w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
                     <div className="mb-10 text-center">
                         <div className="flex justify-center mb-6">
-                            <img src="/logo/DoorStep.png" alt="Doorstep" className="h-10 w-auto object-contain" />
+                            <img src="/logo/icon.png" alt="Doorstep" className="h-10 w-auto object-contain" />
                         </div>
                         <h2 className="text-2xl font-bold text-slate-900">
                             {mode === 'LOGIN' ? 'Sign In' :
