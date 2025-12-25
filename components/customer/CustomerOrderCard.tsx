@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ParcelBooking, ParcelItem } from '../../src/shared/types';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';

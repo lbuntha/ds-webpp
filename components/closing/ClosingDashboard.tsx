@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Account, JournalEntry, SystemSettings, AccountType, Branch, CurrencyConfig, Invoice, Bill } from '../../src/shared/types';
 import { Card } from '../ui/Card';

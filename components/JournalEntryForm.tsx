@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Account, Branch, JournalEntry, JournalEntryLine, CurrencyConfig } from '../src/shared/types';
 import { Button } from './ui/Button';

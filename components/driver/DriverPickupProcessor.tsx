@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ParcelBooking, ParcelItem, UserProfile, Place, ParcelServiceType } from '../../src/shared/types';
 import { Button } from '../ui/Button';

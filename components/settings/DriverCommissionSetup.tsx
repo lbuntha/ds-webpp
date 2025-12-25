@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DriverCommissionRule } from '../../src/shared/types';
 import { Card } from '../ui/Card';

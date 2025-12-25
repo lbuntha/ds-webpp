@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { UserProfile, Permission } from '../../src/shared/types';
 import { DriverDashboard } from './DriverDashboard';

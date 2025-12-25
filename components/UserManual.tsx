@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from './ui/Card';
 import { firebaseService } from '../src/shared/services/firebaseService';

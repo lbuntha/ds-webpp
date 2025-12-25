@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, Customer, Permission } from '../../src/shared/types';
 import { CustomerDashboard } from './CustomerDashboard';

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ParcelBooking } from '../../src/shared/types';
 import { Card } from '../ui/Card';

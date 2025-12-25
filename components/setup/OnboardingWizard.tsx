@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Account, Branch, SystemSettings } from '../../src/shared/types';
 import { Card } from '../ui/Card';

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Place } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';

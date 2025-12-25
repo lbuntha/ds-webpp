@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserProfile, SavedLocation, Customer, BankAccountDetails, CurrencyConfig } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';

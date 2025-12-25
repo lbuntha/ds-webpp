@@ -1,5 +1,4 @@
-
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Account, JournalEntry, AccountType, Invoice, Bill } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { AccountingService } from '../../src/shared/services/accountingService';
@@ -11,7 +10,7 @@ interface Props {
     bills: Bill[];
 }
 
-export const AnalyticsDashboard: React.FC<Props> = ({ accounts = [], transactions = [], invoices = [], bills = [] }) => {
+export function AnalyticsDashboard({ accounts = [], transactions = [], invoices = [], bills = [] }: Props) {
 
     // --- 1. Financial Performance Calculation (KPIs) ---
     const performance = useMemo(() => {
@@ -290,4 +289,4 @@ export const AnalyticsDashboard: React.FC<Props> = ({ accounts = [], transaction
             </div>
         </div>
     );
-};
+}

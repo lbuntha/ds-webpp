@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParcelBooking, UserProfile, ParcelItem } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';

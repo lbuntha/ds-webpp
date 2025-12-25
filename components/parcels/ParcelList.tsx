@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParcelBooking, ParcelStatusConfig, ParcelItem, Customer } from '../../src/shared/types';
 import { Card } from '../ui/Card';

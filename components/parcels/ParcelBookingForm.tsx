@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { ParcelBooking, ParcelItem, ParcelServiceType, Branch, Account, AccountType, Customer, TaxRate, ParcelPromotion, AccountSubType, CustomerSpecialRate, CurrencyConfig, Place } from '../../src/shared/types';
 import { Card } from '../ui/Card';

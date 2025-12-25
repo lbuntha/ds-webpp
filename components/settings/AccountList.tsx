@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Account, AccountType, JournalEntry } from '../../src/shared/types';
 import { Button } from '../ui/Button';

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { ParcelBooking, ParcelItem } from '../../src/shared/types';

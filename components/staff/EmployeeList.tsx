@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Employee } from '../../src/shared/types';
 import { Card } from '../ui/Card';

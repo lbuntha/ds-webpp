@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 

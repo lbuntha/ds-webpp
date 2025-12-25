@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Account, AccountType, Branch, JournalEntry, ReportType, TrialBalanceRow } from '../src/shared/types';
 import { AccountingService } from '../src/shared/services/accountingService';

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Employee, UserProfile, Branch } from '../../src/shared/types';
 import { Card } from '../ui/Card';

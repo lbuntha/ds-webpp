@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Account, Branch, Employee, JournalEntry, CurrencyConfig, AccountType, AccountSubType } from '../../src/shared/types';
 import { Button } from '../ui/Button';

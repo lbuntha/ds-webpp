@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AppNotification, UserProfile } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';

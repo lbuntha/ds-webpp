@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { UserProfile } from '../src/shared/types';
 import { Button } from './ui/Button';
