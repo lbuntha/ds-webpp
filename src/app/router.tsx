@@ -1,10 +1,8 @@
 import { createBrowserRouter, Navigate, RouteObject } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { ProtectedRoute } from './ProtectedRoute';
-import { RoleBasedRoute } from './RoleBasedRoute';
 import { PermissionRoute } from './PermissionRoute';
 import { RoleBasedRedirect } from './RoleBasedRedirect';
-import { UserRole } from '../shared/types';
 import { ErrorBoundary } from '../shared/components/ErrorBoundary';
 
 
@@ -128,41 +126,41 @@ const routes: RouteObject[] = [
             {
                 path: 'dashboard',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager', 'warehouse']}>
+                    <PermissionRoute requiredPermission="VIEW_DASHBOARD">
                         {withSuspense(Dashboard)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'analytics',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
+                    <PermissionRoute requiredPermission="VIEW_REPORTS">
                         {withSuspense(AnalyticsDashboard)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'journal',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
+                    <PermissionRoute requiredPermission="VIEW_JOURNAL">
                         {withSuspense(JournalView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'banking',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
+                    <PermissionRoute requiredPermission="MANAGE_BANKING">
                         {withSuspense(BankingView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'staff',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
+                    <PermissionRoute requiredPermission="MANAGE_STAFF_LOANS">
                         {withSuspense(StaffLoansView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
@@ -298,41 +296,41 @@ const routes: RouteObject[] = [
             {
                 path: 'reports',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant', 'finance-manager']}>
+                    <PermissionRoute requiredPermission="VIEW_REPORTS">
                         {withSuspense(ReportsView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'closing',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin', 'accountant']}>
+                    <PermissionRoute requiredPermission="PERFORM_CLOSING">
                         {withSuspense(ClosingView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'settings',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin']}>
+                    <PermissionRoute requiredPermission="MANAGE_SETTINGS">
                         {withSuspense(SettingsView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'seed-permissions',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin']}>
+                    <PermissionRoute requiredPermission="MANAGE_SETTINGS">
                         {withSuspense(SeedPermissionsView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
                 path: 'users',
                 element: (
-                    <RoleBasedRoute allowedRoles={['system-admin']}>
+                    <PermissionRoute requiredPermission="MANAGE_USERS">
                         {withSuspense(UsersView)}
-                    </RoleBasedRoute>
+                    </PermissionRoute>
                 ),
             },
             {
