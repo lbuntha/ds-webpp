@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Account, Branch, JournalEntry, AccountType, AccountSubType, CurrencyConfig } from '../../src/shared/types';
 import { AccountingService } from '../../src/shared/services/accountingService';
 import { Card } from '../ui/Card';
@@ -19,22 +19,47 @@ interface Props {
     onAddAccount: (account: Account) => Promise<void>;
 }
 
-export const BankingDashboard: React.FC<Props> = ({ accounts, transactions, branches, currencies = [], onTransfer, onAddAccount }) => {
+export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, transactions: propTransactions, branches, currencies = [], onTransfer, onAddAccount }) => {
     const [view, setView] = useState<'LIST' | 'TRANSFER' | 'ADD_BANK' | 'REQUESTS' | 'WALLETS'>('LIST');
     const [pendingCount, setPendingCount] = useState(0);
     const [collapsedCurrencies, setCollapsedCurrencies] = useState<Record<string, boolean>>({});
 
-    useEffect(() => {
-        const checkPending = async () => {
-            try {
-                const pending = await firebaseService.getPendingWalletTransactions();
-                setPendingCount(pending.length);
-            } catch (e) { }
-        };
-        checkPending();
-        const interval = setInterval(checkPending, 30000);
-        return () => clearInterval(interval);
+    // Real-time data state
+    const [liveAccounts, setLiveAccounts] = useState<Account[]>(propAccounts);
+    const [liveTransactions, setLiveTransactions] = useState<JournalEntry[]>(propTransactions);
+    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // Use live data if available, fallback to props
+    const accounts = liveAccounts.length > 0 ? liveAccounts : propAccounts;
+    const transactions = liveTransactions.length > 0 ? liveTransactions : propTransactions;
+
+    // Refresh function
+    const refreshData = useCallback(async () => {
+        setIsRefreshing(true);
+        try {
+            const [accs, txns, pending] = await Promise.all([
+                firebaseService.getAccounts(),
+                firebaseService.financeService.getTransactions(),
+                firebaseService.getPendingWalletTransactions()
+            ]);
+            setLiveAccounts(accs);
+            setLiveTransactions(txns);
+            setPendingCount(pending.length);
+            setLastUpdated(new Date());
+        } catch (e) {
+            console.error('Failed to refresh banking data', e);
+        } finally {
+            setIsRefreshing(false);
+        }
     }, []);
+
+    // Fetch data when page loads
+    useEffect(() => {
+        refreshData();
+    }, [refreshData]);
+
+
 
     const bankingAccounts = useMemo(() => {
         return accounts
@@ -147,9 +172,28 @@ export const BankingDashboard: React.FC<Props> = ({ accounts, transactions, bran
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="bg-gradient-to-br from-indigo-600 to-purple-700 text-white border-none">
-                    <div className="text-indigo-100 text-sm font-medium">Total Cash Position (USD Eq.)</div>
-                    <div className="text-3xl font-bold mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalCashPosition)}</div>
-                    <div className="mt-4 text-xs text-indigo-200 bg-white/10 inline-block px-2 py-1 rounded">Real-time Balance (Aggregated)</div>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <div className="text-indigo-100 text-sm font-medium">Total Cash Position (USD Eq.)</div>
+                            <div className="text-3xl font-bold mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalCashPosition)}</div>
+                        </div>
+                        <button
+                            onClick={refreshData}
+                            disabled={isRefreshing}
+                            className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors disabled:opacity-50"
+                            title="Refresh data"
+                        >
+                            <svg className={`w-5 h-5 text-white ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2">
+                        <div className="text-xs text-indigo-200 bg-white/10 inline-block px-2 py-1 rounded">
+                            Updated: {lastUpdated.toLocaleTimeString()}
+                        </div>
+                        {isRefreshing && <span className="text-xs text-indigo-200 animate-pulse">Refreshing...</span>}
+                    </div>
                 </Card>
                 <div className="md:col-span-2 flex items-center justify-end space-x-4">
                     <button onClick={() => setView('REQUESTS')} className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-blue-300 transition-all w-28 h-28 shadow-sm group relative">

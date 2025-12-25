@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, Customer, UserProfile, WalletTransaction } from '../../src/shared/types';
+import { ParcelBooking, Customer, UserProfile, WalletTransaction, SystemSettings } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -28,6 +28,7 @@ export const SettledParcelsReport: React.FC = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [walletTxns, setWalletTxns] = useState<WalletTransaction[]>([]);
+    const [settings, setSettings] = useState<SystemSettings | null>(null);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFrom, setDateFrom] = useState('');
@@ -38,16 +39,18 @@ export const SettledParcelsReport: React.FC = () => {
         const load = async () => {
             setLoading(true);
             try {
-                const [bookingsData, customersData, usersData, txnsData] = await Promise.all([
+                const [bookingsData, customersData, usersData, txnsData, settingsData] = await Promise.all([
                     firebaseService.getParcelBookings(),
                     firebaseService.getCustomers(),
                     firebaseService.getUsers(),
-                    firebaseService.walletService.getAllWalletTransactions()
+                    firebaseService.walletService.getAllWalletTransactions(),
+                    firebaseService.getSettings()
                 ]);
                 setBookings(bookingsData);
                 setCustomers(customersData);
                 setUsers(usersData);
                 setWalletTxns(txnsData);
+                setSettings(settingsData);
             } catch (e) {
                 console.error(e);
                 toast.error("Failed to load data");
@@ -82,17 +85,30 @@ export const SettledParcelsReport: React.FC = () => {
         bookings.forEach(b => {
             (b.items || []).forEach(item => {
                 if (item.customerSettlementStatus === 'SETTLED') {
-                    const fee = (Number(b.totalDeliveryFee) || 0) / (b.items?.length || 1);
                     const codAmount = Number(item.productPrice) || 0;
                     const codCurrency = (item.codCurrency || 'USD') as 'USD' | 'KHR';
-                    const feeCurrency = (b.currency || 'USD') as 'USD' | 'KHR';
 
-                    // Calculate net (simple: same currency assumed for now)
-                    let netPayout = codAmount - fee;
-                    if (codCurrency !== feeCurrency) {
-                        // Cross-currency, just show COD
-                        netPayout = codAmount;
+                    // Fee should be in the same currency as COD
+                    // Get fee per item (split equally among items in same booking)
+                    const bookingFee = Number(b.totalDeliveryFee) || 0;
+                    const itemCount = b.items?.length || 1;
+                    let fee = bookingFee / itemCount;
+                    let feeCurrency = codCurrency; // Fee matches COD currency
+
+                    // Get exchange rate from settings (default 4100)
+                    const exchangeRate = settings?.commissionExchangeRate || 4100;
+
+                    // If booking fee was in different currency, convert it
+                    if (codCurrency === 'KHR' && (b.currency === 'USD' || !b.currency)) {
+                        // Convert USD fee to KHR using settings rate
+                        fee = fee * exchangeRate;
+                    } else if (codCurrency === 'USD' && b.currency === 'KHR') {
+                        // Convert KHR fee to USD using settings rate
+                        fee = fee / exchangeRate;
                     }
+
+                    // Calculate net in same currency
+                    const netPayout = codAmount - fee;
 
                     items.push({
                         bookingId: b.id,
@@ -117,7 +133,7 @@ export const SettledParcelsReport: React.FC = () => {
         items.sort((a, b) => b.deliveryDate.localeCompare(a.deliveryDate));
 
         return items;
-    }, [bookings, customers]);
+    }, [bookings, customers, settings]);
 
     // Filter items
     const filteredItems = useMemo(() => {

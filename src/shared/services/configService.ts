@@ -116,14 +116,18 @@ export class ConfigService extends BaseService {
     }
 
     async seedDefaultMenu() {
-        // Use Batch for atomicity and speed
         const batch = writeBatch(this.db);
 
+        // FIRST: Delete ALL existing menu items to ensure clean reset
+        const existing = await getDocs(collection(this.db, 'navigation_menu'));
+        existing.docs.forEach(docSnap => {
+            batch.delete(docSnap.ref);
+        });
+
+        // THEN: Seed with DEFAULT_NAVIGATION
         for (const item of DEFAULT_NAVIGATION) {
             const ref = doc(this.db, 'navigation_menu', item.id);
-            // Merge true ensures we don't overwrite custom role changes if they exist, 
-            // but we ensure the item exists
-            batch.set(ref, item, { merge: true });
+            batch.set(ref, item);
         }
 
         await batch.commit();
