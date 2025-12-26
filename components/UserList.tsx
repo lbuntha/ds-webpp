@@ -92,6 +92,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
     const [specialRates, setSpecialRates] = useState<CustomerSpecialRate[]>([]);
     const [newRateServiceId, setNewRateServiceId] = useState('');
     const [newRatePrice, setNewRatePrice] = useState('');
+    const [newRatePriceKHR, setNewRatePriceKHR] = useState('');
     const [newRateStartDate, setNewRateStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [newRateEndDate, setNewRateEndDate] = useState('2099-12-31');
     const [loadingRates, setLoadingRates] = useState(false);
@@ -379,6 +380,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
             serviceTypeId: service.id,
             serviceName: service.name,
             price: parseFloat(newRatePrice),
+            priceKHR: newRatePriceKHR ? parseFloat(newRatePriceKHR) : undefined,
             startDate: newRateStartDate,
             endDate: newRateEndDate,
             createdAt: Date.now()
@@ -389,6 +391,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
             setSpecialRates([...specialRates, newRate]);
             setNewRateServiceId('');
             setNewRatePrice('');
+            setNewRatePriceKHR('');
             setNewRateStartDate(new Date().toISOString().split('T')[0]);
             setNewRateEndDate('2099-12-31');
             toast.success('Special rate added');
@@ -1102,9 +1105,16 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                                                                                     <span>{rate.startDate}</span>
                                                                                     <span className="text-[10px]">to {rate.endDate}</span>
                                                                                 </div>
-                                                                                <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
-                                                                                    ${rate.price.toFixed(2)}
-                                                                                </span>
+                                                                                <div className="flex flex-col gap-1">
+                                                                                    <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded text-sm">
+                                                                                        ${rate.price.toFixed(2)}
+                                                                                    </span>
+                                                                                    {rate.priceKHR && (
+                                                                                        <span className="font-mono font-bold text-green-600 bg-green-50 px-2 py-1 rounded text-sm">
+                                                                                            {rate.priceKHR.toLocaleString()}៛
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
                                                                                 <button
                                                                                     onClick={() => handleDeleteRate(rate.id)}
                                                                                     className="text-gray-400 hover:text-red-500 transition-colors"
@@ -1136,13 +1146,23 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                                                                     </select>
                                                                 </div>
                                                                 <div className="w-24">
-                                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 block">Price ($)</label>
+                                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 block">USD ($)</label>
                                                                     <input
                                                                         type="number"
                                                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                                                         value={newRatePrice}
                                                                         onChange={e => setNewRatePrice(e.target.value)}
                                                                         placeholder="0.00"
+                                                                    />
+                                                                </div>
+                                                                <div className="w-28">
+                                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 block">KHR (៛)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                                                        value={newRatePriceKHR}
+                                                                        onChange={e => setNewRatePriceKHR(e.target.value)}
+                                                                        placeholder="0"
                                                                     />
                                                                 </div>
                                                                 <div className="w-32">

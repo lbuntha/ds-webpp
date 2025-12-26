@@ -3,8 +3,9 @@ import { ParcelBooking, ParcelItem, UserProfile, Place, ParcelServiceType } from
 import { Button } from '../ui/Button';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { LocationPicker } from '../ui/LocationPicker';
-import { PlaceAutocomplete } from '../ui/PlaceAutocomplete'; // Import
+import { PlaceAutocomplete } from '../ui/PlaceAutocomplete';
 import { toast } from '../../src/shared/utils/toast';
+import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
 
 interface Props {
     job: ParcelBooking;
@@ -185,21 +186,22 @@ export const DriverPickupProcessor: React.FC<Props> = ({ job, user, services, on
                 status: newItems.every(i => i.status === 'PICKED_UP') ? 'IN_TRANSIT' : 'CONFIRMED'
             };
 
-            // Fee Recalculation Support - ONLY if currency actually changes
-            // IMPORTANT: Don't overwrite the original fee (which may include special rates)
-            // Only recalculate if the booking currency changes based on item COD currency
-            if (services && services.length > 0) {
+            // Fee Recalculation using centralized utility
+            if (services && services.length > 0 && job.senderId) {
                 const firstItem = newItems[0];
                 const newItemCurrency = firstItem?.codCurrency === 'KHR' ? 'KHR' : 'USD';
-                const originalBookingCurrency = job.currency || 'USD';
 
-                // Only update currency field if it changed - DO NOT recalculate fee
-                // The fee was correctly set at booking time (including any special rates)
-                if (newItemCurrency !== originalBookingCurrency) {
-                    updatedJob.currency = newItemCurrency;
-                    // Note: We intentionally do NOT recalculate totalDeliveryFee here
-                    // as that would overwrite special rates set at booking time
-                }
+                const feeResult = await calculateDeliveryFee({
+                    serviceTypeId: job.serviceTypeId,
+                    customerId: job.senderId,
+                    itemCount: newItems.length,
+                    codCurrency: newItemCurrency,
+                    exchangeRate: job.exchangeRateForCOD || 4100,
+                    services
+                });
+
+                updatedJob.currency = feeResult.currency;
+                updatedJob.totalDeliveryFee = feeResult.fee;
             }
 
             await onSave(updatedJob);

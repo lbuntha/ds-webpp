@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ParcelBooking, ParcelItem, UserProfile, ParcelModification } from '../../src/shared/types';
+import { ParcelBooking, ParcelItem, UserProfile, ParcelModification, ParcelServiceType } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { firebaseService } from '../../src/shared/services/firebaseService';
+import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
 import { ChatModal } from '../ui/ChatModal';
 import { toast } from '../../src/shared/utils/toast';
 
@@ -25,6 +26,14 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
 
     // Chat State
     const [activeChat, setActiveChat] = useState<{ itemId: string, itemName: string, driverName: string, driverId?: string } | null>(null);
+
+    // Services State (for fee calculation)
+    const [services, setServices] = useState<ParcelServiceType[]>([]);
+
+    // Fetch services on mount
+    useEffect(() => {
+        firebaseService.getParcelServices().then(setServices);
+    }, []);
 
     // Helper to determine step index (0-4)
     const getStepStatus = (status: string) => {
@@ -81,9 +90,29 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
                 return i;
             });
 
+            // Recalculate fee using centralized utility
+            let newFee = booking.totalDeliveryFee;
+            let newCurrency: 'USD' | 'KHR' = booking.currency as any || 'USD';
+
+            if (services.length > 0 && booking.senderId) {
+                const feeResult = await calculateDeliveryFee({
+                    serviceTypeId: booking.serviceTypeId,
+                    customerId: booking.senderId,
+                    itemCount: updatedItems.length,
+                    codCurrency: editCurrency,
+                    exchangeRate: booking.exchangeRateForCOD || 4100,
+                    services
+                });
+
+                newFee = feeResult.fee;
+                newCurrency = feeResult.currency;
+            }
+
             await firebaseService.saveParcelBooking({
                 ...booking,
-                items: updatedItems
+                items: updatedItems,
+                currency: newCurrency,
+                totalDeliveryFee: newFee
             });
 
             setEditingCodItem(null);

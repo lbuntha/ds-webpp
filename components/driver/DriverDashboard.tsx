@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParcelBooking, UserProfile, ParcelItem, Account, Branch, AccountType, AccountSubType, WalletTransaction, SystemSettings, AppNotification, CurrencyConfig, ParcelServiceType, Employee, DriverCommissionRule } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
+import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -297,8 +298,33 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const handleCodUpdate = async (bookingId: string, itemId: string, amount: number, currency: 'USD' | 'KHR') => {
         const booking = bookings.find(b => b.id === bookingId);
         if (!booking) return;
+
         const updatedItems = (booking.items || []).map(i => i.id === itemId ? { ...i, productPrice: amount, codCurrency: currency } : i);
-        await firebaseService.saveParcelBooking({ ...booking, items: updatedItems });
+
+        // Recalculate fee using centralized utility
+        let newFee = booking.totalDeliveryFee;
+        let newCurrency = booking.currency;
+
+        if (services.length > 0 && booking.senderId) {
+            const feeResult = await calculateDeliveryFee({
+                serviceTypeId: booking.serviceTypeId,
+                customerId: booking.senderId,
+                itemCount: updatedItems.length,
+                codCurrency: currency,
+                exchangeRate: booking.exchangeRateForCOD || 4100,
+                services
+            });
+
+            newFee = feeResult.fee;
+            newCurrency = feeResult.currency;
+        }
+
+        await firebaseService.saveParcelBooking({
+            ...booking,
+            items: updatedItems,
+            currency: newCurrency,
+            totalDeliveryFee: newFee
+        });
         loadJobs();
     };
 

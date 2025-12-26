@@ -211,7 +211,8 @@ export interface CustomerSpecialRate {
   customerId: string;
   serviceTypeId: string;
   serviceName: string; // Snapshot for UI
-  price: number; // The override price
+  price: number; // The override price (USD)
+  priceKHR?: number; // The override price (KHR) - optional
   startDate: string; // ISO Date YYYY-MM-DD
   endDate: string; // ISO Date YYYY-MM-DD
   createdAt: number;

@@ -269,11 +269,15 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                 r.endDate.split('T')[0] >= today
             );
             if (activeSpecial) {
-                // Apply special rate - convert to KHR if needed
+                // Apply special rate based on currency
                 if (isKHR) {
-                    // Special rate is in USD, convert to KHR using effective rate
-                    const rate = effectiveExchangeRate || 4100;
-                    basePrice = activeSpecial.price * rate;
+                    // Use KHR special rate if available, otherwise convert USD rate
+                    if (activeSpecial.priceKHR) {
+                        basePrice = activeSpecial.priceKHR;
+                    } else {
+                        const rate = effectiveExchangeRate || 4100;
+                        basePrice = activeSpecial.price * rate;
+                    }
                 } else {
                     basePrice = activeSpecial.price;
                 }
