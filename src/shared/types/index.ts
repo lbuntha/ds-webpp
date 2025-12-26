@@ -102,6 +102,7 @@ export type Permission =
   | 'VIEW_DASHBOARD'
   | 'VIEW_JOURNAL'
   | 'CREATE_JOURNAL'
+  | 'APPROVE_JOURNAL'            // Checker: Can approve/reject journal entries
   | 'VIEW_REPORTS'
   | 'MANAGE_SETTINGS'
   | 'MANAGE_USERS'
@@ -111,6 +112,7 @@ export type Permission =
   | 'MANAGE_STAFF_LOANS'
   | 'MANAGE_BANKING'
   | 'MANAGE_CUSTOMER_SETTLEMENTS'
+  | 'MANAGE_CUSTOMERS'
   | 'PERFORM_CLOSING'
   | 'MANAGE_PARCELS' // Legacy/General - kept for backward compatibility
   // Granular Parcel/Logistics Permissions
@@ -180,6 +182,7 @@ export interface UserProfile {
   completedOrderCount?: number;
   joinedAt?: number; // Timestamp of registration
   createdAt?: number; // Legacy timestamp
+  isTaxable?: boolean; // Customer: Apply tax to transactions
 }
 
 export interface ParcelStatusConfig {
@@ -238,6 +241,8 @@ export interface JournalEntryLine {
   originalCredit?: number;
 }
 
+export type JournalEntryStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'POSTED';
+
 export interface JournalEntry {
   id: string;
   date: string;
@@ -252,6 +257,14 @@ export interface JournalEntry {
   relatedDocumentId?: string;
   attachment?: string;
   isClosingEntry?: boolean;
+  // Maker-Checker Workflow Fields
+  status?: JournalEntryStatus;
+  createdBy?: string;
+  createdByName?: string;
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: number;
+  rejectionReason?: string;
 }
 
 export type ReportType = 'TB' | 'BS' | 'IS' | 'GL';
@@ -280,25 +293,52 @@ export interface GeneralLedgerLine {
 }
 
 export interface BankAccountDetails {
+  id?: string;              // Unique ID for managing bank accounts
   bankName: string;
+  accountName?: string;     // Account holder name
   accountNumber: string;
   qrCode?: string;
 }
 
+
+
+export interface SavedLocation {
+  id: string;
+  label: string; // e.g. "Home", "Office"
+  address: string;
+  coordinates?: { lat: number; lng: number };
+  isPrimary?: boolean;
+}
+
 export interface Customer {
   id: string;
+  linkedUserId?: string;              // Optional link to UserProfile
+  type: 'INDIVIDUAL' | 'CORPORATE';
+  code?: string;
+
+  // Customer-specific fields
+  bankAccounts?: BankAccountDetails[];
+  customExchangeRate?: number;       // Custom KHR rate for COD
+  savedLocations?: SavedLocation[];
+  referralCode?: string;
+  isTaxable?: boolean;               // Whether VAT/Tax applies to this customer
+  createdAt: number;
+  updatedAt?: number;
+
+  // Primary contact info (independent of user)
   name: string;
   email?: string;
   phone?: string;
   address?: string;
-  bankAccounts?: BankAccountDetails[];
-  bankName?: string;
-  bankAccountNumber?: string; // Legacy support
-  bankAccount?: string; // Legacy support
+
+  /** @deprecated Use linked UserProfileor local status */
   status?: 'ACTIVE' | 'INACTIVE';
-  linkedUserId?: string | null;
-  customExchangeRate?: number; // Custom KHR rate for COD
-  createdAt: number;
+  /** @deprecated Legacy bank field */
+  bankName?: string;
+  /** @deprecated Legacy bank field */
+  bankAccountNumber?: string;
+  /** @deprecated Legacy bank field */
+  bankAccount?: string;
 }
 
 export interface InvoiceLine {
@@ -389,23 +429,49 @@ export interface BillPayment {
 
 export interface Employee {
   id: string;
+  linkedUserId?: string;              // Link to UserProfile (for drivers/warehouse)
+
+  // Basic Info
   name: string;
   email?: string;
   phone?: string;
+  address?: string;
+  nationalId?: string;                // National ID / Passport
+  dateOfBirth?: string;
+
+  // Employment Info
   position?: string;
   department?: string;
+  employeeCode?: string;              // Employee ID number
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT';
+  hireDate?: string;
+  terminationDate?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'TERMINATED';
+  branchId?: string | null;
+
+  // Driver-Specific (for fleet integration)
   isDriver?: boolean;
-  status?: 'ACTIVE' | 'INACTIVE';
   vehicleType?: string;
   vehiclePlateNumber?: string;
-  branchId?: string | null;
-  linkedUserId?: string | null;
-  walletAccountId?: string; // Driver Wallet Liability Account
-  zone?: string; // NEW: Zone assignment for commission rules
-  hasBaseSalary?: boolean; // NEW: Whether driver receives a base salary
-  baseSalaryAmount?: number; // NEW: Optional - actual salary amount for reference
-  baseSalaryCurrency?: 'USD' | 'KHR'; // NEW: Currency for base salary
+  licenseNumber?: string;
+  licenseExpiry?: string;
+  zone?: string;                      // Zone for commission rules
+  walletAccountId?: string;           // Driver Wallet Liability Account
+
+  // Payroll
+  hasBaseSalary?: boolean;
+  baseSalaryAmount?: number;
+  baseSalaryCurrency?: 'USD' | 'KHR';
+  paymentMethod?: 'CASH' | 'BANK_TRANSFER';
+  bankName?: string;
+  bankAccountNumber?: string;
+
+  // Emergency Contact
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+
   createdAt: number;
+  updatedAt?: number;
 }
 
 export type LoanStatus = 'ACTIVE' | 'PAID' | 'WRITTEN_OFF';
@@ -542,7 +608,9 @@ export interface ParcelServiceType {
   id: string;
   name: string;
   defaultPrice: number;
+  defaultPriceKHR?: number;
   pricePerKm?: number;
+  pricePerKmKHR?: number;
   revenueAccountId: string; // Legacy / Primary USD
   description?: string;
   image?: string;

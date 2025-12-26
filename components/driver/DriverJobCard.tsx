@@ -97,43 +97,6 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
           {isAvailable ? (
             <div className="mt-2 flex gap-2">
               <span className="text-[10px] bg-gray-100 px-2 py-1 rounded font-bold text-gray-600">{items.length} items</span>
-              <span className="text-[10px] bg-green-50 px-2 py-1 rounded font-bold text-green-700">
-                Earn: {(() => {
-                  const fee = job.totalDeliveryFee || 0;
-                  const commRate = 0.7; // Hardcoded fallback for now, ideally from props or hook
-
-                  const itemCurrencies = new Set(items.map(i => i.codCurrency || 'USD'));
-                  const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
-
-                  if (isMixed) {
-                    const khrCount = items.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
-                    const usdCount = items.filter(i => (i.codCurrency || 'USD') === 'USD').length;
-                    const total = items.length;
-                    const feePerItem = fee / total;
-
-                    const khrPortion = (feePerItem * khrCount) * commRate;
-                    const usdPortion = (feePerItem * usdCount) * commRate;
-
-                    // Rate 4000
-                    const RATE = 4000;
-
-                    let khrFinal = khrPortion;
-                    let usdFinal = usdPortion;
-
-                    // Adjust based on base fee currency
-                    if (job.currency === 'USD') {
-                      khrFinal = khrPortion * RATE;
-                    } else {
-                      usdFinal = usdPortion / RATE;
-                    }
-
-                    return `$${usdFinal.toFixed(2)} + ${khrFinal.toLocaleString()} ៛`;
-                  }
-
-                  const val = fee * commRate;
-                  return job.currency === 'KHR' ? `${val.toLocaleString()} ៛` : `$${val.toFixed(2)}`;
-                })()}
-              </span>
             </div>
           ) : (
             <div className="mt-3 flex gap-2">

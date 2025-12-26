@@ -129,8 +129,8 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             if (t.type === 'SETTLEMENT') {
                 // Customers: Settlement means payout to them (money OUT = Debit)
                 // Drivers: Settlement means they paid company (offsets debt = Credit)
-                const isCustomer = user.role === 'customer' || user.linkedCustomerId;
-                isCredit = !isCustomer; // false for customers, true for drivers
+                const isDriver = user.role === 'driver' || user.role === 'warehouse';
+                isCredit = isDriver; // true for drivers (offsets debt), false for customers (payout)
             }
 
             // WITHDRAWAL: Money OUT of Wallet (Debit)
@@ -317,22 +317,32 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
     const calculatedBalance = useMemo(() => {
         let usd = 0;
         let khr = 0;
+        const isDriver = user.role === 'driver' || user.role === 'warehouse';
 
         unifiedLedger.forEach(item => {
-            // Only include finalized statuses
-            if (item.status === 'APPROVED' || item.status === 'APPLIED' || item.status === 'COLLECTED' || item.status === 'EARNED' || item.status === 'HELD' || item.status === 'SETTLED') {
-                const val = item.amount;
-                if (item.currency === 'KHR') {
-                    if (item.isCredit) khr += val; else khr -= val;
-                } else {
-                    if (item.isCredit) usd += val; else usd -= val;
-                }
+            // Only include finalized statuses (but exclude SETTLED COD as debt is cleared)
+            const validStatus = item.status === 'APPROVED' || item.status === 'APPLIED' ||
+                item.status === 'COLLECTED' || item.status === 'EARNED' || item.status === 'HELD';
+
+            if (!validStatus) return;
+
+            // For drivers: SETTLEMENT offsets COD debt, don't count as income
+            // The COD with status 'SETTLED' is already excluded above
+            if (isDriver && item.type === 'SETTLEMENT') {
+                return; // Skip - settlement is just clearing the debt, not adding income
+            }
+
+            const val = item.amount;
+            if (item.currency === 'KHR') {
+                if (item.isCredit) khr += val; else khr -= val;
+            } else {
+                if (item.isCredit) usd += val; else usd -= val;
             }
         });
 
         // Show raw balances per currency (no cross-currency offsetting)
         return { usd: round2(usd), khr: Math.round(khr) };
-    }, [unifiedLedger]);
+    }, [unifiedLedger, user.role]);
 
 
     // Balance Breakdown for Payout Logic (Customer Context)

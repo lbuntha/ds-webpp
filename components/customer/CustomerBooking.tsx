@@ -260,16 +260,23 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
         let basePrice = isKHR ? (svc.defaultPriceKHR || 0) : (svc.defaultPrice || 0);
         let isSpecialRate = false;
 
-        // Check for Special Rate
-        if (specialRates.length > 0 && !isKHR) {
+        // Check for Special Rate (for both USD and KHR)
+        if (specialRates.length > 0) {
             const today = bookingDate;
             const activeSpecial = specialRates.find(r =>
                 r.serviceTypeId === serviceTypeId &&
-                r.startDate <= today &&
-                r.endDate >= today
+                r.startDate.split('T')[0] <= today &&
+                r.endDate.split('T')[0] >= today
             );
             if (activeSpecial) {
-                basePrice = activeSpecial.price;
+                // Apply special rate - convert to KHR if needed
+                if (isKHR) {
+                    // Special rate is in USD, convert to KHR using effective rate
+                    const rate = effectiveExchangeRate || 4100;
+                    basePrice = activeSpecial.price * rate;
+                } else {
+                    basePrice = activeSpecial.price;
+                }
                 isSpecialRate = true;
             }
         }
@@ -287,7 +294,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
         if (discount > subtotal) discount = subtotal;
 
         return { subtotal, discount, total: subtotal - discount, isSpecialRate };
-    }, [serviceTypeId, items.length, services, selectedPromoId, promotions, specialRates, bookingDate]);
+    }, [serviceTypeId, items.length, services, selectedPromoId, promotions, specialRates, bookingDate, effectiveExchangeRate]);
 
     const totalCOD = useMemo(() => {
         if (bookingType === 'PHOTO') return { value: 0, display: '$0.00' };
@@ -542,8 +549,8 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                     const today = bookingDate;
                                     const activeSpecial = specialRates.find(r =>
                                         r.serviceTypeId === s.id &&
-                                        r.startDate <= today &&
-                                        r.endDate >= today
+                                        r.startDate.split('T')[0] <= today &&
+                                        r.endDate.split('T')[0] >= today
                                     );
                                     const displayPrice = activeSpecial ? activeSpecial.price : s.defaultPrice;
 

@@ -9,6 +9,7 @@ import { LogisticsService } from './logisticsService';
 import { WalletService } from './walletService';
 import { PlaceService } from './placeService';
 import { BaseService } from './baseService';
+import { SyncService } from './syncService';
 import { collection, getDocs, deleteDoc, query, writeBatch, limit } from 'firebase/firestore';
 import { UserProfile, NavigationItem, Account, WalletTransaction } from '../types';
 
@@ -25,6 +26,7 @@ export class FirebaseService {
 
     // Also keep a base service instance if needed for generic ops
     public base = new BaseService(db, storage);
+    public syncService = new SyncService(db, storage);
 
     // --- PROXY METHODS (To avoid breaking changes in UI components) ---
 
@@ -65,6 +67,7 @@ export class FirebaseService {
     }
     updateUserBranch(uid: string, bid: string | null) { return this.configService.updateUserBranch(uid, bid); }
     updateUserWalletMapping(uid: string, walletAccountId: string) { return this.configService.updateUserWalletMapping(uid, walletAccountId); }
+    deleteUserAndCustomer(uid: string, linkedCustomerId?: string) { return this.configService.deleteUserAndCustomer(uid, linkedCustomerId); }
     getRolePermissions() { return this.configService.getRolePermissions(); }
     updateRolePermissions(p: any) { return this.configService.updateRolePermissions(p); }
     seedDefaultPermissions() { return this.configService.seedDefaultPermissions(); }
@@ -96,6 +99,14 @@ export class FirebaseService {
     addTransaction(t: any) { return this.financeService.addTransaction(t); }
     updateTransaction(t: any) { return this.financeService.updateTransaction(t); }
     deleteTransactions(ids: string[]) { return this.financeService.deleteTransactions(ids); }
+
+    // Maker-Checker Workflow
+    submitForApproval(entry: any, userId: string, userName: string) { return this.financeService.submitForApproval(entry, userId, userName); }
+    saveAsDraft(entry: any, userId: string, userName: string) { return this.financeService.saveAsDraft(entry, userId, userName); }
+    approveJournalEntry(entryId: string, approverId: string, approverName: string) { return this.financeService.approveJournalEntry(entryId, approverId, approverName); }
+    rejectJournalEntry(entryId: string, reason: string, rejecterId: string, rejecterName: string) { return this.financeService.rejectJournalEntry(entryId, reason, rejecterId, rejecterName); }
+    getPendingApprovals() { return this.financeService.getPendingApprovals(); }
+    getUserDrafts(userId: string) { return this.financeService.getUserDrafts(userId); }
 
     getFixedAssets() { return this.financeService.getFixedAssets(); }
     addFixedAsset(fa: any) { return this.financeService.addFixedAsset(fa); }
@@ -207,8 +218,12 @@ export class FirebaseService {
 
     // Base
     getDocument(col: string, id: string) { return this.base.getDocument(col, id); }
+    deleteDocument(col: string, id: string) { return this.base.deleteDocument(col, id); }
+    createCustomer(c: any) { return this.billingService.addCustomer(c); }
 
     async clearFinancialAndLogisticsData() {
+        // Collections to clear (operational data only)
+        // Note: 'customers' and 'vendors' are PRESERVED
         const collections = [
             'transactions',
             'invoices',
@@ -224,9 +239,7 @@ export class FirebaseService {
             'notifications',
             'chat_messages',
             'customer_rates',
-            'referral_rules',
-            'vendors',
-            'customers'
+            'referral_rules'
         ];
 
         console.log("Starting data clear...");

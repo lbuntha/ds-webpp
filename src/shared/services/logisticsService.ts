@@ -2,6 +2,7 @@
 import { BaseService } from './baseService';
 import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, UserProfile, ReferralRule, ParcelItem, Employee } from '../types';
 import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or } from 'firebase/firestore';
+import { db, storage } from './firebaseInstance';
 import { calculateDriverCommission } from '../utils/commissionCalculator';
 
 export class LogisticsService extends BaseService {
@@ -480,3 +481,5 @@ export class LogisticsService extends BaseService {
         }
     }
 }
+
+export const logisticsService = new LogisticsService(db, storage);

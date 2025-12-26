@@ -11,6 +11,9 @@ export function usePermission(permission: Permission): boolean {
 
     if (!user) return false;
 
+    // System admin bypass - always has all permissions
+    if (user.role === 'system-admin') return true;
+
     const userPermissions = rolePermissions[user.role] || [];
     const hasPermission = userPermissions.includes(permission);
 

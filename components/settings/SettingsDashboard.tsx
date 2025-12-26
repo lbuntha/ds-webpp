@@ -730,7 +730,6 @@ export const SettingsDashboard: React.FC<Props> = ({
                                     <li>Invoices & Bills</li>
                                     <li>Parcel Bookings & History</li>
                                     <li>Wallet Transactions</li>
-                                    <li>Customers & Vendors</li>
                                     <li>Chat & Notifications</li>
                                 </ul>
                             </div>
@@ -738,6 +737,7 @@ export const SettingsDashboard: React.FC<Props> = ({
                                 <h4 className="font-bold text-green-800 mb-2 uppercase text-xs">✅ Will Remain Safe</h4>
                                 <ul className="space-y-1 text-green-700 list-disc list-inside text-xs">
                                     <li>User Accounts (Logins)</li>
+                                    <li>Customers & Vendors</li>
                                     <li>Chart of Accounts</li>
                                     <li>Employee/Driver Profiles</li>
                                     <li>Branch Configurations</li>

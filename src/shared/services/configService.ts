@@ -39,6 +39,17 @@ export class ConfigService extends BaseService {
     async updateUserBranch(uid: string, branchId: string | null) { await updateDoc(doc(this.db, 'users', uid), { managedBranchId: branchId }); }
     async updateUserWalletMapping(uid: string, walletAccountId: string) { await updateDoc(doc(this.db, 'users', uid), { walletAccountId }); }
 
+    async deleteUserAndCustomer(uid: string, linkedCustomerId?: string) {
+        const batch = writeBatch(this.db);
+        batch.delete(doc(this.db, 'users', uid));
+
+        if (linkedCustomerId) {
+            batch.delete(doc(this.db, 'customers', linkedCustomerId));
+        }
+
+        await batch.commit();
+    }
+
     async getRolePermissions(): Promise<Record<UserRole, Permission[]>> {
         const snap = await getDoc(doc(this.db, 'settings', 'permissions'));
         return snap.exists() ? snap.data() as any : {} as any;

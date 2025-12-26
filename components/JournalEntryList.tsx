@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { JournalEntry, Account, Branch } from '../src/shared/types';
+import { JournalEntry, Account, Branch, JournalEntryStatus } from '../src/shared/types';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 
@@ -11,15 +11,24 @@ interface Props {
     onDeleteBatch?: (ids: string[]) => Promise<void>;
     onReverseBatch?: (ids: string[]) => Promise<void>;
     onViewRelated?: (id: string) => void;
+    // Maker-Checker Props
+    showApprovalActions?: boolean;
+    onApprove?: (entryId: string) => Promise<void>;
+    onReject?: (entryId: string, description: string) => void;
+    currentUserId?: string;
+    isProcessing?: boolean;
 }
 
 export const JournalEntryList: React.FC<Props> = ({
-    transactions, accounts, branches, onEdit, onDeleteBatch, onReverseBatch, onViewRelated
+    transactions, accounts, branches, onEdit, onDeleteBatch, onReverseBatch, onViewRelated,
+    showApprovalActions, onApprove, onReject, currentUserId, isProcessing
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [processing, setProcessing] = useState(false);
     const [viewAttachment, setViewAttachment] = useState<string | null>(null);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [reverseConfirmOpen, setReverseConfirmOpen] = useState(false);
 
     const getAccountName = (id: string) => {
         const acc = accounts.find(a => a.id === id);
@@ -61,27 +70,35 @@ export const JournalEntryList: React.FC<Props> = ({
     // Action Handlers
     const handleDelete = async () => {
         if (!onDeleteBatch || selectedIds.size === 0) return;
-        if (confirm(`Are you sure you want to DELETE ${selectedIds.size} transaction(s)? This cannot be undone.`)) {
-            setProcessing(true);
-            try {
-                await onDeleteBatch(Array.from(selectedIds));
-                setSelectedIds(new Set());
-            } finally {
-                setProcessing(false);
-            }
+        setDeleteConfirmOpen(true);
+    };
+
+    const executeDelete = async () => {
+        if (!onDeleteBatch) return;
+        setProcessing(true);
+        try {
+            await onDeleteBatch(Array.from(selectedIds));
+            setSelectedIds(new Set());
+        } finally {
+            setProcessing(false);
+            setDeleteConfirmOpen(false);
         }
     };
 
     const handleReverse = async () => {
         if (!onReverseBatch || selectedIds.size === 0) return;
-        if (confirm(`Are you sure you want to REVERSE ${selectedIds.size} transaction(s)? This will create offsetting entries.`)) {
-            setProcessing(true);
-            try {
-                await onReverseBatch(Array.from(selectedIds));
-                setSelectedIds(new Set());
-            } finally {
-                setProcessing(false);
-            }
+        setReverseConfirmOpen(true);
+    };
+
+    const executeReverse = async () => {
+        if (!onReverseBatch) return;
+        setProcessing(true);
+        try {
+            await onReverseBatch(Array.from(selectedIds));
+            setSelectedIds(new Set());
+        } finally {
+            setProcessing(false);
+            setReverseConfirmOpen(false);
         }
     };
 
@@ -151,11 +168,40 @@ export const JournalEntryList: React.FC<Props> = ({
                                             <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md border border-indigo-100">
                                                 {getBranchName(txn.branchId)}
                                             </span>
+                                            {/* Status Badge */}
+                                            {txn.status && txn.status !== 'POSTED' && (
+                                                <span className={`text-xs px-2 py-1 rounded-md font-medium ${txn.status === 'PENDING_APPROVAL' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                                                    txn.status === 'DRAFT' ? 'bg-gray-100 text-gray-600 border border-gray-200' :
+                                                        txn.status === 'REJECTED' ? 'bg-red-100 text-red-800 border border-red-200' :
+                                                            'bg-green-100 text-green-800 border border-green-200'
+                                                    }`}>
+                                                    {txn.status === 'PENDING_APPROVAL' ? '⏳ Pending' :
+                                                        txn.status === 'DRAFT' ? '📝 Draft' :
+                                                            txn.status === 'REJECTED' ? '❌ Rejected' : txn.status}
+                                                </span>
+                                            )}
                                             <span className="text-xs text-gray-400 font-mono" title="System ID">
                                                 {txn.id}
                                             </span>
                                         </div>
                                         <p className="text-gray-800 mt-2 font-medium">{txn.description}</p>
+                                        {/* Maker Info */}
+                                        {txn.createdByName && (
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Created by: <span className="font-medium">{txn.createdByName}</span>
+                                            </p>
+                                        )}
+                                        {/* Rejection Reason */}
+                                        {txn.status === 'REJECTED' && txn.rejectionReason && (
+                                            <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-2">
+                                                <p className="text-xs text-red-700">
+                                                    <strong>Rejection Reason:</strong> {txn.rejectionReason}
+                                                </p>
+                                                {txn.approvedByName && (
+                                                    <p className="text-xs text-red-600 mt-1">Rejected by: {txn.approvedByName}</p>
+                                                )}
+                                            </div>
+                                        )}
                                         {isForeign && (
                                             <div className="mt-1 text-xs font-medium text-blue-700 bg-blue-50 inline-block px-2 py-0.5 rounded border border-blue-100">
                                                 Global Rate: {txn.currency} @ {txn.exchangeRate}
@@ -165,6 +211,35 @@ export const JournalEntryList: React.FC<Props> = ({
                                 </div>
 
                                 <div className="flex flex-col items-end space-y-2 pl-8 md:pl-0">
+                                    {/* Approval Actions */}
+                                    {showApprovalActions && txn.status === 'PENDING_APPROVAL' && txn.createdBy !== currentUserId && onApprove && onReject && (
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => onApprove(txn.id)}
+                                                disabled={isProcessing}
+                                                className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
+                                            >
+                                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Approve
+                                            </button>
+                                            <button
+                                                onClick={() => onReject(txn.id, txn.description)}
+                                                disabled={isProcessing}
+                                                className="text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 flex items-center"
+                                            >
+                                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                                Reject
+                                            </button>
+                                        </div>
+                                    )}
+                                    {/* Self-created pending notice */}
+                                    {showApprovalActions && txn.status === 'PENDING_APPROVAL' && txn.createdBy === currentUserId && (
+                                        <span className="text-xs text-gray-500 italic">Cannot approve own entry</span>
+                                    )}
                                     {onEdit && !txn.relatedDocumentId && (
                                         <Button
                                             variant="outline"
@@ -327,6 +402,74 @@ export const JournalEntryList: React.FC<Props> = ({
                         <img src={viewAttachment} alt="Document Attachment" className="w-full h-auto rounded-lg border border-gray-200" />
                         <div className="mt-4 w-full flex justify-end">
                             <Button onClick={() => window.open(viewAttachment, '_blank')}>Open Full Size</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-fade-in-up">
+                        <div className="flex justify-center mb-4">
+                            <div className="bg-red-100 p-3 rounded-full">
+                                <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Delete Transactions?</h3>
+                        <p className="text-center text-gray-600 mb-6 text-sm">
+                            Are you sure you want to delete <strong>{selectedIds.size} transaction(s)</strong>? This action cannot be undone.
+                        </p>
+                        <div className="flex space-x-3">
+                            <button
+                                onClick={() => setDeleteConfirmOpen(false)}
+                                className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={executeDelete}
+                                disabled={processing}
+                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {processing ? 'Deleting...' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reverse Confirmation Modal */}
+            {reverseConfirmOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-fade-in-up">
+                        <div className="flex justify-center mb-4">
+                            <div className="bg-yellow-100 p-3 rounded-full">
+                                <svg className="w-8 h-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Reverse Transactions?</h3>
+                        <p className="text-center text-gray-600 mb-6 text-sm">
+                            Are you sure you want to reverse <strong>{selectedIds.size} transaction(s)</strong>? This will create offsetting entries.
+                        </p>
+                        <div className="flex space-x-3">
+                            <button
+                                onClick={() => setReverseConfirmOpen(false)}
+                                className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={executeReverse}
+                                disabled={processing}
+                                className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 disabled:opacity-50"
+                            >
+                                {processing ? 'Reversing...' : 'Reverse'}
+                            </button>
                         </div>
                     </div>
                 </div>

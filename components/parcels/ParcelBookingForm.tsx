@@ -237,15 +237,22 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
 
         let isSpecialRate = false;
 
-        if (specialRates.length > 0 && !isKHR) { // Only apply special rates for USD for now to avoid confusion
+        // Check for Special Rate (for both USD and KHR)
+        if (specialRates.length > 0) {
             const today = bookingDate;
             const activeSpecial = specialRates.find(r =>
                 r.serviceTypeId === serviceTypeId &&
-                r.startDate <= today &&
-                r.endDate >= today
+                r.startDate.split('T')[0] <= today &&
+                r.endDate.split('T')[0] >= today
             );
             if (activeSpecial) {
-                basePrice = activeSpecial.price;
+                // Apply special rate - convert to KHR if needed
+                if (isKHR) {
+                    const rate = effectiveExchangeRate || 4100;
+                    basePrice = activeSpecial.price * rate;
+                } else {
+                    basePrice = activeSpecial.price;
+                }
                 isSpecialRate = true;
             }
         }
@@ -274,7 +281,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
         }
 
         return { subtotal, discount, tax, total: taxableAmount + tax, taxRate, isSpecialRate };
-    }, [serviceTypeId, distance, selectedPromoId, services, promotions, taxRates, items.length, specialRates, bookingDate]);
+    }, [serviceTypeId, distance, selectedPromoId, services, promotions, taxRates, items.length, specialRates, bookingDate, effectiveExchangeRate]);
 
     const handleSubmit = async () => {
         if (!senderName || !serviceTypeId || items.length === 0) return;
@@ -395,7 +402,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
                                 <option value="">Select Service</option>
                                 {services.map(s => {
                                     // Check for special rate
-                                    const special = specialRates.find(r => r.serviceTypeId === s.id && r.startDate <= bookingDate && r.endDate >= bookingDate);
+                                    const special = specialRates.find(r => r.serviceTypeId === s.id && r.startDate.split('T')[0] <= bookingDate && r.endDate.split('T')[0] >= bookingDate);
                                     return (
                                         <option key={s.id} value={s.id}>
                                             {s.name} (${special ? special.price : s.defaultPrice} {special ? 'SPECIAL' : 'base'})

@@ -45,6 +45,7 @@ const ReportsView = lazy(() => import('./views/ReportsView'));
 const ClosingView = lazy(() => import('./views/ClosingView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 const UsersView = lazy(() => import('./views/UsersView'));
+const CustomersView = lazy(() => import('./views/CustomersView'));
 const UserProfileView = lazy(() => import('./views/UserProfileView'));
 const UserManualView = lazy(() => import('./views/UserManualView'));
 const SeedPermissionsView = lazy(() => import('./views/SeedPermissionsView'));
@@ -330,6 +331,22 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_USERS">
                         {withSuspense(UsersView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'users',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_USERS">
+                        {withSuspense(UsersView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'customers',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_CUSTOMERS">
+                        {withSuspense(CustomersView)}
                     </PermissionRoute>
                 ),
             },

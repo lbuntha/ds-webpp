@@ -1,5 +1,5 @@
 
-import { Account, AccountSubType, AccountType, Branch, Permission, UserRole, ParcelStatusConfig, NavigationItem } from '../types';
+import { Account, AccountSubType, AccountType, Branch, Permission, PermissionGroup, UserRole, ParcelStatusConfig, NavigationItem } from '../types';
 
 export const INITIAL_BRANCHES: Branch[] = [
   { id: 'b1', name: 'Headquarters', code: 'HQ' },
@@ -22,6 +22,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'VIEW_DASHBOARD',
     'VIEW_JOURNAL',
     'CREATE_JOURNAL',
+    'APPROVE_JOURNAL',
     'VIEW_REPORTS',
     'MANAGE_SETTINGS',
     'MANAGE_USERS',
@@ -54,12 +55,17 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_ASSETS',
     'MANAGE_STAFF_LOANS',
     'MANAGE_BANKING',
+    'MANAGE_CUSTOMER_SETTLEMENTS',
+    'MANAGE_CUSTOMERS',
     'VIEW_PARCELS_OVERVIEW' // Can view parcel list only
   ],
   'finance-manager': [
     'VIEW_DASHBOARD',
     'VIEW_JOURNAL',
+    'APPROVE_JOURNAL',
     'VIEW_REPORTS',
+    'MANAGE_CUSTOMER_SETTLEMENTS',
+    'MANAGE_CUSTOMERS',
     'VIEW_PARCELS_OVERVIEW',
     'VIEW_PARCEL_RETENTION',
     'VIEW_PARCEL_AGING'
@@ -104,7 +110,9 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-banking', label: 'Banking', viewId: 'BANKING', iconKey: 'banking', order: 21, allowedRoles: ['system-admin', 'accountant'] },
   { id: 'nav-staff', label: 'Staff Loans', viewId: 'STAFF', iconKey: 'staff', order: 22, allowedRoles: ['system-admin', 'accountant'] },
   { id: 'nav-reports', label: 'Reports', viewId: 'REPORTS', iconKey: 'reports', order: 23, allowedRoles: ['system-admin', 'accountant'] },
-  { id: 'nav-settled-parcels', label: 'Settled Parcels', viewId: 'SETTLED_PARCELS', iconKey: 'checkCircle', order: 24, allowedRoles: ['system-admin', 'accountant'] },
+  { id: 'nav-customer-payout', label: 'Customer Payout', viewId: 'CUSTOMER_SETTLEMENTS', iconKey: 'money', order: 24, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
+  { id: 'nav-customers', label: 'Customers', viewId: 'CUSTOMERS', iconKey: 'users', order: 24, allowedRoles: ['system-admin', 'accountant', 'finance-manager'] },
+  { id: 'nav-settled-parcels', label: 'Settled Parcels', viewId: 'SETTLED_PARCELS', iconKey: 'checkCircle', order: 25, allowedRoles: ['system-admin', 'accountant'] },
   { id: 'nav-parcels-retention', label: 'Customer Retention', viewId: 'PARCELS_RETENTION', iconKey: 'retention', order: 25, allowedRoles: ['system-admin', 'accountant'] },
   { id: 'nav-parcels-aging', label: 'Aging Report', viewId: 'PARCELS_AGING', iconKey: 'aging', order: 26, allowedRoles: ['system-admin', 'accountant'] },
   { id: 'nav-closing', label: 'Period Closing', viewId: 'CLOSING', iconKey: 'closing', order: 27, allowedRoles: ['system-admin', 'accountant'] },
@@ -138,11 +146,14 @@ export const FEATURE_LIST: { key: Permission; label: string }[] = [
   { key: 'VIEW_DASHBOARD', label: 'View Dashboard' },
   { key: 'VIEW_JOURNAL', label: 'View General Journal' },
   { key: 'CREATE_JOURNAL', label: 'Create/Edit Journal Entries' },
+  { key: 'APPROVE_JOURNAL', label: 'Approve/Reject Journal Entries' },
   { key: 'MANAGE_RECEIVABLES', label: 'Sales & Receivables' },
   { key: 'MANAGE_PAYABLES', label: 'Purchases & Payables' },
   { key: 'MANAGE_ASSETS', label: 'Fixed Assets' },
   { key: 'MANAGE_STAFF_LOANS', label: 'Staff Loans & Advances' },
   { key: 'MANAGE_BANKING', label: 'Banking & Transfers' },
+  { key: 'MANAGE_CUSTOMER_SETTLEMENTS', label: 'Customer Settlements (Payouts)' },
+  { key: 'MANAGE_CUSTOMERS', label: 'Customer Management' },
   { key: 'VIEW_REPORTS', label: 'Financial Reports' },
   { key: 'PERFORM_CLOSING', label: 'Period Closing' },
   { key: 'MANAGE_SETTINGS', label: 'System Configuration' },
@@ -165,12 +176,14 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Permission[]> = {
   FINANCE: [
     'VIEW_JOURNAL',
     'CREATE_JOURNAL',
+    'APPROVE_JOURNAL',
     'MANAGE_RECEIVABLES',
     'MANAGE_PAYABLES',
     'MANAGE_ASSETS',
     'MANAGE_STAFF_LOANS',
     'MANAGE_BANKING',
     'MANAGE_CUSTOMER_SETTLEMENTS',
+    'MANAGE_CUSTOMERS',
     'PERFORM_CLOSING'
   ],
   LOGISTICS: [

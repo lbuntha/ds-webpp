@@ -60,11 +60,16 @@ export const SettledParcelsReport: React.FC = () => {
         load();
     }, []);
 
-    // Get customer name helper
+    // Get customer name helper - prioritize linked user data over legacy customer fields
     const getCustomerName = (senderId: string | undefined, senderName: string): string => {
         if (senderId) {
             const customer = customers.find(c => c.id === senderId);
-            if (customer) return customer.name;
+            if (customer?.linkedUserId) {
+                const user = users.find(u => u.uid === customer.linkedUserId);
+                if (user) return user.name;
+            }
+            // Fallback to legacy customer.name if exists
+            if (customer?.name) return customer.name;
         }
         return senderName || 'Unknown';
     };
@@ -72,6 +77,11 @@ export const SettledParcelsReport: React.FC = () => {
     const getCustomerPhone = (senderId: string | undefined, senderPhone: string): string => {
         if (senderId) {
             const customer = customers.find(c => c.id === senderId);
+            if (customer?.linkedUserId) {
+                const user = users.find(u => u.uid === customer.linkedUserId);
+                if (user?.phone) return user.phone;
+            }
+            // Fallback to legacy customer.phone if exists
             if (customer?.phone) return customer.phone;
         }
         return senderPhone || '';
@@ -132,7 +142,7 @@ export const SettledParcelsReport: React.FC = () => {
         items.sort((a, b) => b.deliveryDate.localeCompare(a.deliveryDate));
 
         return items;
-    }, [bookings, customers, settings]);
+    }, [bookings, customers, users, settings]);
 
     // Filter items
     const filteredItems = useMemo(() => {

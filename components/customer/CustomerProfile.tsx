@@ -22,11 +22,11 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
     const [address, setAddress] = useState(user.address || '');
     const [loading, setLoading] = useState(false);
 
-    // Referral Code State
-    const [displayReferralCode, setDisplayReferralCode] = useState(user.referralCode);
+    // Referral Code State - start empty, load from customers collection
+    const [displayReferralCode, setDisplayReferralCode] = useState<string>('');
 
-    // Location Management State
-    const [locations, setLocations] = useState<SavedLocation[]>(user.savedLocations || []);
+    // Location Management State - start empty, load from customers collection
+    const [locations, setLocations] = useState<SavedLocation[]>([]);
     const [isAddingLocation, setIsAddingLocation] = useState(false);
     const [newLocLabel, setNewLocLabel] = useState('');
     const [newLocAddress, setNewLocAddress] = useState('');
@@ -50,6 +50,36 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
     const [rateLoading, setRateLoading] = useState(false);
     const [systemRate, setSystemRate] = useState(4100);
 
+    // Sync State
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    const handleSyncData = async () => {
+        setIsSyncing(true);
+        try {
+            const result = await firebaseService.syncService.syncUserToCustomer(user);
+            if (result.success) {
+                toast.success('Data synced successfully!');
+                // Reload customer data
+                if (result.customerId) {
+                    const data = await firebaseService.getDocument('customers', result.customerId);
+                    if (data) {
+                        const cust = data as Customer;
+                        setCustomerData(cust);
+                        if (cust.savedLocations) setLocations(cust.savedLocations);
+                        if (cust.referralCode) setDisplayReferralCode(cust.referralCode);
+                    }
+                }
+            } else {
+                toast.error(result.error || 'Sync failed');
+            }
+        } catch (error) {
+            console.error('Sync error:', error);
+            toast.error('Failed to sync data');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     // Load Linked Customer Data & System Rates
     useEffect(() => {
         const loadData = async () => {
@@ -59,24 +89,42 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
             if (khr) setSystemRate(khr.exchangeRate);
 
             // 2. Get Customer Data
+            let cust: Customer | undefined;
+
             if (user.linkedCustomerId) {
                 const data = await firebaseService.getDocument('customers', user.linkedCustomerId);
-                if (data) {
-                    const cust = data as Customer;
-                    setCustomerData(cust);
-                    if (cust.customExchangeRate) {
-                        setExchangeRate(cust.customExchangeRate);
-                    }
+                if (data) cust = data as Customer;
+            } else {
+                // Try searching by linkedUserId
+                const allCustomers = await firebaseService.getCustomers();
+                cust = allCustomers.find(c => c.linkedUserId === user.uid);
+            }
+
+            if (cust) {
+                setCustomerData(cust);
+                if (cust.customExchangeRate) {
+                    setExchangeRate(cust.customExchangeRate);
+                }
+
+                // Sync Locations from Customer Doc if present, else keep User's
+                if (cust.savedLocations && cust.savedLocations.length > 0) {
+                    setLocations(cust.savedLocations);
+                }
+
+                // Sync Referral Code from Customer Doc if present
+                if (cust.referralCode) {
+                    setDisplayReferralCode(cust.referralCode);
                 }
             }
         };
         loadData();
-    }, [user.linkedCustomerId]);
+    }, [user.uid, user.linkedCustomerId]);
 
     // Auto-generate Referral Code if missing
     useEffect(() => {
         const ensureReferralCode = async () => {
-            if (!user.referralCode && !displayReferralCode) {
+            // Check displayReferralCode (which is synced from Customer or User)
+            if (!displayReferralCode) {
                 // Generate: First 3 letters of name (or 'USR') + random 4 digits
                 const cleanName = user.name.replace(/[^a-zA-Z]/g, '').toUpperCase();
                 const prefix = (cleanName.length >= 3 ? cleanName.substring(0, 3) : (cleanName + 'USR').substring(0, 3));
@@ -84,8 +132,15 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
                 const newCode = `${prefix}-${suffix}`;
 
                 try {
-                    // Save to DB (preserve existing profile data)
-                    await firebaseService.updateUserProfile(user.name, { referralCode: newCode });
+                    if (customerData) {
+                        // Save to Customer Doc
+                        const updatedCustomer = { ...customerData, referralCode: newCode };
+                        await firebaseService.updateCustomer(updatedCustomer);
+                        setCustomerData(updatedCustomer);
+                    } else {
+                        // Save to User Profile
+                        await firebaseService.updateUserProfile(user.name, { referralCode: newCode });
+                    }
                     // Update local view immediately
                     setDisplayReferralCode(newCode);
                 } catch (e) {
@@ -95,15 +150,29 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
         };
 
         ensureReferralCode();
-    }, [user.uid, user.name, user.referralCode, displayReferralCode]);
+    }, [user.uid, user.name, displayReferralCode, customerData]); // Added customerData dependency
 
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
+            // Save to customers collection if linked
+            if (customerData) {
+                const updatedCustomer = {
+                    ...customerData,
+                    name,
+                    phone,
+                    address
+                };
+                await firebaseService.updateCustomer(updatedCustomer);
+                setCustomerData(updatedCustomer);
+            }
+
+            // Also update user profile for auth display name
             await firebaseService.updateUserProfile(name, { phone, address });
             toast.success(t('profile_updated'));
         } catch (e) {
+            console.error(e);
             toast.error("Error updating profile.");
         } finally {
             setLoading(false);
@@ -161,7 +230,16 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
         const updatedLocations = [...locations, newLocation];
 
         try {
-            await firebaseService.updateUserLocations(updatedLocations);
+            if (customerData) {
+                // Save to Customer Doc
+                const updatedCustomer = { ...customerData, savedLocations: updatedLocations };
+                await firebaseService.updateCustomer(updatedCustomer);
+                setCustomerData(updatedCustomer);
+            } else {
+                // Save to User Profile
+                await firebaseService.updateUserLocations(updatedLocations);
+            }
+
             setLocations(updatedLocations);
             setIsAddingLocation(false);
             setNewLocLabel('');
@@ -184,9 +262,18 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
         if (!confirmDeleteLocationId) return;
 
         const updated = locations.filter(l => l.id !== confirmDeleteLocationId);
-        await firebaseService.updateUserLocations(updated);
+
+        if (customerData) {
+            const updatedCustomer = { ...customerData, savedLocations: updated };
+            await firebaseService.updateCustomer(updatedCustomer);
+            setCustomerData(updatedCustomer);
+        } else {
+            await firebaseService.updateUserLocations(updated);
+        }
+
         setLocations(updated);
         setConfirmDeleteLocationId(null);
+        // @ts-ignore
         toast.success(t('location_deleted') || "Location deleted");
     };
 
@@ -195,7 +282,15 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
             ...l,
             isPrimary: l.id === id
         }));
-        await firebaseService.updateUserLocations(updated);
+
+        if (customerData) {
+            const updatedCustomer = { ...customerData, savedLocations: updated };
+            await firebaseService.updateCustomer(updatedCustomer);
+            setCustomerData(updatedCustomer);
+        } else {
+            await firebaseService.updateUserLocations(updated);
+        }
+
         setLocations(updated);
     };
 
@@ -303,6 +398,22 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
                 </form>
             </Card>
 
+            {/* SYNC DATA SECTION */}
+            {customerData && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-medium text-blue-900">Sync Data</h3>
+                        <p className="text-sm text-blue-700">Sync your profile data with your customer record.</p>
+                    </div>
+                    <Button onClick={handleSyncData} isLoading={isSyncing} variant="secondary">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Sync Now
+                    </Button>
+                </div>
+            )}
+
             {/* EXCHANGE RATE SETTING */}
             {!hideExchangeRate && (
                 <Card title={'Exchange Rate Preferences'}>
@@ -357,6 +468,44 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
 
                         </>
                     )}
+                </Card>
+            )}
+
+            {/* TAX CONFIGURATION - Read Only for Customer */}
+            {customerData && (
+                <Card title="Tax Configuration">
+                    <div className="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <input
+                            id="isTaxableCust"
+                            type="checkbox"
+                            className="h-5 w-5 text-gray-400 border-gray-300 rounded cursor-not-allowed"
+                            checked={customerData.isTaxable || false}
+                            disabled
+                        />
+                        <div className="ml-3">
+                            <label htmlFor="isTaxableCust" className="block text-sm font-bold text-gray-700">
+                                {customerData.isTaxable ? 'VAT/Tax Applied' : 'No Tax Applied'}
+                            </label>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                                Tax configuration is managed by the administrator.
+                            </p>
+                        </div>
+                    </div>
+                </Card>
+            )}
+
+            {/* SPECIAL RATES - Read Only for Customer */}
+            {customerData && (
+                <Card title="Special Rates">
+                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-4">
+                        <h4 className="text-sm font-bold text-purple-900 mb-1">Custom Pricing</h4>
+                        <p className="text-xs text-purple-700">
+                            Special rates configured by the administrator will be automatically applied when you book a parcel.
+                        </p>
+                    </div>
+                    <div className="text-center py-4 border-2 border-dashed border-gray-100 rounded-lg">
+                        <p className="text-xs text-gray-400">Contact support to request special pricing</p>
+                    </div>
                 </Card>
             )}
 

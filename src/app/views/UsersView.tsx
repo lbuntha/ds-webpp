@@ -43,6 +43,10 @@ export default function UsersView() {
         await firebaseService.updateRolePermissions(perms);
         // Permissions updated, might need to refresh
       }}
+      onDeleteUser={async (uid, linkedCustomerId) => {
+        await firebaseService.deleteUserAndCustomer(uid, linkedCustomerId);
+        await loadUsers();
+      }}
     />
   );
 }

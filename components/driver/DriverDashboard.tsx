@@ -241,32 +241,21 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const bookingStatus = allDone ? 'COMPLETED' : booking.status;
 
         // FEE RECALCULATION START
+        // IMPORTANT: Don't overwrite the original fee (which may include special rates)
+        // Only update currency field if COD currency changed
         let finalBooking = { ...booking, items: updatedItems, status: bookingStatus };
 
         if (action === 'DELIVER' && updatedCOD && services.length > 0) {
             const firstItem = updatedItems[0];
             const newCurrency = firstItem.codCurrency === 'KHR' ? 'KHR' : 'USD';
+            const originalCurrency = booking.currency || 'USD';
 
-            // If currency changed or we want to ensure correctness
-            const service = services.find(s => s.id === booking.serviceTypeId);
-            if (service) {
-                const isKHR = newCurrency === 'KHR';
-                const basePrice = isKHR ? (service.defaultPriceKHR || 0) : service.defaultPrice;
-                const pricePerKm = isKHR ? (service.pricePerKmKHR || 0) : (service.pricePerKm || 0);
-
-                const count = Math.max(updatedItems.length, 1);
-                const subtotal = basePrice * count + (booking.distance || 0) * pricePerKm;
-
-                // Preserve discount conceptually, but if currency changed, discount might be wrong if it was fixed amount.
-                // For simplicity, we assume percentage or we'll just keep it (if it's 0 it's fine).
-                // If we want to be safe, we might zero it out if currency mismatched, but let's assume it's fine for now.
-                // We will re-calculate total.
-                const discount = booking.discountAmount || 0;
-
-                // Update booking
-                finalBooking.subtotal = subtotal;
-                finalBooking.totalDeliveryFee = subtotal - discount; // Simple update
+            // Only update currency field if it changed - DO NOT recalculate fee
+            // The fee was correctly set at booking time (including any special rates)
+            if (newCurrency !== originalCurrency) {
                 finalBooking.currency = newCurrency;
+                // Note: We intentionally do NOT recalculate totalDeliveryFee here
+                // as that would overwrite special rates set at booking time
             }
         }
         // FEE RECALCULATION END
