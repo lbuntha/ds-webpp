@@ -131,11 +131,9 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
             setTaxRates(taxes);
             // Use Firebase permissions if available, otherwise fallback to ROLE_PERMISSIONS constant
             if (perms && Object.keys(perms).length > 0) {
-                console.log('📋 Loading permissions from Firebase:', perms);
                 setRolePermissions(perms as Record<UserRole, Permission[]>);
             } else {
                 // Fallback to local ROLE_PERMISSIONS if Firebase is empty
-                console.log('📋 Using default ROLE_PERMISSIONS (Firebase empty)');
                 setRolePermissions(ROLE_PERMISSIONS);
             }
             setEmployees(emps);
@@ -143,11 +141,8 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
 
             // Use menu items from Firebase if available, otherwise fallback to DEFAULT_NAVIGATION
             if (menu && menu.length > 0) {
-                console.log('🔍 Loading menu items from Firebase');
-                console.log('📋 Menu items length:', menu.length);
                 setMenuItems(menu);
             } else {
-                console.log('⚠️ No menu items in Firebase, using DEFAULT_NAVIGATION fallback');
                 setMenuItems(DEFAULT_NAVIGATION);
             }
 

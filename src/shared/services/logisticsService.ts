@@ -340,7 +340,6 @@ export class LogisticsService extends BaseService {
                 });
             }
             bookingToSave.involvedDriverIds = Array.from(driverIds);
-            console.log(`Updated involvedDriverIds for Booking ${bookingToSave.id}:`, bookingToSave.involvedDriverIds);
         } catch (e) {
             console.warn("Failed to update involvement index:", e);
             // Fallback to basic IDs if employee fetch fails

@@ -205,13 +205,8 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     // Handlers
     const handleParcelAction = async (bookingId: string, itemId: string, action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'TRANSFER' | 'OUT_FOR_DELIVERY', branchId?: string, proof?: string, updatedCOD?: { amount: number, currency: 'USD' | 'KHR' }) => {
-        console.log('[DEBUG] handleParcelAction called:', { bookingId, itemId, action, proof: !!proof, updatedCOD });
         const booking = bookings.find(b => b.id === bookingId);
-        if (!booking) {
-            console.error('[DEBUG] Booking not found!', bookingId);
-            return;
-        }
-        console.log('[DEBUG] Found booking:', booking.id, 'with items:', booking.items?.length);
+        if (!booking) return;
 
         const updatedItems = (booking.items || []).map(item => {
             if (item.id === itemId) {
@@ -284,12 +279,9 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         }
         // FEE RECALCULATION END
 
-        console.log('[DEBUG] Saving booking with updated items:', finalBooking.items?.map(i => ({ id: i.id, status: i.status })));
         try {
             await firebaseService.saveParcelBooking(finalBooking);
-            console.log('[DEBUG] Booking saved successfully!');
         } catch (e) {
-            console.error('[DEBUG] Error saving booking:', e);
             toast.error("Failed to update status. Please try again.");
         }
 
@@ -327,7 +319,6 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
 
 
-        console.log('[DEBUG] Calling loadJobs to refresh...');
         loadJobs();
     };
 
