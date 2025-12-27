@@ -157,16 +157,22 @@ export class LogisticsService extends BaseService {
                 const commissionRules = await this.getDriverCommissionRules();
                 const employees = await hrService.getEmployees();
 
-                // Fetch commission exchange rate from system settings
-                let commissionExchangeRate = 4100; // Default fallback
-                if (configService?.getSettings) {
-                    const settings = await configService.getSettings();
-                    commissionExchangeRate = settings?.commissionExchangeRate || 4100;
+                // Fetch exchange rate from currencies collection (KHR rate)
+                let commissionExchangeRate = 4000; // Default fallback
+                try {
+                    const currencies = await configService.getCurrencies();
+                    const khrCurrency = currencies.find((c: any) => c.code === 'KHR');
+                    if (khrCurrency?.rate) {
+                        commissionExchangeRate = khrCurrency.rate;
+                    }
+                } catch (e) {
+                    console.warn("Failed to fetch currencies for exchange rate, using default:", e);
                 }
 
                 for (const item of bookingToSave.items) {
                     const oldItem = oldBooking?.items?.find((i: ParcelItem) => i.id === item.id);
-                    const itemFeeShare = (bookingToSave.totalDeliveryFee || 0) / (bookingToSave.items.length || 1);
+                    // Use per-item fee if available, fallback to booking-level for legacy
+                    const itemFeeShare = item.deliveryFee ?? ((bookingToSave.totalDeliveryFee || 0) / (bookingToSave.items.length || 1));
 
                     // COMMISSIONS ONLY TRIGGER ON DELIVERED STATUS
                     // Both pickup and delivery commissions are calculated when the item is delivered
@@ -175,15 +181,21 @@ export class LogisticsService extends BaseService {
 
                     // Commission currency follows the item's COD currency
                     const commissionCurrency = item.codCurrency || bookingToSave.currency || 'USD';
-                    const bookingCurrency = bookingToSave.currency || 'USD';
+                    // The fee is already in the item's currency (per-item fee), so no conversion needed for percentage rules
+                    const feeCurrency = item.deliveryFee !== undefined ? (item.codCurrency || 'USD') : (bookingToSave.currency || 'USD');
 
-                    // Helper function to convert commission to target currency
-                    const convertCommission = (amount: number): number => {
-                        if (bookingCurrency === commissionCurrency) return amount;
-                        if (bookingCurrency === 'USD' && commissionCurrency === 'KHR') {
+                    // Helper function to convert commission to target currency (only needed for FIXED_AMOUNT rules in different currency)
+                    // For percentage rules, commission is already in the same currency as the fee
+                    const convertCommission = (amount: number, isPercentageRule: boolean = true): number => {
+                        // For percentage rules, the commission is calculated from the fee which is already in the correct currency
+                        if (isPercentageRule && feeCurrency === commissionCurrency) return amount;
+
+                        // For fixed amount rules, may need conversion
+                        if (feeCurrency === commissionCurrency) return amount;
+                        if (feeCurrency === 'USD' && commissionCurrency === 'KHR') {
                             return Math.round(amount * commissionExchangeRate);
                         }
-                        if (bookingCurrency === 'KHR' && commissionCurrency === 'USD') {
+                        if (feeCurrency === 'KHR' && commissionCurrency === 'USD') {
                             return Math.round((amount / commissionExchangeRate) * 100) / 100;
                         }
                         return amount;
@@ -194,8 +206,9 @@ export class LogisticsService extends BaseService {
                         // 1. Pickup Commission (to collector who picked up)
                         if (item.collectorId && !item.pickupCommission) {
                             const collector = employees.find((e: any) => e.linkedUserId === item.collectorId);
-                            let commission = calculateDriverCommission(collector, bookingToSave, 'PICKUP', commissionRules, itemFeeShare);
-                            commission = convertCommission(commission);
+                            // Pass commissionCurrency and exchangeRate for correct FIXED_AMOUNT conversion
+                            let commission = calculateDriverCommission(collector, bookingToSave, 'PICKUP', commissionRules, itemFeeShare, commissionCurrency, commissionExchangeRate);
+                            // No additional conversion needed - commission is now in the correct currency
                             if (commission > 0) {
                                 item.pickupCommission = commission;
                                 item.pickupCommissionCurrency = commissionCurrency;
@@ -210,8 +223,8 @@ export class LogisticsService extends BaseService {
                         // 2. Delivery Commission (to deliverer who delivered)
                         if (item.delivererId && !item.deliveryCommission) {
                             const deliverer = employees.find((e: any) => e.linkedUserId === item.delivererId);
-                            let commission = calculateDriverCommission(deliverer, bookingToSave, 'DELIVERY', commissionRules, itemFeeShare);
-                            commission = convertCommission(commission);
+                            // Pass commissionCurrency and exchangeRate for correct FIXED_AMOUNT conversion
+                            let commission = calculateDriverCommission(deliverer, bookingToSave, 'DELIVERY', commissionRules, itemFeeShare, commissionCurrency, commissionExchangeRate);
                             if (commission > 0) {
                                 item.deliveryCommission = commission;
                                 item.deliveryCommissionCurrency = commissionCurrency;

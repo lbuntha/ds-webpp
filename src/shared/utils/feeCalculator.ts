@@ -41,7 +41,7 @@ export async function calculateDeliveryFee(input: FeeCalculationInput): Promise<
     // Find the service
     const service = services.find(s => s.id === serviceTypeId);
     if (!service) {
-        console.warn('Service not found for fee calculation:', serviceTypeId);
+        console.warn('⚠️ Service not found for fee calculation:', serviceTypeId, 'Available:', services.map(s => s.id));
         return { fee: 0, currency: codCurrency, isSpecialRate: false, pricePerItem: 0 };
     }
 

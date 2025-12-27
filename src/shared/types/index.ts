@@ -35,6 +35,7 @@ export interface ParcelItem {
   destinationLocation?: GeoPoint;
   productPrice: number;
   codCurrency?: 'USD' | 'KHR';
+  deliveryFee?: number; // Per-item delivery fee (in same currency as codCurrency)
   settlementStatus?: 'UNSETTLED' | 'SETTLED'; // Legacy field (deprecated)
   driverSettlementStatus?: 'UNSETTLED' | 'SETTLED'; // Driver → Company settlement
   driverSettledCurrency?: 'USD' | 'KHR'; // Currency that was settled

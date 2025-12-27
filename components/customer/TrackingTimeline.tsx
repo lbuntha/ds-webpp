@@ -90,30 +90,50 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
                 return i;
             });
 
-            // Recalculate fee using centralized utility
-            let newFee = booking.totalDeliveryFee;
-            let newCurrency: 'USD' | 'KHR' = booking.currency as any || 'USD';
-
-            if (services.length > 0 && booking.senderId) {
+            // Calculate fee for THIS item
+            // Note: senderId is optional - if not present, just use default service price
+            let itemDeliveryFee = 0;
+            if (services.length > 0) {
                 const feeResult = await calculateDeliveryFee({
                     serviceTypeId: booking.serviceTypeId,
-                    customerId: booking.senderId,
-                    itemCount: updatedItems.length,
+                    customerId: booking.senderId || '', // Optional - empty string means no special rate lookup
+                    itemCount: 1, // Fee for this single item
                     codCurrency: editCurrency,
                     exchangeRate: booking.exchangeRateForCOD || 4100,
                     services
                 });
-
-                newFee = feeResult.fee;
-                newCurrency = feeResult.currency;
+                itemDeliveryFee = feeResult.pricePerItem;
             }
+
+            // Update item with fee
+            const finalItems = updatedItems.map(i =>
+                i.id === editingCodItem
+                    ? { ...i, deliveryFee: itemDeliveryFee }
+                    : i
+            );
+
+            // Aggregate total fee from all items
+            const totalFee = finalItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);
 
             await firebaseService.saveParcelBooking({
                 ...booking,
-                items: updatedItems,
-                currency: newCurrency,
-                totalDeliveryFee: newFee
+                items: finalItems,
+                totalDeliveryFee: totalFee
             });
+
+            // NOTIFICATION: Notify driver when customer updates COD amount (Bilingual)
+            const item = finalItems.find(i => i.id === editingCodItem);
+            if (item?.driverId) {
+                const formattedAmount = editCurrency === 'KHR' ? `${editAmount.toLocaleString()}៛` : `$${editAmount.toFixed(2)}`;
+                const { createBilingualNotification, formatCodUpdatedByCustomerMessage } = await import('../../src/shared/utils/notificationService');
+                const notif = createBilingualNotification(
+                    'COD_UPDATED_BY_CUSTOMER',
+                    item.driverId,
+                    formatCodUpdatedByCustomerMessage(item.receiverName, formattedAmount),
+                    { type: 'BOOKING', bookingId: booking.id }
+                );
+                await firebaseService.sendNotification(notif);
+            }
 
             setEditingCodItem(null);
             if (onUpdate) onUpdate();

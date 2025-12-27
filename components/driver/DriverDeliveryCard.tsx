@@ -133,18 +133,19 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
                             or {estimatedKHR.toLocaleString()}៛ (Rate: {job.exchangeRateForCOD})
                           </div>
                         )}
-                        {/* Delivery Fee Display - Uses item's COD currency */}
-                        {job.totalDeliveryFee > 0 && (() => {
-                          const feePerItem = job.totalDeliveryFee / (items.length || 1);
-                          // Display fee in the ITEM's COD currency (KHR items show KHR, USD items show USD)
-                          const itemCodCurrency = item.codCurrency || 'USD';
+                        {/* Delivery Fee Display - Uses ITEM's fee and currency */}
+                        {(() => {
+                          // Use per-item fee if available, fallback to booking-level for legacy
+                          const itemFee = item.deliveryFee ?? (job.totalDeliveryFee / (items.length || 1));
+                          const itemCurrency = item.codCurrency || 'USD';
+
+                          if (itemFee <= 0) return null;
 
                           return (
                             <div className="text-[10px] font-medium text-indigo-600 mt-0.5">
-                              Fee: {itemCodCurrency === 'KHR'
-                                ? `${Math.round(feePerItem).toLocaleString()}៛`
-                                : `$${feePerItem.toFixed(2)}`}
-                              {items.length > 1 && <span className="text-gray-400"> /item</span>}
+                              Fee: {itemCurrency === 'KHR'
+                                ? `${Math.round(itemFee).toLocaleString()}៛`
+                                : `$${itemFee.toFixed(2)}`}
                             </div>
                           );
                         })()}

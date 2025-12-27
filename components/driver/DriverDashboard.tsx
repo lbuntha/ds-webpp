@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ParcelBooking, UserProfile, ParcelItem, Account, Branch, AccountType, AccountSubType, WalletTransaction, SystemSettings, AppNotification, CurrencyConfig, ParcelServiceType, Employee, DriverCommissionRule } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
+import { createBilingualNotification, formatDeliveredMessage, formatReturnedMessage, formatCodUpdatedByDriverMessage } from '../../src/shared/utils/notificationService';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -242,21 +243,43 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const bookingStatus = allDone ? 'COMPLETED' : booking.status;
 
         // FEE RECALCULATION START
-        // IMPORTANT: Don't overwrite the original fee (which may include special rates)
-        // Only update currency field if COD currency changed
+        // When COD currency changes during delivery, we MUST recalculate the fee in the new currency
         let finalBooking = { ...booking, items: updatedItems, status: bookingStatus };
 
         if (action === 'DELIVER' && updatedCOD && services.length > 0) {
-            const firstItem = updatedItems[0];
-            const newCurrency = firstItem.codCurrency === 'KHR' ? 'KHR' : 'USD';
-            const originalCurrency = booking.currency || 'USD';
+            const targetItem = updatedItems.find(i => i.id === itemId);
+            if (targetItem) {
+                const newCurrency = updatedCOD.currency;
+                const originalItemCurrency = booking.items.find(i => i.id === itemId)?.codCurrency || 'USD';
 
-            // Only update currency field if it changed - DO NOT recalculate fee
-            // The fee was correctly set at booking time (including any special rates)
-            if (newCurrency !== originalCurrency) {
-                finalBooking.currency = newCurrency;
-                // Note: We intentionally do NOT recalculate totalDeliveryFee here
-                // as that would overwrite special rates set at booking time
+                // If currency changed, recalculate the delivery fee for this item
+                if (newCurrency !== originalItemCurrency) {
+                    try {
+                        const feeResult = await calculateDeliveryFee({
+                            serviceTypeId: booking.serviceTypeId,
+                            customerId: booking.senderId || '',
+                            itemCount: 1,
+                            codCurrency: newCurrency,
+                            exchangeRate: booking.exchangeRateForCOD || 4000,
+                            services
+                        });
+
+                        // Update the item's delivery fee in the new currency
+                        finalBooking.items = finalBooking.items.map(i =>
+                            i.id === itemId
+                                ? { ...i, deliveryFee: feeResult.pricePerItem }
+                                : i
+                        );
+
+                        // Recalculate total fee
+                        finalBooking.totalDeliveryFee = finalBooking.items.reduce(
+                            (sum, item) => sum + (item.deliveryFee || 0), 0
+                        );
+                        finalBooking.currency = newCurrency;
+                    } catch (e) {
+                        console.warn('Failed to recalculate fee on currency change:', e);
+                    }
+                }
             }
         }
         // FEE RECALCULATION END
@@ -270,20 +293,34 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             toast.error("Failed to update status. Please try again.");
         }
 
-        // NOTIFICATION TRIGGER: If action is DELIVER, notify Customer
+        // NOTIFICATION TRIGGER: If action is DELIVER, notify Customer (Bilingual)
         if (action === 'DELIVER' && booking.senderId) {
             const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
             if (custUid) {
-                const notif: AppNotification = {
-                    id: `notif-dlv-${Date.now()}`,
-                    targetAudience: custUid,
-                    title: 'Parcel Delivered',
-                    message: `Your parcel to ${booking.items.find(i => i.id === itemId)?.receiverName} has been delivered.`,
-                    type: 'SUCCESS',
-                    read: false,
-                    createdAt: Date.now(),
-                    metadata: { type: 'BOOKING', bookingId: booking.id }
-                };
+                const receiverName = booking.items.find(i => i.id === itemId)?.receiverName || '';
+                const notif = createBilingualNotification(
+                    'PARCEL_DELIVERED',
+                    custUid,
+                    formatDeliveredMessage(receiverName),
+                    { type: 'BOOKING', bookingId: booking.id }
+                );
+                notif.type = 'SUCCESS';
+                await firebaseService.sendNotification(notif);
+            }
+        }
+
+        // NOTIFICATION TRIGGER: If action is RETURN, notify Customer (Bilingual)
+        if (action === 'RETURN' && booking.senderId) {
+            const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
+            if (custUid) {
+                const receiverName = booking.items.find(i => i.id === itemId)?.receiverName || '';
+                const notif = createBilingualNotification(
+                    'PARCEL_RETURNED',
+                    custUid,
+                    formatReturnedMessage(receiverName),
+                    { type: 'BOOKING', bookingId: booking.id }
+                );
+                notif.type = 'WARNING';
                 await firebaseService.sendNotification(notif);
             }
         }
@@ -299,32 +336,53 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const booking = bookings.find(b => b.id === bookingId);
         if (!booking) return;
 
-        const updatedItems = (booking.items || []).map(i => i.id === itemId ? { ...i, productPrice: amount, codCurrency: currency } : i);
-
-        // Recalculate fee using centralized utility
-        let newFee = booking.totalDeliveryFee;
-        let newCurrency = booking.currency;
-
-        if (services.length > 0 && booking.senderId) {
+        // Calculate fee for THIS item
+        // Note: senderId is optional - if not present, just use default service price
+        let itemDeliveryFee = 0;
+        if (services.length > 0) {
             const feeResult = await calculateDeliveryFee({
                 serviceTypeId: booking.serviceTypeId,
-                customerId: booking.senderId,
-                itemCount: updatedItems.length,
+                customerId: booking.senderId || '', // Optional - empty string means no special rate lookup
+                itemCount: 1, // Fee for this single item
                 codCurrency: currency,
                 exchangeRate: booking.exchangeRateForCOD || 4100,
                 services
             });
-
-            newFee = feeResult.fee;
-            newCurrency = feeResult.currency;
+            itemDeliveryFee = feeResult.pricePerItem;
         }
+
+        // Update the specific item with new COD and fee
+        const updatedItems = (booking.items || []).map(i =>
+            i.id === itemId
+                ? { ...i, productPrice: amount, codCurrency: currency, deliveryFee: itemDeliveryFee }
+                : i
+        );
+
+        // Aggregate total fee from all items (for legacy compatibility)
+        const totalFee = updatedItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);
 
         await firebaseService.saveParcelBooking({
             ...booking,
             items: updatedItems,
-            currency: newCurrency,
-            totalDeliveryFee: newFee
+            totalDeliveryFee: totalFee
         });
+
+        // NOTIFICATION: Notify customer when driver updates COD amount (Bilingual)
+        if (booking.senderId) {
+            const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
+            if (custUid) {
+                const item = updatedItems.find(i => i.id === itemId);
+                const formattedAmount = currency === 'KHR' ? `${amount.toLocaleString()}៛` : `$${amount.toFixed(2)}`;
+                const notif = createBilingualNotification(
+                    'COD_UPDATED_BY_DRIVER',
+                    custUid,
+                    formatCodUpdatedByDriverMessage(item?.receiverName || '', formattedAmount),
+                    { type: 'BOOKING', bookingId: booking.id }
+                );
+                await firebaseService.sendNotification(notif);
+            }
+        }
+
         loadJobs();
     };
 

@@ -8,19 +8,26 @@ export function round2(num: number): number {
 }
 
 /**
- * Calculate driver commission based on rules, driver salary status, and action type
- * @param driver - The driver employee record
- * @param booking - The parcel booking
- * @param actionType - Whether this is for PICKUP or DELIVERY
+ * Calculate driver commission for an action (pickup/delivery)
+ * Finds the applicable rule based on driver zone, salary type, and action type
+ * 
+ * @param driver - Driver employee record
+ * @param booking - The booking being processed
+ * @param actionType - 'PICKUP' or 'DELIVERY'
  * @param commissionRules - All available commission rules
- * @returns Commission amount in the booking's currency (rounded to 2 decimals)
+ * @param itemFeeShare - Optional per-item fee (for percentage calculations)
+ * @param targetCurrency - Optional target currency (item's currency, for FIXED_AMOUNT conversion)
+ * @param exchangeRate - Optional exchange rate for currency conversion (default: 4000)
+ * @returns Commission amount in the target currency (rounded to 2 decimals)
  */
 export function calculateDriverCommission(
     driver: Employee | undefined,
     booking: ParcelBooking,
     actionType: 'PICKUP' | 'DELIVERY',
     commissionRules: DriverCommissionRule[],
-    itemFeeShare?: number
+    itemFeeShare?: number,
+    targetCurrency?: 'USD' | 'KHR',
+    exchangeRate: number = 4000
 ): number {
     if (!driver || !driver.isDriver) return 0;
 
@@ -40,7 +47,7 @@ export function calculateDriverCommission(
         );
     }
 
-    // 2. Try zone-specific rule with ALL salary types
+    // 2. Try zone-specific rule with ALL drivers
     if (!applicableRule && driverZone) {
         applicableRule = commissionRules.find(r =>
             r.zoneName === driverZone &&
@@ -49,19 +56,19 @@ export function calculateDriverCommission(
         );
     }
 
-    // 3. Try default rule with exact salary match
+    // 3. Try default (no zone) rule with exact salary match
     if (!applicableRule) {
         applicableRule = commissionRules.find(r =>
-            r.isDefault &&
+            !r.zoneName &&
             r.commissionFor === actionType &&
             (r.driverSalaryType === (driverHasBaseSalary ? 'WITH_BASE_SALARY' : 'WITHOUT_BASE_SALARY'))
         );
     }
 
-    // 4. Try default rule with ALL salary types
+    // 4. Try default rule with ALL drivers
     if (!applicableRule) {
         applicableRule = commissionRules.find(r =>
-            r.isDefault &&
+            !r.zoneName &&
             r.commissionFor === actionType &&
             r.driverSalaryType === 'ALL'
         );
@@ -81,23 +88,22 @@ export function calculateDriverCommission(
     const feeToCalculateOn = itemFeeShare !== undefined ? itemFeeShare : (booking.totalDeliveryFee || 0);
 
     if (applicableRule.type === 'PERCENTAGE') {
+        // For percentage, the result is in the same currency as the fee
         return round2(feeToCalculateOn * (applicableRule.value / 100));
     } else {
         // FIXED_AMOUNT
-        // If rule currency matches booking currency, return as-is
-        // Otherwise, convert (simplified - you may want more sophisticated conversion)
+        // Use targetCurrency (item's currency) if provided, otherwise use booking currency
+        const outputCurrency = targetCurrency || booking.currency || 'USD';
         const ruleCurrency = applicableRule.currency || 'USD';
-        const bookingCurrency = booking.currency || 'USD';
 
-        if (ruleCurrency === bookingCurrency) {
+        if (ruleCurrency === outputCurrency) {
             return round2(applicableRule.value);
         } else {
-            // Simple conversion (you may want to use actual exchange rates)
-            const EXCHANGE_RATE = 4100; // USD to KHR
-            if (ruleCurrency === 'USD' && bookingCurrency === 'KHR') {
-                return round2(applicableRule.value * EXCHANGE_RATE);
-            } else if (ruleCurrency === 'KHR' && bookingCurrency === 'USD') {
-                return round2(applicableRule.value / EXCHANGE_RATE);
+            // Convert using provided exchange rate
+            if (ruleCurrency === 'USD' && outputCurrency === 'KHR') {
+                return round2(applicableRule.value * exchangeRate);
+            } else if (ruleCurrency === 'KHR' && outputCurrency === 'USD') {
+                return round2(applicableRule.value / exchangeRate);
             }
             return round2(applicableRule.value);
         }

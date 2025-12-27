@@ -186,22 +186,37 @@ export const DriverPickupProcessor: React.FC<Props> = ({ job, user, services, on
                 status: newItems.every(i => i.status === 'PICKED_UP') ? 'IN_TRANSIT' : 'CONFIRMED'
             };
 
-            // Fee Recalculation using centralized utility
-            if (services && services.length > 0 && job.senderId) {
-                const firstItem = newItems[0];
-                const newItemCurrency = firstItem?.codCurrency === 'KHR' ? 'KHR' : 'USD';
+            // Fee Calculation using centralized utility - PER ITEM
+            // Each item gets its own fee based on its own currency
+            // Note: senderId is optional - if not present, just use default service price (no special rate)
+            if (services && services.length > 0) {
+                // Compute currency directly from CURRENT item's productPrice
+                const productPrice = Number(processedItem?.productPrice) || 0;
+                const computedCurrency: 'USD' | 'KHR' = productPrice >= 1000 ? 'KHR' : 'USD';
 
+                // Calculate fee for THIS item only (itemCount = 1)
                 const feeResult = await calculateDeliveryFee({
                     serviceTypeId: job.serviceTypeId,
                     customerId: job.senderId,
-                    itemCount: newItems.length,
-                    codCurrency: newItemCurrency,
+                    itemCount: 1, // Calculate fee for this single item
+                    codCurrency: computedCurrency,
                     exchangeRate: job.exchangeRateForCOD || 4100,
                     services
                 });
 
-                updatedJob.currency = feeResult.currency;
-                updatedJob.totalDeliveryFee = feeResult.fee;
+                // Store fee at ITEM level
+                processedItem.codCurrency = computedCurrency;
+                processedItem.deliveryFee = feeResult.pricePerItem;
+                newItems[activeIndex] = processedItem;
+
+                // Aggregate total fee from all items (for legacy compatibility)
+                // Note: This sums fees in their native currencies (not ideal but maintains backward compat)
+                const totalFee = newItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);
+
+                // Use the most common currency or the current item's currency for booking-level currency
+                updatedJob.totalDeliveryFee = totalFee;
+                updatedJob.currency = computedCurrency;
+                updatedJob.items = newItems;
             }
 
             await onSave(updatedJob);
