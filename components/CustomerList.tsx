@@ -128,9 +128,9 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
     };
 
     const filteredCustomers = customers.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.phone?.includes(searchTerm) ||
-        c.email?.toLowerCase().includes(searchTerm.toLowerCase())
+        (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.phone || '').includes(searchTerm) ||
+        (c.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     // Map users for dropdown
@@ -194,7 +194,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                                             <div className="flex items-center">
                                                 <div className="h-10 w-10 flex-shrink-0">
                                                     <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold">
-                                                        {customer.name.charAt(0).toUpperCase()}
+                                                        {(customer.name || '?').charAt(0).toUpperCase()}
                                                     </div>
                                                 </div>
                                                 <div className="ml-4">

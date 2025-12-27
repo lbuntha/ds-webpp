@@ -124,6 +124,23 @@ export const ParcelList: React.FC = () => {
         return `$${usd.toFixed(2)}`;
     };
 
+    // Calculate total fee split by currency (using per-item fees)
+    const calculateTotalFee = (items: ParcelItem[]) => {
+        if (!items) return '-';
+        let usd = 0;
+        let khr = 0;
+        items.forEach(i => {
+            const fee = Number(i.deliveryFee) || 0;
+            if (i.codCurrency === 'KHR') khr += fee;
+            else usd += fee;
+        });
+
+        if (usd === 0 && khr === 0) return '-';
+        if (usd > 0 && khr > 0) return `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛`;
+        if (khr > 0) return `${khr.toLocaleString()} ៛`;
+        return `$${usd.toFixed(2)}`;
+    };
+
     const renderStatus = (booking: ParcelBooking) => {
         if (booking.statusId) {
             const config = statuses.find(s => s.id === booking.statusId);
@@ -307,8 +324,8 @@ export const ParcelList: React.FC = () => {
                                     <td className="px-6 py-4 text-right text-sm font-medium text-red-600 whitespace-nowrap">
                                         {calculateTotalCOD(b.items)}
                                     </td>
-                                    <td className="px-6 py-4 text-right text-sm font-bold text-indigo-600">
-                                        ${(b.totalDeliveryFee || 0).toFixed(2)}
+                                    <td className="px-6 py-4 text-right text-sm font-bold text-indigo-600 whitespace-nowrap">
+                                        {calculateTotalFee(b.items)}
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         {renderStatus(b)}
