@@ -117,19 +117,32 @@ export const AuthForms: React.FC<AuthProps> = ({ mode, onSubmit, onModeChange, o
                                             'Set Your Password'}
                         </h2>
                         {mode !== 'EMAIL_SENT' && mode !== 'VERIFY' && (
-                            <p className="mt-2 text-sm text-slate-600">
-                                {mode === 'LOGIN' ? "Don't have an account? " : mode === 'REGISTER' ? "Already have an account? " : "Remember your password? "}
-                                <button
-                                    onClick={() => {
-                                        onModeChange(mode === 'LOGIN' ? 'REGISTER' : 'LOGIN');
-                                        setError(null);
-                                        setSuccessMessage(null);
-                                    }}
-                                    className="font-bold text-red-600 hover:text-red-700 hover:underline"
-                                >
-                                    {mode === 'LOGIN' ? 'Sign up' : 'Log in'}
-                                </button>
-                            </p>
+                            <>
+                                <p className="mt-2 text-sm text-slate-600">
+                                    {mode === 'LOGIN' ? "Don't have an account? " : mode === 'REGISTER' ? "Already have an account? " : "Remember your password? "}
+                                    <button
+                                        onClick={() => {
+                                            onModeChange(mode === 'LOGIN' ? 'REGISTER' : 'LOGIN');
+                                            setError(null);
+                                            setSuccessMessage(null);
+                                        }}
+                                        className="font-bold text-red-600 hover:text-red-700 hover:underline"
+                                    >
+                                        {mode === 'LOGIN' ? 'Sign up' : 'Log in'}
+                                    </button>
+                                </p>
+                                {mode === 'REGISTER' && (
+                                    <p className="mt-2 text-sm text-slate-600">
+                                        Or{' '}
+                                        <a
+                                            href="/signup/phone"
+                                            className="font-bold text-blue-600 hover:text-blue-700 hover:underline"
+                                        >
+                                            📱 Sign up with Phone Number
+                                        </a>
+                                    </p>
+                                )}
+                            </>
                         )}
                     </div>
 

@@ -35,6 +35,13 @@ export class FirebaseService {
     login(identifier: string, pass: string) { return this.authService.loginWithEmailOrPhone(identifier, pass); }
     register(email: string, pass: string, name: string, extra?: any) { return this.authService.register(email, pass, name, extra); }
     registerWithPhone(phone: string, pass: string, name: string, extra?: any) { return this.authService.registerWithPhone(phone, pass, name, extra); }
+
+    // OTP Authentication (Passwordless)
+    requestOTP(phone: string, purpose: 'SIGNUP' | 'LOGIN' = 'LOGIN') { return this.authService.requestOTP(phone, purpose); }
+    getOTP(phone: string) { return this.authService.getOTP(phone); }
+    signupWithOTP(phone: string, code: string, name: string, extra?: any) { return this.authService.signupWithOTP(phone, code, name, extra); }
+    loginWithOTP(phone: string, code: string) { return this.authService.loginWithOTP(phone, code); }
+
     logout() { return this.authService.logout(); }
     resetPassword(email: string) { return this.authService.resetPassword(email); }
     getCurrentUser() { return this.authService.getCurrentUser(); }
@@ -42,6 +49,7 @@ export class FirebaseService {
     sendRegistrationLink(email: string, data: any) { return this.authService.sendRegistrationLink(email, data); }
     isEmailLink(url: string) { return this.authService.isEmailLink(url); }
     completeRegistrationWithLink(email: string, pass: string) { return this.authService.completeRegistrationWithLink(email, pass); }
+
 
     // Config (Settings, Users, etc)
     getSettings() { return this.configService.getSettings(); }

@@ -11,6 +11,8 @@ const LandingPage = lazy(() => import('../../components/LandingPage').then(m => 
 const AuthForms = lazy(() => import('../../components/AuthForms').then(m => ({ default: m.AuthForms })));
 const PendingApproval = lazy(() => import('../../components/PendingApproval').then(m => ({ default: m.PendingApproval })));
 const OnboardingWizard = lazy(() => import('../../components/setup/OnboardingWizard').then(m => ({ default: m.OnboardingWizard })));
+const OTPSignup = lazy(() => import('../../components/OTPSignup').then(m => ({ default: m.OTPSignup })));
+
 
 // Layouts
 const CustomerLayout = lazy(() => import('../../components/customer/CustomerLayout').then(m => ({ default: m.CustomerLayout })));
@@ -95,6 +97,10 @@ const routes: RouteObject[] = [
     {
         path: '/auth/:mode?',
         element: withSuspense(AuthView),
+    },
+    {
+        path: '/signup/phone',
+        element: withSuspense(OTPSignup),
     },
     {
         path: '/pending',
