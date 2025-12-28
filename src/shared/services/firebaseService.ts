@@ -31,8 +31,10 @@ export class FirebaseService {
     // --- PROXY METHODS (To avoid breaking changes in UI components) ---
 
     // Auth
-    login(email: string, pass: string) { return this.authService.login(email, pass); }
+    // Unified login - accepts email OR phone number
+    login(identifier: string, pass: string) { return this.authService.loginWithEmailOrPhone(identifier, pass); }
     register(email: string, pass: string, name: string, extra?: any) { return this.authService.register(email, pass, name, extra); }
+    registerWithPhone(phone: string, pass: string, name: string, extra?: any) { return this.authService.registerWithPhone(phone, pass, name, extra); }
     logout() { return this.authService.logout(); }
     resetPassword(email: string) { return this.authService.resetPassword(email); }
     getCurrentUser() { return this.authService.getCurrentUser(); }

@@ -236,12 +236,14 @@ export const AuthForms: React.FC<AuthProps> = ({ mode, onSubmit, onModeChange, o
 
                         {(mode === 'LOGIN' || mode === 'REGISTER' || mode === 'RESET') && (
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    {mode === 'LOGIN' ? 'Email or Phone Number' : 'Email Address'}
+                                </label>
                                 <input
-                                    type="email"
+                                    type={mode === 'LOGIN' ? 'text' : 'email'}
                                     required
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-red-500 focus:ring-red-500 outline-none transition-colors"
-                                    placeholder="you@example.com"
+                                    placeholder={mode === 'LOGIN' ? 'email@example.com or +1234567890' : 'you@example.com'}
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                 />

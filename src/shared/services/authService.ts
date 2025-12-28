@@ -1,6 +1,6 @@
 
 import { Auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, updatePassword } from 'firebase/auth';
-import { Firestore, doc, getDoc, setDoc, updateDoc, collection } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
 export class AuthService {
@@ -121,6 +121,74 @@ export class AuthService {
 
     async logout() { await signOut(this.auth); }
     async resetPassword(email: string) { await sendPasswordResetEmail(this.auth, email); }
+
+    /**
+     * Lookup user by phone number
+     * Returns the email associated with the phone number
+     */
+    async lookupUserByPhone(phone: string): Promise<string | null> {
+        const normalizedPhone = phone.replace(/\s+/g, ''); // Remove spaces
+
+        // Query users collection for matching phone
+        const usersRef = collection(this.db, 'users');
+        const q = query(usersRef, where('phone', '==', normalizedPhone));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            return null;
+        }
+
+        const userDoc = snapshot.docs[0];
+        const userData = userDoc.data() as UserProfile;
+        return userData.email;
+    }
+
+    /**
+     * Login with either email or phone number
+     * Automatically detects input type and handles appropriately
+     */
+    async loginWithEmailOrPhone(identifier: string, password: string) {
+        // Detect if identifier is email or phone
+        const isEmail = identifier.includes('@');
+
+        if (isEmail) {
+            // Direct email login
+            return await signInWithEmailAndPassword(this.auth, identifier, password);
+        } else {
+            // Phone number login - lookup email first
+            const email = await this.lookupUserByPhone(identifier);
+
+            if (!email) {
+                throw new Error('No account found with this phone number');
+            }
+
+            return await signInWithEmailAndPassword(this.auth, email, password);
+        }
+    }
+
+    /**
+     * Register with phone number (for mobile apps)
+     * Creates a synthetic email: {phone}@sms.yourapp.com
+     */
+    async registerWithPhone(phone: string, password: string, name: string, extraData?: any) {
+        const normalizedPhone = phone.replace(/\s+/g, ''); // Remove spaces
+
+        // Check if phone already exists
+        const existingEmail = await this.lookupUserByPhone(normalizedPhone);
+        if (existingEmail) {
+            throw new Error('An account with this phone number already exists');
+        }
+
+        // Generate synthetic email
+        const syntheticEmail = `${normalizedPhone}@sms.yourapp.com`;
+
+        // Use standard register flow with synthetic email
+        await this.register(syntheticEmail, password, name, {
+            ...extraData,
+            phone: normalizedPhone,
+            authMethod: 'phone'
+        });
+    }
 
     async getCurrentUser(): Promise<UserProfile | null> {
         return new Promise(resolve => {
