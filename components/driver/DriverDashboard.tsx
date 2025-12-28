@@ -120,7 +120,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         loadJobs();
     }, [user]);
 
-    // Derived Data
+    // Derived Data - show pending jobs (including locked ones, so drivers can see status)
     const availablePickups = bookings.filter(b => !b.driverId && b.status === 'PENDING');
     const myPickups = bookings.filter(b => {
         // Must be assigned to this driver at booking level OR involved
@@ -385,6 +385,22 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
         const { bankUSD, bankKHR, cashUSD, cashKHR } = settlementCalc;
 
+        // --- STRICT CURRENCY VALIDATION ---
+        const totalPaidUSD = bankUSD + cashUSD;
+        const totalPaidKHR = bankKHR + cashKHR;
+        const debtUSD = cashInHand.usd;
+        const debtKHR = cashInHand.khr;
+
+        // Block paying USD if no USD debt (prevents clearing KHR debt with USD)
+        if (totalPaidUSD > 0 && debtUSD <= 0.01) {
+            return toast.error("Strict Currency Rule: You cannot settle in USD because you only owe KHR. Please pay in KHR.");
+        }
+
+        // Block paying KHR if no KHR debt
+        if (totalPaidKHR > 0 && debtKHR <= 100) { // 100 Riel buffer
+            return toast.error("Strict Currency Rule: You cannot settle in KHR because you only owe USD. Please pay in USD.");
+        }
+
         // Ensure Asset Accounts are Configured
         if (bankUSD > 0 && !defaultBankUSD) return toast.error("System Error: No default USD settlement bank configured.");
         if (bankKHR > 0 && !defaultBankKHR) return toast.error("System Error: No default KHR settlement bank configured.");
@@ -405,11 +421,11 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         try {
             // Prepare items lists split by currency
             const usdItemsToSettle = unsettledItems
-                .filter(i => (i.codCurrency || 'USD') === 'USD')
+                .filter(i => (i.codCurrency || 'USD').toUpperCase() === 'USD')
                 .map(i => ({ bookingId: i.bookingId, itemId: i.id }));
 
             const khrItemsToSettle = unsettledItems
-                .filter(i => (i.codCurrency || 'USD') === 'KHR')
+                .filter(i => (i.codCurrency || 'USD').toUpperCase() === 'KHR')
                 .map(i => ({ bookingId: i.bookingId, itemId: i.id }));
 
             // For each currency, we pick ONE "Master" transaction to carry the items
@@ -470,7 +486,9 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 setSettlementReason('');
                 loadJobs();
             } else {
-                // Edge case: 0 amount settlement
+                // Edge case: 0 amount settlement (Cleaning up very small decimals or just closing items?)
+                // If items exist but amounts are 0?
+                // Allowed if debt is 0.
                 await firebaseService.requestSettlement(
                     user.uid, user.name, 0, 'USD', defaultBankUSD?.id || 'system', '', 'Zero-Value Settlement', unsettledItems.map(i => ({ bookingId: i.bookingId, itemId: i.id }))
                 );
@@ -484,14 +502,26 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     const handleAcceptJob = async () => {
         if (!confirmJob) return;
+
+        // Check if job is already locked by another driver
+        if (confirmJob.lockedByDriverId && confirmJob.lockedByDriverId !== user.uid) {
+            toast.error(`This job is already taken by ${confirmJob.lockedByDriverName || 'another driver'}.`);
+            setConfirmJob(null);
+            await loadJobs();
+            return;
+        }
+
         try {
-            // Explicitly set fields to ensure clean update
+            // Lock and accept the job
             const acceptedJob: ParcelBooking = {
                 ...confirmJob,
                 driverId: user.uid,
                 driverName: user.name,
                 status: 'CONFIRMED',
-                statusId: 'ps-pickup' // Set workflow status to pickup
+                statusId: 'ps-pickup',
+                lockedByDriverId: user.uid,
+                lockedByDriverName: user.name,
+                lockedAt: Date.now()
             };
             await firebaseService.saveParcelBooking(acceptedJob);
             await loadJobs();
@@ -501,6 +531,33 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         } catch (e) {
             console.error(e);
             toast.error("Failed to accept job. Please try again.");
+        }
+    };
+
+    const handleUnlockJob = async (job: ParcelBooking) => {
+        // Only the driver who locked can unlock
+        if (job.lockedByDriverId !== user.uid) {
+            toast.error("You can only release jobs you have accepted.");
+            return;
+        }
+
+        try {
+            const unlockedJob: ParcelBooking = {
+                ...job,
+                driverId: undefined,
+                driverName: undefined,
+                status: 'PENDING',
+                statusId: 'ps-pending',
+                lockedByDriverId: undefined,
+                lockedByDriverName: undefined,
+                lockedAt: undefined
+            };
+            await firebaseService.saveParcelBooking(unlockedJob);
+            await loadJobs();
+            toast.success("Job released. Other drivers can now accept it.");
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to release job.");
         }
     };
 
@@ -618,7 +675,13 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             {activeTab === 'AVAILABLE' && (
                 <div className="space-y-4 animate-fade-in-up">
                     {availablePickups.map(job => (
-                        <DriverJobCard key={job.id} job={job} type="AVAILABLE" onAction={setConfirmJob} />
+                        <DriverJobCard
+                            key={job.id}
+                            job={job}
+                            type="AVAILABLE"
+                            onAction={setConfirmJob}
+                            currentDriverId={user.uid}
+                        />
                     ))}
                     {availablePickups.length === 0 && <p className="text-center text-gray-400 py-10">No new jobs available.</p>}
                 </div>
@@ -633,6 +696,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                             type="PICKUP"
                             currentDriverId={user.uid}
                             onAction={setProcessingJob}
+                            onUnlock={handleUnlockJob}
                             onMapClick={(addr) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`, '_blank')}
                             onChatClick={(j) => openChat(j.id, (j.items || [])[0])}
                         />

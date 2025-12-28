@@ -43,6 +43,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
     // Location Saving State
     const [saveNewLocation, setSaveNewLocation] = useState(false);
     const [newLocationLabel, setNewLocationLabel] = useState('');
+    const [savedLocations, setSavedLocations] = useState<SavedLocation[]>(user.savedLocations || []);
 
     // Items (Receiver) State
     const [items, setItems] = useState<ParcelItem[]>([]);
@@ -86,6 +87,11 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                         const sysKhr = currencies.find(c => c.code === 'KHR');
                         if (sysKhr) setEffectiveExchangeRate(sysKhr.exchangeRate);
                     }
+
+                    // Load saved locations from customer profile
+                    if (customerData && (customerData as any).savedLocations && (customerData as any).savedLocations.length > 0) {
+                        setSavedLocations((customerData as any).savedLocations);
+                    }
                 } else {
                     // Fallback to system default if no customer link yet
                     const sysKhr = currencies.find(c => c.code === 'KHR');
@@ -98,7 +104,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
         fetchPromosAndRates();
 
         // Default to primary location
-        const primary = user.savedLocations?.find(l => l.isPrimary);
+        const primary = savedLocations.find(l => l.isPrimary);
         if (primary) {
             setPickupLocationId(primary.id);
         } else {
@@ -335,7 +341,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
             let finalPickupLoc: GeoPoint | undefined = (customPickupLat && customPickupLng) ? { lat: Number(customPickupLat), lng: Number(customPickupLng) } : undefined;
 
             if (pickupLocationId !== 'custom') {
-                const saved = user.savedLocations?.find(l => l.id === pickupLocationId);
+                const saved = savedLocations.find(l => l.id === pickupLocationId);
                 if (saved) {
                     finalPickupAddr = saved.address;
                     finalPickupLoc = saved.coordinates;
@@ -349,7 +355,8 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                         coordinates: finalPickupLoc,
                         isPrimary: false
                     };
-                    const updatedLocations = [...(user.savedLocations || []), newLoc];
+                    const updatedLocations = [...savedLocations, newLoc];
+                    setSavedLocations(updatedLocations); // Update local state
                     firebaseService.updateUserLocations(updatedLocations).catch(console.error);
                 }
             }
@@ -399,26 +406,52 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
 
             await firebaseService.saveParcelBooking(booking);
 
-            // NOTIFICATION TRIGGER
-            const staffNotif: AppNotification = {
-                id: `notif-staff-${Date.now()}`,
-                targetAudience: 'ALL',
-                title: 'New Booking Request',
-                message: `${user.name} placed order #${bookingId.slice(-6)} for ${finalItems.length} parcel(s).`,
-                type: 'INFO',
+            // NOTIFICATION TRIGGERS - Send to specific roles
+            const notifBase = {
+                type: 'INFO' as const,
                 read: false,
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                metadata: { type: 'BOOKING', bookingId: booking.id }
             };
-            await firebaseService.sendNotification(staffNotif);
 
+            // 1. Notify all DRIVERS - New pickup request
+            const driverNotif: AppNotification = {
+                ...notifBase,
+                id: `notif-driver-${Date.now()}`,
+                targetAudience: 'driver',
+                title: 'New Pickup Request',
+                message: `📦 New booking from ${user.name} at ${finalPickupAddr?.slice(0, 50) || 'Address'} - ${finalItems.length} parcel(s)`,
+            };
+            await firebaseService.sendNotification(driverNotif);
+
+            // 2. Notify WAREHOUSE staff
+            const warehouseNotif: AppNotification = {
+                ...notifBase,
+                id: `notif-warehouse-${Date.now() + 1}`,
+                targetAudience: 'warehouse',
+                title: 'New Booking Alert',
+                message: `📋 Booking #${bookingId.slice(-6)} from ${user.name} - ${finalItems.length} parcel(s) pending pickup`,
+            };
+            await firebaseService.sendNotification(warehouseNotif);
+
+            // 3. Notify ADMIN
+            const adminNotif: AppNotification = {
+                ...notifBase,
+                id: `notif-admin-${Date.now() + 2}`,
+                targetAudience: 'admin',
+                title: 'New Customer Booking',
+                message: `${user.name} placed order #${bookingId.slice(-6)} - ${finalItems.length} parcel(s), Fee: $${pricing.total.toFixed(2)}`,
+            };
+            await firebaseService.sendNotification(adminNotif);
+
+            // 4. Notify the CUSTOMER (confirmation)
             const custNotif: AppNotification = {
-                id: `notif-cust-${Date.now()}`,
+                ...notifBase,
+                id: `notif-cust-${Date.now() + 3}`,
                 targetAudience: user.uid,
                 title: 'Booking Received',
                 message: `We received your booking #${bookingId.slice(-6)}. Pickup at: ${finalPickupAddr}`,
                 type: 'SUCCESS',
-                read: false,
-                createdAt: Date.now()
             };
             await firebaseService.sendNotification(custNotif);
 
@@ -490,7 +523,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                     value={pickupLocationId}
                                     onChange={(e) => setPickupLocationId(e.target.value)}
                                 >
-                                    {user.savedLocations?.map(loc => (
+                                    {savedLocations.map(loc => (
                                         <option key={loc.id} value={loc.id}>
                                             {loc.label} - {loc.address}
                                         </option>
@@ -909,7 +942,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
 
                                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800">
                                     <p className="font-bold mb-1">Estimated Pickup</p>
-                                    <p>Our driver will contact you shortly after confirmation to arrange pickup at: <strong>{pickupLocationId === 'custom' ? customPickupAddress : user.savedLocations?.find(l => l.id === pickupLocationId)?.address}</strong></p>
+                                    <p>Our driver will contact you shortly after confirmation to arrange pickup at: <strong>{pickupLocationId === 'custom' ? customPickupAddress : savedLocations.find(l => l.id === pickupLocationId)?.address}</strong></p>
                                 </div>
                             </div>
 

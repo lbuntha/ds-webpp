@@ -17,6 +17,7 @@ interface Props {
 interface LedgerItem {
     id: string;
     date: string;
+    timestamp?: number; // For sorting and display
     description: string;
     type: 'FEE' | 'COD' | 'DEPOSIT' | 'WITHDRAWAL' | 'SETTLEMENT' | 'EARNING' | 'REFUND';
     amount: number;
@@ -44,6 +45,8 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
     const [modalOpen, setModalOpen] = useState<'DEPOSIT' | 'WITHDRAWAL' | null>(null);
     const [loading, setLoading] = useState(false);
     const [viewTransaction, setViewTransaction] = useState<WalletTransaction | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     // Form State
     const [amount, setAmount] = useState<number>(0);
@@ -141,6 +144,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             ledger.push({
                 id: t.id,
                 date: t.date,
+                timestamp: new Date(t.date).getTime() || Date.now(), // Parse date for sorting
                 description: t.description || t.type,
                 type: t.type,
                 amount: t.amount,
@@ -177,6 +181,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                         ledger.push({
                             id: `cod-${item.id}`,
                             date: b.bookingDate,
+                            timestamp: b.createdAt || new Date(b.bookingDate).getTime(),
                             description: `COD Collected: ${item.receiverName}`,
                             type: 'COD',
                             amount: item.productPrice || 0,
@@ -193,85 +198,50 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                     const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
                     // Deduct fee if items are delivered or booking is completed
                     if (itemsDelivered > 0 || b.status === 'COMPLETED' || b.status === 'CONFIRMED') {
-                        let feeAmount = b.totalDeliveryFee;
-                        let feeCurrency = 'USD';
-                        const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
-                        const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
+                        // Sum fees by currency from delivered items (use item-level deliveryFee)
+                        let khrFeeTotal = 0;
+                        let usdFeeTotal = 0;
 
-                        if (isMixed) {
-                            // Mixed Currency Logic: Split Fee based on DELIVERED items only
-                            const khrItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR' && i.status === 'DELIVERED').length;
-                            const usdItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'USD' && i.status === 'DELIVERED').length;
-                            const totalCount = bItems.length || 1;
-                            const feePerItem = feeAmount / totalCount;
-                            const RATE = 4000;
-
-                            // 1. KHR Portion (Only for Delivered)
-                            if (khrItemsDelivered > 0) {
-                                const khrPortionFee = feePerItem * khrItemsDelivered;
-                                let khrFinalAmount = khrPortionFee;
-                                if (b.currency === 'USD') khrFinalAmount = khrPortionFee * RATE;
-
-                                ledger.push({
-                                    id: `fee-${b.id}-khr`,
-                                    date: b.bookingDate,
-                                    description: `Service Fee (KHR Portion): ${b.serviceTypeName}`,
-                                    type: 'FEE',
-                                    amount: khrFinalAmount,
-                                    currency: 'KHR',
-                                    status: 'APPLIED',
-                                    reference: (b.id || '').slice(-6),
-                                    isCredit: false
-                                });
-                            }
-
-                            // 2. USD Portion (Only for Delivered)
-                            if (usdItemsDelivered > 0) {
-                                const usdPortionFee = feePerItem * usdItemsDelivered;
-                                let usdFinalAmount = usdPortionFee;
-                                if (b.currency === 'KHR') usdFinalAmount = usdPortionFee / RATE;
-
-                                ledger.push({
-                                    id: `fee-${b.id}-usd`,
-                                    date: b.bookingDate,
-                                    description: `Service Fee (USD Portion): ${b.serviceTypeName}`,
-                                    type: 'FEE',
-                                    amount: usdFinalAmount,
-                                    currency: 'USD',
-                                    status: 'APPLIED',
-                                    reference: (b.id || '').slice(-6),
-                                    isCredit: false
-                                });
-                            }
-
-                        } else {
-                            // Single Currency Logic: Pro-rate based on Delivered count
-                            const itemsDeliveredCount = bItems.filter(i => i.status === 'DELIVERED').length;
-
-                            if (itemsDeliveredCount > 0) {
-                                const totalCount = bItems.length || 1;
-                                const feePerItem = feeAmount / totalCount;
-                                const totalDeduction = feePerItem * itemsDeliveredCount;
-
-                                if (b.currency) {
-                                    feeCurrency = b.currency;
-                                } else if (hasKHR) {
-                                    // Legacy fallback
-                                    feeCurrency = 'KHR';
+                        bItems.forEach(item => {
+                            if (item.status === 'DELIVERED') {
+                                const itemFee = Number(item.deliveryFee) || 0;
+                                if (item.codCurrency === 'KHR') {
+                                    khrFeeTotal += itemFee;
+                                } else {
+                                    usdFeeTotal += itemFee;
                                 }
-
-                                ledger.push({
-                                    id: `fee-${b.id}`,
-                                    date: b.bookingDate,
-                                    description: `Service Fee: ${b.serviceTypeName}`,
-                                    type: 'FEE',
-                                    amount: totalDeduction,
-                                    currency: feeCurrency,
-                                    status: 'APPLIED',
-                                    reference: (b.id || '').slice(-6),
-                                    isCredit: false // Deducts from balance
-                                });
                             }
+                        });
+
+                        // Only add fees if there are actual delivered amounts
+                        if (khrFeeTotal > 0) {
+                            ledger.push({
+                                id: `fee-${b.id}-khr`,
+                                date: b.bookingDate,
+                                timestamp: b.createdAt || new Date(b.bookingDate).getTime(),
+                                description: `Service Fee (KHR): ${b.serviceTypeName}`,
+                                type: 'FEE',
+                                amount: khrFeeTotal,
+                                currency: 'KHR',
+                                status: 'APPLIED',
+                                reference: (b.id || '').slice(-6),
+                                isCredit: false
+                            });
+                        }
+
+                        if (usdFeeTotal > 0) {
+                            ledger.push({
+                                id: `fee-${b.id}-usd`,
+                                date: b.bookingDate,
+                                timestamp: b.createdAt || new Date(b.bookingDate).getTime(),
+                                description: `Service Fee (USD): ${b.serviceTypeName}`,
+                                type: 'FEE',
+                                amount: usdFeeTotal,
+                                currency: 'USD',
+                                status: 'APPLIED',
+                                reference: (b.id || '').slice(-6),
+                                isCredit: false
+                            });
                         }
                     }
                 }
@@ -542,7 +512,26 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         }
     }
 
-    const displayLedger = unifiedLedger.filter(t => t.currency === activeCurrency);
+    const displayLedger = unifiedLedger
+        .filter(t => t.currency === activeCurrency)
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); // Newest first
+
+    const totalPages = Math.ceil(displayLedger.length / ITEMS_PER_PAGE);
+    const paginatedLedger = displayLedger.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    const formatDateTime = (dateStr: string, timestamp?: number) => {
+        if (timestamp) {
+            const d = new Date(timestamp);
+            return {
+                date: d.toLocaleDateString('en-CA'),
+                time: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            };
+        }
+        return { date: dateStr, time: '' };
+    };
 
     return (
         <div className="space-y-6">
@@ -604,44 +593,86 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             </div>
 
             {/* Detailed Statement */}
-            <Card title={t('detailed_statement')}>
+            <Card title={`${t('detailed_statement')} (${displayLedger.length})`}>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('date')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date / Time</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('description')}</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('transaction_type')}</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('amount')}</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {displayLedger.map((txn) => (
-                                <tr key={txn.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{txn.date}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-900">
-                                        <div className="font-medium">{txn.description}</div>
-                                        {txn.status === 'PENDING' && <div className="text-xs text-orange-500 italic mt-0.5">{t('pending_approval')}</div>}
-                                        {txn.status === 'SETTLED' && <div className="text-xs text-green-500 italic mt-0.5">Settled</div>}
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${txn.type === 'FEE' ? 'bg-red-50 text-red-600 border border-red-100' :
-                                            txn.type === 'COD' && txn.isCredit ? 'bg-green-50 text-green-600 border border-green-100' :
-                                                txn.type === 'DEPOSIT' || txn.type === 'SETTLEMENT' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                                                    'bg-gray-50 text-gray-600 border border-gray-200'
-                                            }`}>
-                                            {txn.type}
-                                        </span>
-                                    </td>
-                                    <td className={`px-6 py-4 text-right text-sm font-bold ${txn.isCredit ? 'text-green-600' : 'text-red-600'
-                                        }`}>
-                                        {txn.isCredit ? '+' : '-'} {txn.currency === 'USD' ? '$' : ''}{txn.amount.toLocaleString()}{txn.currency === 'KHR' ? '៛' : ''}
+                            {paginatedLedger.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                                        No transactions found
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                paginatedLedger.map((txn) => {
+                                    const dt = formatDateTime(txn.date, txn.timestamp);
+                                    return (
+                                        <tr key={txn.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
+                                                <div>{dt.date}</div>
+                                                {dt.time && <div className="text-xs text-gray-400">{dt.time}</div>}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">
+                                                <div className="font-medium">{txn.description}</div>
+                                                {txn.status === 'PENDING' && <div className="text-xs text-orange-500 italic mt-0.5">{t('pending_approval')}</div>}
+                                                {txn.status === 'SETTLED' && <div className="text-xs text-green-500 italic mt-0.5">Settled</div>}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${txn.type === 'FEE' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                                    txn.type === 'COD' && txn.isCredit ? 'bg-green-50 text-green-600 border border-green-100' :
+                                                        txn.type === 'DEPOSIT' || txn.type === 'SETTLEMENT' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                                                            'bg-gray-50 text-gray-600 border border-gray-200'
+                                                    }`}>
+                                                    {txn.type}
+                                                </span>
+                                            </td>
+                                            <td className={`px-6 py-4 text-right text-sm font-bold ${txn.isCredit ? 'text-green-600' : 'text-red-600'
+                                                }`}>
+                                                {txn.isCredit ? '+' : '-'} {txn.currency === 'USD' ? '$' : ''}{txn.amount.toLocaleString()}{txn.currency === 'KHR' ? '៛' : ''}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 mt-4">
+                        <div className="text-sm text-gray-700">
+                            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, displayLedger.length)} of {displayLedger.length}
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                            >
+                                ← Prev
+                            </button>
+                            <span className="px-3 py-1 text-sm bg-gray-100 rounded-lg font-medium">
+                                {currentPage} / {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                            >
+                                Next →
+                            </button>
+                        </div>
+                    </div>
+                )}
             </Card>
 
             {/* Withdrawal/Deposit Modal */}

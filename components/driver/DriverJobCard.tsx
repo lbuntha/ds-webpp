@@ -8,12 +8,13 @@ interface Props {
   job: ParcelBooking;
   type: 'AVAILABLE' | 'PICKUP';
   onAction: (job: ParcelBooking) => void;
+  onUnlock?: (job: ParcelBooking) => void;
   onMapClick?: (address: string) => void;
   onChatClick?: (job: ParcelBooking) => void;
   currentDriverId?: string;
 }
 
-export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick, onChatClick, currentDriverId }) => {
+export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onUnlock, onMapClick, onChatClick, currentDriverId }) => {
   const { t } = useLanguage();
 
   // Filter items based on type and driver assignment
@@ -43,6 +44,10 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
   // Derive the display status from the items (not the booking)
   const displayStatus = items[0].status;
 
+  // Lock status
+  const isLocked = !!job.lockedByDriverId;
+  const isLockedByMe = job.lockedByDriverId === currentDriverId;
+  const isLockedByOther = isLocked && !isLockedByMe;
 
   const formatTime = (timestamp: number) => {
     if (!timestamp) return '';
@@ -59,14 +64,22 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
   const isAvailable = type === 'AVAILABLE';
 
   return (
-    <Card className={`shadow-sm ${isAvailable ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500 shadow-md'}`}>
+    <Card className={`shadow-sm ${isLockedByOther ? 'border-l-4 border-l-gray-400 opacity-60' : isAvailable ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500 shadow-md'}`}>
       <div className="flex gap-3">
-        <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden border border-gray-200">
+        <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden border border-gray-200 relative">
           {items?.[0]?.image ? (
             <img src={items[0].image} alt="Parcel" className="w-full h-full object-cover" />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+          )}
+          {/* Lock indicator */}
+          {isLockedByOther && (
+            <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
             </div>
           )}
         </div>
@@ -78,9 +91,21 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
                 {job.bookingDate} • {formatTime(job.createdAt)}
               </p>
               {!isAvailable && <p className="text-xs text-gray-500 mt-1">{job.senderPhone}</p>}
+              {/* Locked by indicator */}
+              {isLockedByOther && (
+                <p className="text-[10px] text-orange-600 font-medium mt-1">
+                  🔒 Taken by {job.lockedByDriverName}
+                </p>
+              )}
             </div>
             {isAvailable ? (
-              <Button onClick={() => onAction(job)} className="text-xs px-3 bg-green-600 hover:bg-green-700">{t('accept_job')}</Button>
+              <div className="flex flex-col gap-1">
+                {isLockedByOther ? (
+                  <span className="text-xs px-3 py-1.5 bg-gray-200 text-gray-500 rounded font-bold">Taken</span>
+                ) : (
+                  <Button onClick={() => onAction(job)} className="text-xs px-3 bg-green-600 hover:bg-green-700">{t('accept_job')}</Button>
+                )}
+              </div>
             ) : (
               <div className="flex flex-col items-end gap-1">
                 <span className={`text-[10px] px-2 py-1 rounded font-bold uppercase ${displayStatus === 'PENDING' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
@@ -95,8 +120,9 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{job.pickupAddress}</p>
 
           {isAvailable ? (
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex gap-2 items-center">
               <span className="text-[10px] bg-gray-100 px-2 py-1 rounded font-bold text-gray-600">{items.length} items</span>
+              {/* Release button for my locked job in MY_PICKUPS (shown via onUnlock prop) */}
             </div>
           ) : (
             <div className="mt-3 flex gap-2">
@@ -116,6 +142,18 @@ export const DriverJobCard: React.FC<Props> = ({ job, type, onAction, onMapClick
                 >
                   <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   Map
+                </button>
+              )}
+              {/* Release button */}
+              {onUnlock && isLockedByMe && (
+                <button
+                  onClick={() => onUnlock(job)}
+                  className="text-xs bg-orange-50 text-orange-600 px-3 py-1.5 rounded-full flex items-center font-bold border border-orange-200 hover:bg-orange-100"
+                >
+                  <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                  Release Job
                 </button>
               )}
             </div>

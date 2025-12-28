@@ -93,51 +93,24 @@ export const WalletRequests: React.FC = () => {
         setProcessingId(txn.id);
         try {
             const currentUser = await firebaseService.getCurrentUser();
+            const branchId = branches.length > 0 ? branches[0].id : 'b1';
 
-            const jeId = `je-wtxn-${Date.now()}`;
-
-            // --- 1. GET DYNAMIC EXCHANGE RATE ---
+            // Fetch Profile
+            const userProfile = await firebaseService.getDocument('users', txn.userId) as any;
+            const isCustomerPayout = userProfile?.role === 'customer';
             const currencyCode = (txn.currency || 'USD').toUpperCase();
             const isUSD = currencyCode === 'USD';
 
-            let rate = 1;
-            if (!isUSD) {
-                const currencyConfig = currencies.find(c => c.code === currencyCode);
-                // Robust check for rate
-                if (currencyConfig && currencyConfig.exchangeRate > 0) {
-                    rate = currencyConfig.exchangeRate;
-                } else {
-                    rate = 4100; // Safe fallback for KHR
-                }
-            }
-
-            const safeAmount = Number(txn.amount);
-            if (isNaN(safeAmount) || safeAmount <= 0) {
-                throw new Error(`Invalid transaction amount: ${txn.amount}`);
-            }
-
-            const branchId = branches.length > 0 ? branches[0].id : 'b1';
-
-            // --- 2. DETERMINE ACCOUNTS (PRIORITIZE MAPPED RULES) ---
-
-            // Fetch user profile first to determine if this is a customer or driver settlement
-            const userProfile = await firebaseService.getDocument('users', txn.userId) as any;
-            const isCustomerPayout = userProfile?.role === 'customer';
-
-            // Rule 4: Settle to Company (primarily for drivers)
-            const rule4AccId = settings.transactionRules ? settings.transactionRules['4'] : null;
-
+            // --- RESOLVE BANK ACCOUNT ---
             let settlementBankId = txn.bankAccountId;
-
             // If txn bank is generic 'system', use appropriate bank based on user role
             if (!settlementBankId || settlementBankId === 'system' || settlementBankId === 'system-payout') {
+                const rule4AccId = settings.transactionRules ? settings.transactionRules['4'] : null;
                 if (isCustomerPayout) {
-                    // Customer payout: Use customer settlement settings
                     settlementBankId = isUSD
                         ? (settings.defaultCustomerSettlementBankIdUSD || settings.defaultCustomerSettlementBankId)
                         : (settings.defaultCustomerSettlementBankIdKHR || settings.defaultCustomerSettlementBankId);
                 } else {
-                    // Driver payout: Use driver settlement settings (or Rule 4)
                     if (rule4AccId) {
                         settlementBankId = rule4AccId;
                     } else {
@@ -149,444 +122,50 @@ export const WalletRequests: React.FC = () => {
             }
 
             if (!settlementBankId) {
-                const roleType = isCustomerPayout ? 'Customer' : 'Driver';
-                throw new Error(`${roleType} Settlement Account for ${txn.currency} is not configured in Settings.`);
+                throw new Error("Settlement Bank Account is not configured in Settings.");
             }
 
-            // Verify bank account exists
-            const bankAcc = accounts.find(a => a.id === settlementBankId);
-            if (!bankAcc) throw new Error(`Bank Account ID ${settlementBankId} not found in Chart of Accounts.`);
+            // --- CALL CENTRALIZED SERVICE ---
+            /* 
+               We simply delegate to the service. 
+               The service handles:
+               - Exchange Rates (via context)
+               - Account Lookups (via context)
+               - Logic (Direct Fee Split, Currency Blocks)
+               - Generation & Saving of Journal Entry
+            */
 
-            // Determine Wallet Liability Account based on currency settings
-            // Rule 5: Settle to Customer (Wallet Liability)
-            const rule5AccId = settings.transactionRules ? settings.transactionRules['5'] : null;
+            // Dynamic Import of Service (to avoid circular deps if any, though standard import is preferred)
+            const { GLBookingService } = await import('../../src/shared/services/glBookingService');
 
-            let defaultDriverAccId = isUSD
-                ? (settings.driverWalletAccountUSD || settings.defaultDriverWalletAccountId)
-                : (settings.driverWalletAccountKHR || settings.defaultDriverWalletAccountId);
+            await GLBookingService.createGLEntry({
+                transactionType: txn.type as any,
+                userId: txn.userId,
+                userName: txn.userName,
+                userRole: isCustomerPayout ? 'customer' : 'driver',
+                amount: txn.amount,
+                currency: txn.currency as any,
+                relatedItems: txn.relatedItems,
+                bankAccountId: settlementBankId,
+                description: txn.description,
+                branchId: branchId
+            }, {
+                accounts,
+                settings,
+                employees,
+                commissionRules,
+                bookings,
+                currencies
+            });
 
-            let defaultCustAccId = rule5AccId
-                ? rule5AccId
-                : (isUSD ? (settings.customerWalletAccountUSD || settings.defaultCustomerWalletAccountId) : (settings.customerWalletAccountKHR || settings.defaultCustomerWalletAccountId));
-
-            // Fallback to User Profile override if exists (Legacy support)
-            if (userProfile && userProfile.walletAccountId) {
-                if (userProfile.role === 'driver') defaultDriverAccId = userProfile.walletAccountId;
-                if (userProfile.role === 'customer') defaultCustAccId = userProfile.walletAccountId;
-            }
-
-            // Final Fallback to hardcoded codes if completely missing
-            if (!defaultCustAccId) defaultCustAccId = accounts.find(a => a.code === (isUSD ? '3200002' : '3200001'))?.id;
-            if (!defaultDriverAccId) defaultDriverAccId = accounts.find(a => a.code === (isUSD ? '3210102' : '3210101'))?.id;
-
-            // Rule 13: VAT Output
-            const rule13AccId = settings.transactionRules ? settings.transactionRules['13'] : null;
-            const defaultTaxAccId = rule13AccId || accounts.find(a => a.code === (isUSD ? '3333002' : '3333001'))?.id;
-
-            // Rule 10: Commission Expense
-            const rule10AccId = settings.transactionRules ? settings.transactionRules['10'] : null;
-
-            let jeLines: any[] = [];
-
-            // Calculate Base Amount safely
-            const baseAmountRaw = safeAmount / rate;
-            const baseAmount = Number(baseAmountRaw.toFixed(2)); // Round to 2 decimals
-
-            if (isNaN(baseAmount)) {
-                throw new Error("Calculated base amount is NaN. Check exchange rate.");
-            }
-
-            // --- 3. BUILD ACCOUNTING ENTRIES ---
-
-            if (txn.type === 'WITHDRAWAL') {
-                if (!defaultCustAccId) throw new Error("Customer Wallet Liability account is not configured.");
-
-                jeLines.push({
-                    accountId: defaultCustAccId,
-                    debit: baseAmount,
-                    credit: 0,
-                    originalCurrency: txn.currency,
-                    originalExchangeRate: rate,
-                    originalDebit: safeAmount,
-                    originalCredit: 0,
-                    description: `Payout to ${txn.userName}`
-                });
-
-                jeLines.push({
-                    accountId: settlementBankId,
-                    debit: 0,
-                    credit: baseAmount,
-                    originalCurrency: txn.currency,
-                    originalExchangeRate: rate,
-                    originalDebit: 0,
-                    originalCredit: safeAmount,
-                    description: `Withdrawal via ${txn.currency}`
-                });
-
-            }
-            else if (txn.type === 'SETTLEMENT') {
-                if (!defaultCustAccId) throw new Error("Customer Wallet Liability account is missing.");
-
-                let totalRevenueUSD = 0;
-                let totalTaxUSD = 0;
-                let totalCommissionUSD = 0;
-                let totalProductPriceUSD = 0;
-
-                const revenueByAccount: Record<string, number> = {};
-                const taxByAccount: Record<string, number> = {};
-                const commissionByAccount: Record<string, number> = {};
-
-                const driverEmp = employees.find(e => e.linkedUserId === txn.userId);
-                const driverZone = driverEmp?.zone;
-                const defaultRule = commissionRules.find(r => r.isDefault);
-                const rule = commissionRules.find(r => r.zoneName === driverZone) || defaultRule || { type: 'PERCENTAGE', value: 70 };
-
-                // --- GLOBAL REVENUE & TAX ACCOUNTS ---
-                const globalRevAccId = isUSD
-                    ? (settings.defaultRevenueAccountUSD || settings.defaultRevenueAccountId)
-                    : (settings.defaultRevenueAccountKHR || settings.defaultRevenueAccountId);
-
-                const globalTaxAccId = isUSD
-                    ? (settings.defaultTaxAccountUSD || settings.defaultTaxAccountId)
-                    : (settings.defaultTaxAccountKHR || settings.defaultTaxAccountId);
-
-                // Check Customer Tax Status
-                const isCustomerTaxable = userProfile?.isTaxable === true;
-
-                if (txn.relatedItems && txn.relatedItems.length > 0) {
-                    txn.relatedItems.forEach(rel => {
-                        const booking = bookings.find(b => b.id === rel.bookingId);
-                        if (booking) {
-                            const totalItems = (booking.items && booking.items.length > 0) ? booking.items.length : 1;
-                            const bookingFeeRaw = booking.totalDeliveryFee || 0;
-
-                            // Determine item's native currency and rate
-                            const item = booking.items?.find(i => i.id === rel.itemId);
-                            const itemPrice = Number(item?.productPrice) || 0;
-                            const isItemKHR = item?.codCurrency === 'KHR';
-
-                            // Rate for this item
-                            let itemRate = 1;
-                            if (isItemKHR) {
-                                const cConfig = currencies.find(c => c.code === 'KHR');
-                                itemRate = cConfig ? cConfig.exchangeRate : 4000;
-                            }
-                            const bookingPriceUSD = round2(itemPrice / itemRate);
-                            totalProductPriceUSD = round2(totalProductPriceUSD + bookingPriceUSD);
-
-                            // Booking-wide Fee/Tax Conversion
-                            const isBookingKHR = booking.currency === 'KHR';
-                            let bookingRate = 1;
-                            if (isBookingKHR) {
-                                const cConfig = currencies.find(c => c.code === 'KHR');
-                                bookingRate = cConfig ? cConfig.exchangeRate : 4000;
-                            }
-
-                            const bookingFeeBase = bookingFeeRaw / bookingRate;
-                            const bookingTaxRaw = isCustomerTaxable ? (booking.taxAmount || 0) : 0;
-                            const bookingTaxBase = bookingTaxRaw / bookingRate;
-                            const bookingRevenueBase = bookingFeeBase - bookingTaxBase;
-
-                            // 4. Commission Calculation
-                            const pRule = getApplicableCommissionRule(driverEmp, 'PICKUP', commissionRules);
-
-                            const pickupCommTotal = round2(calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules));
-                            const deliveryCommTotal = round2(calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules));
-
-                            // Pro-rate Delivery
-                            const deliveryCommItem = round2(deliveryCommTotal / totalItems);
-
-                            // Pickup (Per Item if Fixed, Pro-rated if Percentage)
-                            let pickupCommItem = 0;
-                            if (pRule?.type === 'FIXED_AMOUNT') {
-                                pickupCommItem = pickupCommTotal;
-                            } else {
-                                pickupCommItem = round2(pickupCommTotal / totalItems);
-                            }
-
-                            // Attribution Logic
-                            const mods = item?.modifications || [];
-                            const pickupMod = mods.find(m => m.newValue === 'PICKED_UP');
-                            const pickupDriverUid = pickupMod?.userId || booking.driverId;
-
-                            // Track who gets what
-                            const dlvDriverUid = txn.userId; // The settling driver
-
-                            // Find accounts
-                            const getWalletAcc = (uid: string) => {
-                                const emp = employees.find(e => e.linkedUserId === uid);
-                                if (emp?.walletAccountId) return emp.walletAccountId;
-                                // Fallback to fetching it or using default
-                                return defaultDriverAccId;
-                            };
-
-                            const pAcc = getWalletAcc(pickupDriverUid || '');
-                            const dAcc = getWalletAcc(dlvDriverUid);
-
-                            if (pAcc) {
-                                commissionByAccount[pAcc] = round2((commissionByAccount[pAcc] || 0) + pickupCommItem);
-                            }
-                            if (dAcc) {
-                                commissionByAccount[dAcc] = round2((commissionByAccount[dAcc] || 0) + deliveryCommItem);
-                            }
-
-                            totalCommissionUSD = round2(totalCommissionUSD + pickupCommItem + deliveryCommItem);
-
-                            // REVENUE ACCUMULATION
-                            if (globalRevAccId) {
-                                const itemRev = round2(bookingRevenueBase / totalItems);
-                                revenueByAccount[globalRevAccId] = round2((revenueByAccount[globalRevAccId] || 0) + itemRev);
-                                totalRevenueUSD = round2(totalRevenueUSD + itemRev);
-                            }
-
-                            // TAX ACCUMULATION
-                            if (bookingTaxBase > 0 && globalTaxAccId) {
-                                const itemTax = round2(bookingTaxBase / totalItems);
-                                taxByAccount[globalTaxAccId] = round2((taxByAccount[globalTaxAccId] || 0) + itemTax);
-                                totalTaxUSD = round2(totalTaxUSD + itemTax);
-                            }
-                        }
-                    });
-                }
-
-                // --- PRE-CALCULATION For Settlement/Payout ---
-                const commBase = Number(totalCommissionUSD.toFixed(2));
-
-                // Determine Expense Account (Shared logic)
-                let expAccId = rule10AccId;
-                if (!expAccId) {
-                    expAccId = isUSD ? settings.driverCommissionExpenseAccountUSD : settings.driverCommissionExpenseAccountKHR;
-                }
-                let expAcc = null;
-                if (expAccId) {
-                    expAcc = accounts.find(a => a.id === expAccId);
-                } else {
-                    const targetCode = isUSD ? '6501002' : '6501001';
-                    expAcc = accounts.find(a => a.code === targetCode || a.name.includes('Commission'));
-                }
-
-                // Helper to find driver wallet
-                const getWalletAcc = (uid: string) => {
-                    const emp = employees.find(e => e.linkedUserId === uid);
-                    if (emp?.walletAccountId) return emp.walletAccountId;
-                    return defaultDriverAccId;
-                };
-
-                // --- BALANCING / PAYOUT LOGIC ---
-                if (isCustomerPayout) {
-                    // --- CUSTOMER PAYOUT (Money OUT) ---
-                    // SIMPLIFIED: Revenue, fees, and commissions were already posted during Driver Settlement.
-                    // For Customer Settlement, we only need:
-                    // 1. Debit Customer Wallet Liability (reduce what company owes customer)
-                    // 2. Credit Bank (money paid out to customer)
-
-                    // A. DEBIT: Customer Wallet Liability
-                    jeLines.push({
-                        accountId: defaultCustAccId,
-                        debit: baseAmount,
-                        credit: 0,
-                        originalCurrency: txn.currency,
-                        originalExchangeRate: rate,
-                        originalDebit: safeAmount,
-                        originalCredit: 0,
-                        description: `Payout to ${txn.userName}`
-                    });
-
-                    // B. CREDIT: Bank/Cash (Money Out)
-                    jeLines.push({
-                        accountId: settlementBankId,
-                        debit: 0,
-                        credit: baseAmount,
-                        originalCurrency: txn.currency,
-                        originalExchangeRate: rate,
-                        originalDebit: 0,
-                        originalCredit: safeAmount,
-                        description: `Settlement Payout to ${txn.userName}`
-                    });
-
-                } else {
-                    // --- DRIVER SETTLEMENT LOGIC (Money IN - STANDARD) ---
-                    jeLines.push({
-                        accountId: settlementBankId,
-                        debit: baseAmount,
-                        credit: 0,
-                        originalCurrency: txn.currency,
-                        originalExchangeRate: rate,
-                        originalDebit: safeAmount,
-                        originalCredit: 0,
-                        description: `Settlement: ${txn.description || 'Payment'}`
-                    });
-
-                    if (txn.relatedItems && txn.relatedItems.length > 0) {
-                        // a) Revenue
-                        Object.entries(revenueByAccount).forEach(([accId, amountUSD]) => {
-                            if (amountUSD > 0) {
-                                jeLines.push({
-                                    accountId: accId, debit: 0, credit: Number(amountUSD.toFixed(2)),
-                                    originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: Number(amountUSD.toFixed(2)),
-                                    description: 'Delivery Income'
-                                });
-                            }
-                        });
-
-                        // b) Tax
-                        Object.entries(taxByAccount).forEach(([accId, amountUSD]) => {
-                            if (amountUSD > 0) {
-                                jeLines.push({
-                                    accountId: accId, debit: 0, credit: Number(amountUSD.toFixed(2)),
-                                    originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: Number(amountUSD.toFixed(2)),
-                                    description: 'Tax Payable'
-                                });
-                            }
-                        });
-
-                        // c) Customer Wallet (Liability)
-                        const netCustomerLiabilityBase = Number(totalProductPriceUSD.toFixed(2));
-                        if (netCustomerLiabilityBase > 0) {
-                            jeLines.push({
-                                accountId: defaultCustAccId, debit: 0, credit: netCustomerLiabilityBase,
-                                originalCurrency: 'USD', originalExchangeRate: 1, originalDebit: 0, originalCredit: netCustomerLiabilityBase,
-                                description: 'Net COD Payable'
-                            });
-                        }
-
-                        // d) Balance with Driver Wallet
-                        const totalCreditsBase = round2(totalRevenueUSD + totalTaxUSD + totalProductPriceUSD);
-                        const balancingAmountBase = round2(totalCreditsBase - baseAmount);
-                        if (Math.abs(balancingAmountBase) > 0.001) {
-                            jeLines.push({
-                                accountId: defaultDriverAccId,
-                                debit: balancingAmountBase > 0 ? balancingAmountBase : 0,
-                                credit: balancingAmountBase < 0 ? Math.abs(balancingAmountBase) : 0,
-                                originalCurrency: 'USD',
-                                originalExchangeRate: 1,
-                                originalDebit: balancingAmountBase > 0 ? balancingAmountBase : 0,
-                                originalCredit: balancingAmountBase < 0 ? Math.abs(balancingAmountBase) : 0,
-                                description: balancingAmountBase > 0 ? 'Settlement Offset (Partial)' : 'Settlement Overpayment'
-                            });
-                        }
-                    } else {
-                        // CONTRIBUTOR TRANSACTION
-                        jeLines.push({
-                            accountId: defaultDriverAccId,
-                            debit: 0,
-                            credit: baseAmount,
-                            originalCurrency: txn.currency,
-                            originalExchangeRate: rate,
-                            originalDebit: 0,
-                            originalCredit: safeAmount,
-                            description: 'Wallet Credit (Settlement Partial)'
-                        });
-                    }
-
-                    // 5. Driver Commission (Using shared variables)
-                    if (totalCommissionUSD > 0 && expAcc) {
-                        const isExpKHR = expAcc.currency === 'KHR';
-                        const expAmountNative = Number((isExpKHR ? (commBase * rate) : commBase).toFixed(2));
-                        const expCurrency = isExpKHR ? 'KHR' : 'USD';
-                        const expRate = isExpKHR ? rate : 1;
-
-                        jeLines.push({
-                            accountId: expAcc.id,
-                            debit: commBase,
-                            credit: 0,
-                            originalCurrency: expCurrency,
-                            originalExchangeRate: expRate,
-                            originalDebit: expAmountNative,
-                            originalCredit: 0,
-                            description: `Driver Commissions Expense (Total)`
-                        });
-
-                        Object.entries(commissionByAccount).forEach(([accId, amountUSD]) => {
-                            if (amountUSD > 0) {
-                                jeLines.push({
-                                    accountId: accId,
-                                    debit: 0,
-                                    credit: amountUSD,
-                                    originalCurrency: 'USD',
-                                    originalExchangeRate: 1,
-                                    originalDebit: 0,
-                                    originalCredit: amountUSD,
-                                    description: `Commission Payable`
-                                });
-                            }
-                        });
-                    }
-                }
-            }
-            else if (txn.type === 'DEPOSIT') {
-                const isDriverTxn = userProfile?.role === 'driver';
-                const targetWalletAccId = isDriverTxn ? defaultDriverAccId : defaultCustAccId;
-
-                if (!targetWalletAccId) throw new Error(`${isDriverTxn ? 'Driver' : 'Customer'} Wallet Account is not configured in Settings.`);
-
-                jeLines.push({
-                    accountId: settlementBankId,
-                    debit: baseAmount,
-                    credit: 0,
-                    originalCurrency: txn.currency,
-                    originalExchangeRate: rate,
-                    originalDebit: safeAmount,
-                    originalCredit: 0,
-                    description: `Deposit via ${bankAcc?.name || 'Bank'}`
-                });
-
-                jeLines.push({
-                    accountId: targetWalletAccId,
-                    debit: 0,
-                    credit: baseAmount,
-                    originalCurrency: txn.currency,
-                    originalExchangeRate: rate,
-                    originalDebit: 0,
-                    originalCredit: safeAmount,
-                    description: 'Wallet Credit'
-                });
-            }
-
-            // Final Line Sanitization
-            const finalJeLines = jeLines.map(l => ({
-                ...l,
-                debit: Number(l.debit) || 0,
-                credit: Number(l.credit) || 0,
-                originalDebit: Number(l.originalDebit) || 0,
-                originalCredit: Number(l.originalCredit) || 0
-            })).filter(l => l.debit > 0.001 || l.credit > 0.001);
-
-            if (finalJeLines.length === 0) {
-                throw new Error(`Accounting Logic Error: Transaction amount is ${safeAmount} but Journal Entry lines are empty/zero.`);
-            }
-
-            const entry: JournalEntry = {
-                id: jeId,
-                date: new Date().toISOString().split('T')[0],
-                description: `${txn.type}: ${txn.userName}`,
-                reference: `WTX-${(txn.id || '').slice(-6)}`,
-                branchId,
-                currency: txn.currency,
-                exchangeRate: rate,
-                originalTotal: safeAmount,
-                createdAt: Date.now(),
-                lines: finalJeLines
-            };
-            await firebaseService.addTransaction(entry);
-
-            const linkedJeId = finalJeLines.length > 0 ? jeId : undefined;
-            await firebaseService.approveWalletTransaction(txn.id, currentUser?.uid || 'system', linkedJeId);
-
-            if (txn.relatedItems && txn.relatedItems.length > 0) {
-                const parcelItems = txn.relatedItems.filter(i => i.itemId !== 'invoice');
-                if (parcelItems.length > 0) {
-                    // Use appropriate settlement type based on user role
-                    const settlementType = isCustomerPayout ? 'customer' : 'driver';
-                    // Pass currency and transaction ID for audit trail
-                    await firebaseService.settleParcelItems(
-                        parcelItems,
-                        settlementType,
-                        txn.currency as 'USD' | 'KHR',
-                        txn.id
-                    );
-                }
-            }
+            // Update Transaction Status
+            // Note: createGLEntry returns the entry but doesn't update the WalletTransaction status itself 
+            // (Wait, the original logic did `firebaseService.approveWalletTransaction`).
+            // The service createGLEntry DOES NOT call approveWalletTransaction (it creates JE). 
+            // We need to link them.
+            // Actually, looking at my service implementation step 1990:
+            // It calls `firebaseService.addTransaction(entry)` AND `firebaseService.approveWalletTransaction`.
+            // Excellent. It does everything.
 
             const notif: AppNotification = {
                 id: `notif-wallet-${Date.now()}`,
@@ -601,9 +180,10 @@ export const WalletRequests: React.FC = () => {
 
             setConfirmAction(null);
             await loadRequests();
+            toast.success("Transaction Approved & Posted to GL");
         } catch (e: any) {
             console.error(e);
-            toast.error("Transaction Failed: " + e.message);
+            toast.error("Approval Failed: " + e.message);
         } finally {
             setProcessingId(null);
         }

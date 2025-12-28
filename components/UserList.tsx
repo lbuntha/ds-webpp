@@ -8,6 +8,8 @@ import { FEATURE_LIST } from '../src/shared/constants';
 import { firebaseService } from '../src/shared/services/firebaseService';
 import { logisticsService } from '../src/shared/services/logisticsService';
 import { toast } from '../src/shared/utils/toast';
+import { PlaceAutocomplete } from './ui/PlaceAutocomplete';
+import { LocationPicker } from './ui/LocationPicker';
 
 interface Props {
     users: UserProfile[];
@@ -86,6 +88,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
     const [newLocationAddress, setNewLocationAddress] = useState('');
     const [newLocationLat, setNewLocationLat] = useState('');
     const [newLocationLng, setNewLocationLng] = useState('');
+    const [showLocationMapPicker, setShowLocationMapPicker] = useState(false);
 
     // Special Rates State
     const [serviceTypes, setServiceTypes] = useState<ParcelServiceType[]>([]);
@@ -319,11 +322,12 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
         setCustomerBankAccounts(prev => prev.filter(b => (b.id !== bankIdOrNum && b.accountNumber !== bankIdOrNum)));
     };
 
-    const handleAddLocation = () => {
+    const handleAddLocation = async () => {
         if (!newLocationLabel || !newLocationAddress) {
             toast.error('Label and Address are required');
             return;
         }
+        if (!editingUser) return;
 
         const newLoc: SavedLocation = {
             id: Date.now().toString(),
@@ -336,7 +340,18 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
             isPrimary: custSavedLocations.length === 0 // Make primary if it's the first one
         };
 
-        setCustSavedLocations([...custSavedLocations, newLoc]);
+        const updatedLocations = [...custSavedLocations, newLoc];
+        setCustSavedLocations(updatedLocations);
+
+        // Save to Firebase
+        try {
+            await firebaseService.configService.updateUserLocations(editingUser.uid, updatedLocations);
+            toast.success('Location saved!');
+        } catch (e) {
+            console.error('Failed to save location', e);
+            toast.error('Failed to save location');
+        }
+
         setNewLocationLabel('');
         setNewLocationAddress('');
         setNewLocationLat('');
@@ -344,15 +359,37 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
         setShowAddLocationModal(false);
     };
 
-    const handleRemoveLocation = (locationId: string) => {
-        setCustSavedLocations(prev => prev.filter(l => l.id !== locationId));
+    const handleRemoveLocation = async (locationId: string) => {
+        if (!editingUser) return;
+        const updatedLocations = custSavedLocations.filter(l => l.id !== locationId);
+        setCustSavedLocations(updatedLocations);
+
+        // Save to Firebase
+        try {
+            await firebaseService.configService.updateUserLocations(editingUser.uid, updatedLocations);
+            toast.success('Location removed');
+        } catch (e) {
+            console.error('Failed to remove location', e);
+            toast.error('Failed to remove location');
+        }
     };
 
-    const handleSetPrimaryLocation = (locationId: string) => {
-        setCustSavedLocations(prev => prev.map(l => ({
+    const handleSetPrimaryLocation = async (locationId: string) => {
+        if (!editingUser) return;
+        const updatedLocations = custSavedLocations.map(l => ({
             ...l,
             isPrimary: l.id === locationId
-        })));
+        }));
+        setCustSavedLocations(updatedLocations);
+
+        // Save to Firebase
+        try {
+            await firebaseService.configService.updateUserLocations(editingUser.uid, updatedLocations);
+            toast.success('Primary location updated');
+        } catch (e) {
+            console.error('Failed to update primary location', e);
+            toast.error('Failed to update primary location');
+        }
     };
 
     const handleGenerateReferralCode = () => {
@@ -1470,19 +1507,32 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                             <h3 className="text-lg font-bold text-gray-900 mb-4">Add New Location</h3>
                             <div className="space-y-4">
                                 <Input
-                                    label="Location Label"
+                                    label="Label (e.g. Home, Office)"
                                     value={newLocationLabel}
                                     onChange={e => setNewLocationLabel(e.target.value)}
-                                    placeholder="e.g. Home, Office, Branch 1"
+                                    placeholder="Home, Office, Warehouse A..."
                                 />
                                 <div className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-700">Full Address</label>
-                                    <textarea
-                                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm h-24 resize-none"
+                                    <label className="block text-sm font-medium text-gray-700">Address / Coordinates</label>
+                                    <PlaceAutocomplete
                                         value={newLocationAddress}
-                                        onChange={e => setNewLocationAddress(e.target.value)}
-                                        placeholder="Detailed address..."
+                                        onChange={setNewLocationAddress}
+                                        onSelect={(place) => {
+                                            setNewLocationAddress(place.address || place.name);
+                                            if (place.location) {
+                                                setNewLocationLat(place.location.lat.toString());
+                                                setNewLocationLng(place.location.lng.toString());
+                                            }
+                                        }}
+                                        onPickMap={() => setShowLocationMapPicker(true)}
+                                        placeholder="Enter address or select on map"
+                                        className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
                                     />
+                                    {(newLocationLat && newLocationLng) && (
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            📍 {newLocationLat}, {newLocationLng}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <Input
@@ -1517,6 +1567,19 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                     </div>
                 )
             }
+
+            {/* Location Map Picker */}
+            {showLocationMapPicker && (
+                <LocationPicker
+                    onClose={() => setShowLocationMapPicker(false)}
+                    onConfirm={(lat, lng, address) => {
+                        setNewLocationAddress(address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                        setNewLocationLat(lat.toString());
+                        setNewLocationLng(lng.toString());
+                        setShowLocationMapPicker(false);
+                    }}
+                />
+            )}
         </div >
     );
 };

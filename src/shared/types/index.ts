@@ -680,6 +680,10 @@ export interface ParcelBooking {
   createdAt: number;
   referralProcessed?: boolean;
   exchangeRateForCOD?: number; // Snapshot of the rate used for this booking
+  // Job lock fields - when a driver accepts, they lock the job
+  lockedByDriverId?: string;
+  lockedByDriverName?: string;
+  lockedAt?: number;
 }
 
 export interface ChatMessage {

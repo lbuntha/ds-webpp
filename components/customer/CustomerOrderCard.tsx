@@ -121,57 +121,38 @@ export const CustomerOrderCard: React.FC<Props> = ({ booking, derivedStatus, onC
                 </div>
                 <div className="flex items-center font-bold text-gray-900">
                     {(() => {
-                        const fee = booking.totalDeliveryFee || 0;
-                        const feeCurrency = booking.currency || 'USD';
+                        // Sum fees by item currency (each item has its own deliveryFee and codCurrency)
+                        let usdFee = 0;
+                        let khrFee = 0;
 
-                        // Check for mixed currencies in items
-                        const itemCurrencies = new Set(items.map(i => i.codCurrency || 'USD'));
-                        const hasUSD = itemCurrencies.has('USD');
-                        const hasKHR = itemCurrencies.has('KHR');
-                        const isMixed = hasUSD && hasKHR;
-
-                        if (isMixed && items.length > 0) {
-                            // Pro-rate based on count
-                            // Assumption: Fee is evenly distributed per item for display purposes
-                            const khrItems = items.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
-                            const usdItems = items.filter(i => (i.codCurrency || 'USD') === 'USD').length;
-                            const totalCount = items.length;
-
-                            const feePerItem = fee / totalCount;
-
-                            // Calculate portions in Fee Currency
-                            const khrPortionVal = feePerItem * khrItems;
-                            const usdPortionVal = feePerItem * usdItems;
-
-                            // Convert to Target Display Currencies
-                            // Rate: 4000 is standard for "Simple" display/mental math, matching user expectation
-                            const RATE = 4000;
-
-                            let displayParts = [];
-
-                            // USD Part
-                            if (feeCurrency === 'USD') {
-                                displayParts.push(`$${usdPortionVal.toFixed(2)}`);
+                        items.forEach(item => {
+                            const itemFee = Number(item.deliveryFee) || 0;
+                            if (item.codCurrency === 'KHR') {
+                                khrFee += itemFee;
                             } else {
-                                // Fee is KHR, convert USD portion to USD
-                                displayParts.push(`$${(usdPortionVal / RATE).toFixed(2)}`);
+                                usdFee += itemFee;
                             }
+                        });
 
-                            // KHR Part
-                            if (feeCurrency === 'KHR') {
-                                displayParts.push(`${khrPortionVal.toLocaleString()} ៛`);
-                            } else {
-                                // Fee is USD, convert KHR portion to KHR
-                                displayParts.push(`${(khrPortionVal * RATE).toLocaleString()} ៛`);
-                            }
-
-                            return displayParts.join(' + ');
+                        // If we have fees in both currencies
+                        if (usdFee > 0 && khrFee > 0) {
+                            return `$${usdFee.toFixed(2)} + ${khrFee.toLocaleString()} ៛`;
                         }
 
-                        // Standard Single Currency Display
-                        return feeCurrency === 'KHR'
-                            ? `${fee.toLocaleString()} ៛`
-                            : `$${fee.toFixed(2)}`;
+                        // Single currency display
+                        if (khrFee > 0) {
+                            return `${khrFee.toLocaleString()} ៛`;
+                        }
+
+                        // Fallback to booking.totalDeliveryFee if no per-item fees
+                        if (usdFee === 0 && khrFee === 0) {
+                            const fee = booking.totalDeliveryFee || 0;
+                            const itemCurrencies = new Set(items.map(i => i.codCurrency || 'USD'));
+                            const hasKHR = itemCurrencies.has('KHR') && !itemCurrencies.has('USD');
+                            return hasKHR ? `${fee.toLocaleString()} ៛` : `$${fee.toFixed(2)}`;
+                        }
+
+                        return `$${usdFee.toFixed(2)}`;
                     })()}
                     <svg className="w-4 h-4 ml-1 text-gray-300 group-hover:text-red-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
                 </div>

@@ -7,6 +7,7 @@ import { Input } from '../ui/Input';
 import { Avatar } from '../ui/Avatar';
 import { ImageUpload } from '../ui/ImageUpload';
 import { LocationPicker } from '../ui/LocationPicker';
+import { PlaceAutocomplete } from '../ui/PlaceAutocomplete';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { toast } from '../../src/shared/utils/toast';
 
@@ -645,27 +646,23 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
                                     placeholder="Home, Office, Warehouse A..."
                                 />
 
-                                {/* Address Input with Map Trigger */}
+                                {/* Address Input with Place Autocomplete */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('address_coordinates')}</label>
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <input
-                                                type="text"
-                                                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm"
-                                                placeholder={t('enter_address_placeholder')}
-                                                value={newLocAddress}
-                                                onChange={e => setNewLocAddress(e.target.value)}
-                                            />
-                                            <button
-                                                onClick={() => setShowMapPicker(true)}
-                                                className="absolute right-2 top-2 text-red-600 hover:text-red-800"
-                                                title="Open Map"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                            </button>
-                                        </div>
-                                    </div>
+                                    <PlaceAutocomplete
+                                        value={newLocAddress}
+                                        onChange={setNewLocAddress}
+                                        onSelect={(place) => {
+                                            setNewLocAddress(place.address || place.name);
+                                            if (place.location) {
+                                                setNewLocLat(place.location.lat);
+                                                setNewLocLng(place.location.lng);
+                                            }
+                                        }}
+                                        onPickMap={() => setShowMapPicker(true)}
+                                        placeholder={t('enter_address_placeholder')}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-red-500 focus:border-red-500"
+                                    />
                                     {newLocLat !== '' && newLocLng !== '' && (
                                         <p className="text-xs text-green-600 mt-1 flex items-center">
                                             <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>

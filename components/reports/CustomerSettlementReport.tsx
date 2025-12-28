@@ -136,17 +136,14 @@ export const CustomerSettlementReport: React.FC = () => {
             (b.items || []).forEach(item => {
                 if (item.status === 'DELIVERED' && item.customerSettlementStatus !== 'SETTLED') {
                     const cod = Number(item.productPrice) || 0;
-                    const fee = (Number(b.totalDeliveryFee) || 0) / (b.items?.length || 1);
+                    // Use item-level deliveryFee directly
+                    const fee = Number(item.deliveryFee) || 0;
 
                     if (item.codCurrency === 'KHR') {
                         summary.totalCodKHR += cod;
-                    } else {
-                        summary.totalCodUSD += cod;
-                    }
-
-                    if (b.currency === 'KHR') {
                         summary.totalFeeKHR += fee;
                     } else {
+                        summary.totalCodUSD += cod;
                         summary.totalFeeUSD += fee;
                     }
 
@@ -234,65 +231,18 @@ export const CustomerSettlementReport: React.FC = () => {
                                 }
                             });
 
-                            // B. Service Fee Deduction (Debit)
+                            // B. Service Fee Deduction (Debit) - Use item-level deliveryFee
                             if (b.status !== 'CANCELLED') {
-                                const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
-                                // Deduct fee if items are delivered or booking is completed
-                                if (itemsDelivered > 0 || b.status === 'COMPLETED' || b.status === 'CONFIRMED') {
-                                    let feeAmount = b.totalDeliveryFee || 0;
-                                    const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
-                                    const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
-
-                                    if (isMixed) {
-                                        // Mixed Currency Logic: Split Fee based on DELIVERED items only
-                                        const khrItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR' && i.status === 'DELIVERED').length;
-                                        const usdItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'USD' && i.status === 'DELIVERED').length;
-                                        const totalCount = bItems.length || 1;
-                                        const feePerItem = feeAmount / totalCount;
-                                        const RATE = 4000;
-
-                                        // 1. KHR Portion
-                                        if (khrItemsDelivered > 0) {
-                                            const khrPortionFee = feePerItem * khrItemsDelivered;
-                                            let khrFinalAmount = khrPortionFee;
-                                            if (b.currency === 'USD') khrFinalAmount = khrPortionFee * RATE;
-                                            khr -= khrFinalAmount;
-                                        }
-
-                                        // 2. USD Portion
-                                        if (usdItemsDelivered > 0) {
-                                            const usdPortionFee = feePerItem * usdItemsDelivered;
-                                            let usdFinalAmount = usdPortionFee;
-                                            if (b.currency === 'KHR') usdFinalAmount = usdPortionFee / RATE;
-                                            usd -= usdFinalAmount;
-                                        }
-
-                                    } else {
-                                        // Single Currency Logic: Pro-rate based on Delivered count (if partial delivery)
-                                        // OR just take full fee if completed? WalletDashboard does pro-rating for delivered items count if logic implies per-item cost.
-                                        // WalletDashboard Logic: `const totalDeduction = feePerItem * itemsDeliveredCount;`
-
-                                        const totalCount = bItems.length || 1;
-                                        const feePerItem = feeAmount / totalCount;
-                                        const totalDeduction = feePerItem * itemsDelivered;
-
-                                        let feeCurrency = 'USD';
-                                        let hasKHR = bItems.some(i => i.codCurrency === 'KHR'); // Check if ANY item was KHR to infer fee currency
-
-                                        if (b.currency) {
-                                            feeCurrency = b.currency;
-                                        } else if (hasKHR) {
-                                            // Legacy fallback for implicit KHR
-                                            feeCurrency = 'KHR';
-                                        }
-
-                                        if (feeCurrency === 'KHR') {
-                                            khr -= totalDeduction;
+                                bItems.forEach(item => {
+                                    if (item.status === 'DELIVERED') {
+                                        const itemFee = Number(item.deliveryFee) || 0;
+                                        if (item.codCurrency === 'KHR') {
+                                            khr -= itemFee;
                                         } else {
-                                            usd -= totalDeduction;
+                                            usd -= itemFee;
                                         }
                                     }
-                                }
+                                });
                             }
                         });
 
@@ -319,34 +269,23 @@ export const CustomerSettlementReport: React.FC = () => {
             if (b.senderId !== selectedCustomerId) return;
             (b.items || []).forEach(item => {
                 if (item.status === 'DELIVERED' && item.customerSettlementStatus !== 'SETTLED') {
-                    let fee = (Number(b.totalDeliveryFee) || 0) / (b.items?.length || 1);
-                    let feeCurrency = b.currency || 'USD';
-
-                    // Logic to match WalletDashboard's split/implicit currency handling
-                    // If Item is KHR, we want to deduce the fee in KHR to allow clean Net Payout
-                    if (item.codCurrency === 'KHR') {
-                        // If fee was defined in USD (explicitly or implicitly), convert to KHR
-                        if (feeCurrency === 'USD') {
-                            fee = fee * 4000;
-                            feeCurrency = 'KHR';
-                        }
-                    }
+                    // Use item-level deliveryFee directly
+                    const fee = Number(item.deliveryFee) || 0;
+                    const feeCurrency = item.codCurrency || 'USD';
 
                     details.push({
                         bookingId: b.id,
                         itemId: item.id,
                         trackingCode: item.trackingCode,
                         receiverName: item.receiverName,
-                        receiverPhone: item.receiverPhone, // Ensure this field exists on ParcelItem
-                        deliveryDate: b.bookingDate, // approximate
+                        receiverPhone: item.receiverPhone,
+                        deliveryDate: b.bookingDate,
                         image: item.image,
                         cod: Number(item.productPrice) || 0,
                         codCurrency: item.codCurrency || 'USD',
                         fee: fee,
                         feeCurrency: feeCurrency,
-                        net: (item.codCurrency || 'USD') === feeCurrency
-                            ? (Number(item.productPrice) || 0) - fee
-                            : null // Should not happen with above logic ensuring match
+                        net: (Number(item.productPrice) || 0) - fee
                     });
                 }
             });

@@ -60,6 +60,11 @@ export const SettlementReportModal: React.FC<Props> = ({
         return accounts.find(a => a.id === transaction.bankAccountId);
     }, [transaction.bankAccountId, accounts]);
 
+    const getAccountName = (id: string) => {
+        const acc = accounts.find(a => a.id === id);
+        return acc ? `${acc.code} - ${acc.name}` : id;
+    };
+
     useEffect(() => {
         const fetchDetails = async () => {
             setLoading(true);
@@ -229,184 +234,109 @@ export const SettlementReportModal: React.FC<Props> = ({
     }, [transaction, bookings]); // Depend on bookings prop to refresh if passed
 
     // --- PREVIEW GENERATOR ---
-    const previewJournalEntry = useMemo<PreviewLine[] | null>(() => {
+    const [previewResult, setPreviewResult] = useState<any>(null); // Type: GLPreviewResult
+    const [previewLoading, setPreviewLoading] = useState(false);
+
+    useEffect(() => {
         // Must have settings and accounts to preview
-        if (!isApproving || journalEntry || !settings || accounts.length === 0) return null;
+        if (!isApproving || journalEntry || !settings || accounts.length === 0) return;
 
-        const currencyCode = (transaction.currency || 'USD').toUpperCase();
-        const isUSD = currencyCode === 'USD';
+        const generatePreview = async () => {
+            setPreviewLoading(true);
+            try {
+                // Determine Context data
+                const context = { accounts, settings, employees, commissionRules, bookings, currencies };
+                const branchId = 'b1'; // Default branch
 
-        let rate = 1;
-        if (!isUSD) {
-            const currencyConfig = currencies.find(c => c.code === currencyCode);
-            // Robust check for rate
-            if (currencyConfig && currencyConfig.exchangeRate > 0) {
-                rate = currencyConfig.exchangeRate;
-            } else {
-                rate = 4100; // Safe fallback
+                // Resolve Bank Account (Reusing logic for preview accuracy)
+                const currencyCode = (transaction.currency || 'USD').toUpperCase();
+                const isUSD = currencyCode === 'USD';
+                let settlementBankId = transaction.bankAccountId;
+                const rule4AccId = settings.transactionRules ? settings.transactionRules['4'] : null;
+
+                // Simple resolution just for the preview call
+                // Note: The service might error if bank ID is missing, which is fine (shows in errors)
+                if (!settlementBankId || settlementBankId === 'system' || settlementBankId === 'system-payout') {
+                    // Check user role from somewhere? We don't have user profile here easily unless we fetch or infer.
+                    // We can infer from transaction type or passed props?
+                    // Transaction doesn't explicit have role. But we can guess.
+                    // If Transaction Type is WITHDRAWAL -> Likely Customer Payout? 
+                    // Actually, Driver Withdrawal exists too? Unlikely in this system context (Drivers settle/Deposit).
+
+                    // Best effort guess or fetch? 
+                    // To avoid async fetch inside this effect which might be heavy, lets try to reuse knowns.
+                    // But actually, WalletRequests passed 'employees' list. If userId is in employees, likely driver.
+
+                    const isDriver = employees.some(e => e.linkedUserId === transaction.userId);
+
+                    if (isDriver) {
+                        if (rule4AccId) {
+                            settlementBankId = rule4AccId;
+                        } else {
+                            settlementBankId = isUSD
+                                ? (settings.defaultDriverSettlementBankIdUSD || settings.defaultDriverSettlementBankId)
+                                : (settings.defaultDriverSettlementBankIdKHR || settings.defaultDriverSettlementBankId);
+                        }
+                    } else {
+                        // Customer
+                        settlementBankId = isUSD
+                            ? (settings.defaultCustomerSettlementBankIdUSD || settings.defaultCustomerSettlementBankId)
+                            : (settings.defaultCustomerSettlementBankIdKHR || settings.defaultCustomerSettlementBankId);
+                    }
+                }
+
+                // Import Service dynamically to ensure clean load
+                const { GLBookingService } = await import('../../src/shared/services/glBookingService');
+
+                const params = {
+                    transactionType: transaction.type as any,
+                    userId: transaction.userId,
+                    userName: transaction.userName,
+                    userRole: (employees.some(e => e.linkedUserId === transaction.userId) ? 'driver' : 'customer') as any,
+                    amount: transaction.amount,
+                    currency: transaction.currency as any,
+                    relatedItems: transaction.relatedItems,
+                    bankAccountId: settlementBankId || '', // Service checks this
+                    description: transaction.description,
+                    branchId
+                };
+
+                const result = await GLBookingService.previewGLEntry(params, context);
+                setPreviewResult(result);
+
+            } catch (e) {
+                console.error("Preview Generation Error", e);
+            } finally {
+                setPreviewLoading(false);
             }
-        }
+        };
 
-        const lines: PreviewLine[] = [];
+        generatePreview();
+    }, [isApproving, journalEntry, transaction, settings, accounts, currencies, employees, bookings, commissionRules]);
 
-        // 1. Resolve Bank (Asset)
-        // Priority: Transaction Specific -> Rule 4 (Settle to Company) -> Settings
-        let settlementBankId = transaction.bankAccountId;
-        const rule4AccId = settings.transactionRules ? settings.transactionRules['4'] : null;
+    // Adapt the result for the view
+    const previewJournalEntry = previewResult?.lines?.map((l: any) => ({
+        accountName: getAccountName(l.accountId),
+        accountCode: '', // getAccountName handles code+name combo string
+        debit: l.debit,
+        credit: l.credit,
+        description: l.description,
+        isError: false
+    })) || [];
 
-        if (!settlementBankId || settlementBankId === 'system' || settlementBankId === 'system-payout') {
-            if (rule4AccId) {
-                settlementBankId = rule4AccId;
-            } else {
-                settlementBankId = isUSD
-                    ? (settings.defaultDriverSettlementBankIdUSD || settings.defaultDriverSettlementBankId)
-                    : (settings.defaultDriverSettlementBankIdKHR || settings.defaultDriverSettlementBankId);
-            }
-        }
-        const bankAcc = accounts.find(a => a.id === settlementBankId);
-
-        // 2. Resolve Customer Wallet (Liability)
-        // Priority: Rule 5 (Settle to Customer) -> Settings
-        const rule5AccId = settings.transactionRules ? settings.transactionRules['5'] : null;
-        let defaultCustAccId = rule5AccId;
-
-        if (!defaultCustAccId) {
-            defaultCustAccId = isUSD
-                ? (settings.customerWalletAccountUSD || settings.defaultCustomerWalletAccountId)
-                : (settings.customerWalletAccountKHR || settings.defaultCustomerWalletAccountId);
-        }
-        const custAcc = accounts.find(a => a.id === defaultCustAccId);
-
-        const safeAmount = Number(transaction.amount) || 0;
-        let baseAmount = safeAmount / rate;
-
-        // Safety check for NaN
-        if (isNaN(baseAmount) || !isFinite(baseAmount)) {
-            baseAmount = 0;
-        }
-
-        if (transaction.type === 'DEPOSIT') {
-            if (bankAcc) {
-                lines.push({
-                    accountName: bankAcc.name,
-                    accountCode: bankAcc.code,
-                    debit: baseAmount,
-                    credit: 0,
-                    description: 'Deposit Received (Asset)'
-                });
-            } else {
-                lines.push({
-                    accountName: `MISSING CONFIG: Bank Account (${transaction.currency})`,
-                    accountCode: 'ERROR',
-                    debit: baseAmount,
-                    credit: 0,
-                    description: 'Check Settings > Posting Rules (Rule 4) or General',
-                    isError: true
-                });
-            }
-
-            if (custAcc) {
-                lines.push({
-                    accountName: custAcc.name,
-                    accountCode: custAcc.code,
-                    debit: 0,
-                    credit: baseAmount,
-                    description: 'Wallet Credit (Liability)'
-                });
-            } else {
-                lines.push({
-                    accountName: `MISSING CONFIG: Customer Wallet (${transaction.currency})`,
-                    accountCode: 'ERROR',
-                    debit: 0,
-                    credit: baseAmount,
-                    description: 'Check Settings > Posting Rules (Rule 5) or General',
-                    isError: true
-                });
-            }
-
-        } else if (transaction.type === 'WITHDRAWAL') {
-            if (custAcc) {
-                lines.push({
-                    accountName: custAcc.name,
-                    accountCode: custAcc.code,
-                    debit: baseAmount,
-                    credit: 0,
-                    description: 'Wallet Debit (Liability Reduced)'
-                });
-            } else {
-                lines.push({
-                    accountName: `MISSING CONFIG: Customer Wallet (${transaction.currency})`,
-                    accountCode: 'ERROR',
-                    debit: baseAmount,
-                    credit: 0,
-                    description: 'Check Settings > Posting Rules (Rule 5) or General',
-                    isError: true
-                });
-            }
-
-            if (bankAcc) {
-                lines.push({
-                    accountName: bankAcc.name,
-                    accountCode: bankAcc.code,
-                    debit: 0,
-                    credit: baseAmount,
-                    description: 'Cash Paid Out (Asset)'
-                });
-            } else {
-                lines.push({
-                    accountName: `MISSING CONFIG: Bank Account (${transaction.currency})`,
-                    accountCode: 'ERROR',
-                    debit: 0,
-                    credit: baseAmount,
-                    description: 'Check Settings > Posting Rules (Rule 4) or General',
-                    isError: true
-                });
-            }
-        } else if (transaction.type === 'SETTLEMENT') {
-            // Refined preview for settlement to show Commissions
-            if (bankAcc) {
-                lines.push({
-                    accountName: bankAcc.name,
-                    accountCode: bankAcc.code,
-                    debit: baseAmount,
-                    credit: 0,
-                    description: 'Settlement Received (Asset)'
-                });
-            }
-
-            const totalCommBase = items.reduce((sum, i) => sum + (i.commission || 0), 0);
-            if (totalCommBase > 0) {
-                lines.push({
-                    accountName: 'Commissions Expense',
-                    accountCode: '6501002/1',
-                    debit: totalCommBase,
-                    credit: 0,
-                    description: 'Estimated Commission Expense'
-                });
-                lines.push({
-                    accountName: 'Commissions Payable',
-                    accountCode: '3210102/1',
-                    debit: 0,
-                    credit: totalCommBase,
-                    description: 'Credit to Driver Wallets'
-                });
-            }
-
-            if (custAcc) {
-                lines.push({
-                    accountName: custAcc.name,
-                    accountCode: custAcc.code,
-                    debit: 0,
-                    credit: baseAmount,
-                    description: 'COD Settlement (Revenue + Liability)'
-                });
-            }
-        }
-
-        // If we generated lines (even error lines), return them
-        return lines.length > 0 ? lines : null;
-
-    }, [isApproving, journalEntry, transaction, settings, accounts, currencies]);
+    // Add specific errors if any
+    if (previewResult?.errors?.length > 0) {
+        previewResult.errors.forEach((err: string) => {
+            previewJournalEntry.push({
+                accountName: 'CONFIGURATION ERROR',
+                accountCode: 'ERR',
+                debit: 0,
+                credit: 0,
+                description: err,
+                isError: true
+            });
+        });
+    }
 
 
     const totalAmount = useMemo(() => items.reduce((sum, i) => sum + i.amount, 0), [items]);
@@ -421,11 +351,6 @@ export const SettlementReportModal: React.FC<Props> = ({
             document.body.innerHTML = original;
             window.location.reload(); // Reload to restore state listeners
         }
-    };
-
-    const getAccountName = (id: string) => {
-        const acc = accounts.find(a => a.id === id);
-        return acc ? `${acc.code} - ${acc.name}` : id;
     };
 
     const hasErrors = previewJournalEntry?.some(l => l.isError);

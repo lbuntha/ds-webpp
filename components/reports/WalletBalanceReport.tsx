@@ -103,37 +103,17 @@ export const WalletBalanceReport: React.FC = () => {
                     }
                 });
 
-                // Debit: Delivery Fees (Pro-rated & Split for Mixed Currencies)
-                const totalItems = bItems.length > 0 ? bItems.length : 1;
-                const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
-
-                if (itemsDelivered > 0) {
-                    const itemCurrencies = new Set(bItems.map(i => i.codCurrency || 'USD'));
-                    const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
-
-                    if (isMixed) {
-                        const khrItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'KHR' && i.status === 'DELIVERED').length;
-                        const usdItemsDelivered = bItems.filter(i => (i.codCurrency || 'USD') === 'USD' && i.status === 'DELIVERED').length;
-                        const feePerItem = round2(b.totalDeliveryFee / totalItems);
-                        const RATE = 4000;
-
-                        if (khrItemsDelivered > 0) {
-                            let khrVal = round2(feePerItem * khrItemsDelivered);
-                            if (b.currency === 'USD') khrVal = round2(khrVal * RATE);
-                            balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr - khrVal);
+                // Debit: Delivery Fees - Use item-level deliveryFee directly
+                bItems.forEach(item => {
+                    if (item.status === 'DELIVERED') {
+                        const itemFee = Number(item.deliveryFee) || 0;
+                        if (item.codCurrency === 'KHR') {
+                            balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr - itemFee);
+                        } else {
+                            balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd - itemFee);
                         }
-                        if (usdItemsDelivered > 0) {
-                            let usdVal = round2(feePerItem * usdItemsDelivered);
-                            if (b.currency === 'KHR') usdVal = round2(usdVal / RATE);
-                            balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd - usdVal);
-                        }
-                    } else {
-                        const deduction = round2((b.totalDeliveryFee / totalItems) * itemsDelivered);
-                        const isKHR = b.currency === 'KHR' || (bItems.length > 0 && bItems[0]?.codCurrency === 'KHR');
-                        if (isKHR) balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr - deduction);
-                        else balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd - deduction);
                     }
-                }
+                });
             }
 
             // B. Driver Logic - Cash Held Only (Commissions are now real EARNING transactions in wallet_transactions)

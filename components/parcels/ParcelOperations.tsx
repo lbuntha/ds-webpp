@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ParcelBooking, ParcelItem, Branch } from '../../src/shared/types';
+import { ParcelBooking, ParcelItem, Branch, ParcelServiceType } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
+import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
 
 const ITEMS_PER_PAGE = 20;
 
 export const ParcelOperations: React.FC = () => {
     const [bookings, setBookings] = useState<ParcelBooking[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
+    const [services, setServices] = useState<ParcelServiceType[]>([]);
     const [loading, setLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
 
@@ -20,7 +22,7 @@ export const ParcelOperations: React.FC = () => {
     // Filter State
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PICKED_UP' | 'IN_TRANSIT'>('ALL');
-    const [dateFilter, setDateFilter] = useState('');
+    const [dateFilter, setDateFilter] = useState(() => new Date().toISOString().split('T')[0]);
     const [currentPage, setCurrentPage] = useState(1);
 
     // Selection State (for Bulk Actions)
@@ -30,6 +32,13 @@ export const ParcelOperations: React.FC = () => {
     const [verifyItem, setVerifyItem] = useState<ParcelItem | null>(null);
     const [weightInput, setWeightInput] = useState(0);
     const [currentBookingId, setCurrentBookingId] = useState('');
+    const [editMode, setEditMode] = useState<'VERIFY' | 'EDIT'>('VERIFY'); // New: Edit mode doesn't change status
+
+    // Editable parcel fields
+    const [editReceiverName, setEditReceiverName] = useState('');
+    const [editReceiverPhone, setEditReceiverPhone] = useState('');
+    const [editCodAmount, setEditCodAmount] = useState(0);
+    const [editCodCurrency, setEditCodCurrency] = useState<'USD' | 'KHR'>('USD');
 
     // Transfer/Branch Selection Modal
     const [transferItem, setTransferItem] = useState<{ bookingIds: string[] } | null>(null);
@@ -41,14 +50,16 @@ export const ParcelOperations: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [bData, brData] = await Promise.all([
+            const [bData, brData, sData] = await Promise.all([
                 firebaseService.getParcelBookings(),
-                firebaseService.getBranches()
+                firebaseService.getBranches(),
+                firebaseService.getParcelServices()
             ]);
             // Filter out completed/cancelled immediately to reduce noise
             const active = bData.filter(b => b.status !== 'CANCELLED' && b.status !== 'COMPLETED');
             setBookings(active);
             setBranches(brData);
+            setServices(sData);
             if (brData.length > 0) setTargetBranchId(brData[0].id);
         } catch (e) {
             console.error("Failed to load data", e);
@@ -130,10 +141,15 @@ export const ParcelOperations: React.FC = () => {
         }
     };
 
-    const openVerify = (bookingId: string, item: ParcelItem) => {
+    const openVerify = (bookingId: string, item: ParcelItem, mode: 'VERIFY' | 'EDIT' = 'VERIFY') => {
         setCurrentBookingId(bookingId);
         setVerifyItem(item);
         setWeightInput(item.weight || 0);
+        setEditReceiverName(item.receiverName || '');
+        setEditReceiverPhone(item.receiverPhone || '');
+        setEditCodAmount(item.productPrice || 0);
+        setEditCodCurrency(item.codCurrency || 'USD');
+        setEditMode(mode);
     };
 
     const handleSaveVerify = async () => {
@@ -141,20 +157,52 @@ export const ParcelOperations: React.FC = () => {
         const booking = bookings.find(b => b.id === currentBookingId);
         if (!booking) return;
 
+        // Check if currency changed - need to recalculate fee
+        const currencyChanged = verifyItem.codCurrency !== editCodCurrency;
+        let newDeliveryFee = verifyItem.deliveryFee || 0;
+
+        if (currencyChanged && services.length > 0) {
+            try {
+                const feeResult = await calculateDeliveryFee({
+                    serviceTypeId: booking.serviceTypeId,
+                    customerId: booking.senderId || '',
+                    itemCount: 1, // Per-item fee
+                    codCurrency: editCodCurrency,
+                    exchangeRate: booking.exchangeRateForCOD || 4100,
+                    services
+                });
+                newDeliveryFee = feeResult.pricePerItem;
+                console.log('📦 Recalculated delivery fee for currency change:', { old: verifyItem.deliveryFee, new: newDeliveryFee, currency: editCodCurrency });
+            } catch (e) {
+                console.error('Failed to recalculate fee:', e);
+            }
+        }
+
+        // Warehouse can only edit item details - NO status changes allowed
         const updatedItems = (booking.items || []).map(i => {
             if (i.id === verifyItem.id) {
-                return { ...i, weight: weightInput, status: 'PICKED_UP' as const };
+                return {
+                    ...i,
+                    weight: weightInput,
+                    receiverName: editReceiverName,
+                    receiverPhone: editReceiverPhone,
+                    productPrice: editCodAmount,
+                    codCurrency: editCodCurrency,
+                    deliveryFee: newDeliveryFee,
+                };
             }
             return i;
         });
 
-        const updatedBooking = { ...booking, items: updatedItems, status: 'CONFIRMED' }; // Ensure not pending
+        // Don't change booking status - warehouse only edits data
+        const updatedBooking = { ...booking, items: updatedItems };
+
         await firebaseService.saveParcelBooking(updatedBooking);
 
         // Update local state
         setBookings(prev => prev.map(b => b.id === currentBookingId ? updatedBooking : b));
         setVerifyItem(null);
-        toast.success("Parcel verified and picked up.");
+        toast.success("Parcel details updated.");
     };
 
     const handleBulkTransfer = async () => {
@@ -232,6 +280,21 @@ export const ParcelOperations: React.FC = () => {
             const amt = Number(i.productPrice) || 0;
             if (i.codCurrency === 'KHR') khr += amt;
             else usd += amt;
+        });
+        if (usd > 0 && khr > 0) return `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛`;
+        if (khr > 0) return `${khr.toLocaleString()} ៛`;
+        return `$${usd.toFixed(2)}`;
+    };
+
+    const calculateTotalFee = (items: ParcelItem[]) => {
+        if (!items || items.length === 0) return '$0.00';
+
+        let usd = 0;
+        let khr = 0;
+        items.forEach(i => {
+            const fee = Number(i.deliveryFee) || 0;
+            if (i.codCurrency === 'KHR') khr += fee;
+            else usd += fee;
         });
         if (usd > 0 && khr > 0) return `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛`;
         if (khr > 0) return `${khr.toLocaleString()} ៛`;
@@ -373,6 +436,7 @@ export const ParcelOperations: React.FC = () => {
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Items</th>
                                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total COD</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
                                 </tr>
@@ -405,6 +469,9 @@ export const ParcelOperations: React.FC = () => {
                                             <td className="px-4 py-3 text-right text-red-600 font-medium">
                                                 {calculateTotalCOD(b.items)}
                                             </td>
+                                            <td className="px-4 py-3 text-right text-indigo-600 font-medium">
+                                                {calculateTotalFee(b.items)}
+                                            </td>
                                             <td className="px-4 py-3 text-center">{getStatusBadge(b.status)}</td>
                                             <td className="px-4 py-3 text-right">
                                                 <button
@@ -417,7 +484,7 @@ export const ParcelOperations: React.FC = () => {
                                         </tr>
                                         {expandedBookingId === b.id && (
                                             <tr>
-                                                <td colSpan={8} className="bg-gray-50 p-4 border-b border-gray-200 shadow-inner">
+                                                <td colSpan={9} className="bg-gray-50 p-4 border-b border-gray-200 shadow-inner">
                                                     <div className="grid grid-cols-1 gap-2">
                                                         {(b.items || []).map((item, idx) => (
                                                             <div key={item.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
@@ -431,17 +498,15 @@ export const ParcelOperations: React.FC = () => {
                                                                         <p className="text-[10px] text-gray-500">{item.destinationAddress}</p>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-3">
+                                                                <div className="flex items-center gap-2">
                                                                     {getStatusBadge(item.status || 'PENDING')}
-                                                                    {item.status === 'PENDING' && (
-                                                                        <Button
-                                                                            variant="secondary"
-                                                                            className="h-6 text-[10px] px-2"
-                                                                            onClick={() => openVerify(b.id, item)}
-                                                                        >
-                                                                            Verify
-                                                                        </Button>
-                                                                    )}
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        className="h-6 text-[10px] px-2"
+                                                                        onClick={() => openVerify(b.id, item, item.status === 'PENDING' ? 'VERIFY' : 'EDIT')}
+                                                                    >
+                                                                        Details
+                                                                    </Button>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -508,33 +573,99 @@ export const ParcelOperations: React.FC = () => {
                 </div>
             )}
 
-            {/* Verify Modal */}
+            {/* Verify/Edit Modal */}
             {verifyItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Verify Parcel</h3>
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">
+                            {editMode === 'VERIFY' ? 'Verify & Pickup Parcel' : 'Edit Parcel Details'}
+                        </h3>
                         <div className="flex justify-center mb-4">
-                            <img src={verifyItem.image} className="h-32 w-32 object-cover rounded-lg border" alt="verify" />
+                            <img
+                                src={verifyItem.image}
+                                className="h-40 w-40 object-cover rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
+                                alt="verify"
+                                title="Click to view full size"
+                                onClick={() => window.open(verifyItem.image, '_blank')}
+                            />
                         </div>
+                        <p className="text-center text-xs text-gray-400 -mt-2 mb-3">Click image to zoom</p>
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs font-medium text-gray-500">Tracking ID</label>
                                 <div className="font-mono font-bold text-lg">{verifyItem.trackingCode}</div>
                             </div>
+
+                            {/* Receiver Info */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Receiver Name</label>
+                                    <input
+                                        type="text"
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={editReceiverName}
+                                        onChange={e => setEditReceiverName(e.target.value)}
+                                        placeholder="Recipient name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                                    <input
+                                        type="tel"
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={editReceiverPhone}
+                                        onChange={e => setEditReceiverPhone(e.target.value)}
+                                        placeholder="Phone number"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* COD Amount */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">COD Amount</label>
+                                    <input
+                                        type="number"
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={editCodAmount || ''}
+                                        onChange={e => setEditCodAmount(parseFloat(e.target.value) || 0)}
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                                    <select
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={editCodCurrency}
+                                        onChange={e => setEditCodCurrency(e.target.value as 'USD' | 'KHR')}
+                                    >
+                                        <option value="USD">USD</option>
+                                        <option value="KHR">KHR</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Weight */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Measured Weight (kg)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
                                 <input
                                     type="number"
                                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    value={weightInput}
-                                    onChange={e => setWeightInput(parseFloat(e.target.value))}
-                                    autoFocus
+                                    value={weightInput || ''}
+                                    onChange={e => setWeightInput(parseFloat(e.target.value) || 0)}
+                                    placeholder="0.0"
                                 />
                             </div>
                         </div>
-                        <div className="flex justify-end space-x-2 mt-6">
+
+                        <div className="flex justify-end gap-3 mt-6">
                             <Button variant="outline" onClick={() => setVerifyItem(null)}>Cancel</Button>
-                            <Button onClick={handleSaveVerify} className="bg-blue-600 hover:bg-blue-700">Confirm Pickup</Button>
+                            <Button
+                                onClick={handleSaveVerify}
+                                className="bg-green-600 hover:bg-green-700"
+                            >
+                                Save Changes
+                            </Button>
                         </div>
                     </div>
                 </div>
