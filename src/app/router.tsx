@@ -10,8 +10,10 @@ import { ErrorBoundary } from '../shared/components/ErrorBoundary';
 const LandingPage = lazy(() => import('../../components/LandingPage').then(m => ({ default: m.LandingPage })));
 const AuthForms = lazy(() => import('../../components/AuthForms').then(m => ({ default: m.AuthForms })));
 const PendingApproval = lazy(() => import('../../components/PendingApproval').then(m => ({ default: m.PendingApproval })));
-const OnboardingWizard = lazy(() => import('../../components/setup/OnboardingWizard').then(m => ({ default: m.OnboardingWizard })));
+const OnboardingView = lazy(() => import('./views/OnboardingView'));
 const OTPSignup = lazy(() => import('../../components/OTPSignup').then(m => ({ default: m.OTPSignup })));
+const PhoneSignupView = lazy(() => import('./views/PhoneSignupView'));
+const PhoneResetView = lazy(() => import('./views/PhoneResetView'));
 
 
 // Layouts
@@ -100,7 +102,11 @@ const routes: RouteObject[] = [
     },
     {
         path: '/signup/phone',
-        element: withSuspense(OTPSignup),
+        element: withSuspense(PhoneSignupView),
+    },
+    {
+        path: '/auth/reset/phone',
+        element: withSuspense(PhoneResetView),
     },
     {
         path: '/pending',
@@ -114,7 +120,7 @@ const routes: RouteObject[] = [
         path: '/onboarding',
         element: (
             <ProtectedRoute requireRoles={['system-admin']}>
-                {withSuspense(OnboardingWizard)}
+                {withSuspense(OnboardingView)}
             </ProtectedRoute>
         ),
     },

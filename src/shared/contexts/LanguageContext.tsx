@@ -336,6 +336,8 @@ const translations = {
     copied: "Copied!",
     confirm_delete_location: "Delete this location?",
     confirm_delete_bank: "Delete this bank account?",
+    bank_deleted: "Bank account deleted",
+    location_deleted: "Location deleted",
 
     // COD Rate Preference
     cod_pref_title: "COD Exchange Rate Preference",
@@ -724,6 +726,8 @@ const translations = {
     copied: "បានចម្លង!",
     confirm_delete_location: "លុបទីតាំងនេះឬ?",
     confirm_delete_bank: "លុបគណនីធនាគារនេះឬ?",
+    bank_deleted: "គណនីធនាគារត្រូវបានលុប",
+    location_deleted: "ទីតាំងត្រូវបានលុប",
 
     // COD Rate Preference
     cod_pref_title: "ការកំណត់អត្រាប្តូរប្រាក់ COD",

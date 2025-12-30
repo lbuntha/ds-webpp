@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, SavedLocation, Customer, BankAccountDetails, CurrencyConfig } from '../../src/shared/types';
+import { UserProfile, SavedLocation, Customer, BankAccountDetails, CurrencyConfig, Employee } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -37,6 +37,10 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
 
     const [confirmDeleteLocationId, setConfirmDeleteLocationId] = useState<string | null>(null);
     const [confirmDeleteBankIndex, setConfirmDeleteBankIndex] = useState<number | null>(null);
+
+    // Employee Data for Drivers
+    const [employeeData, setEmployeeData] = useState<Employee | null>(null);
+    const [employeeLoading, setEmployeeLoading] = useState(false);
 
     // Bank Account State
     const [customerData, setCustomerData] = useState<Customer | null>(null);
@@ -119,7 +123,23 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
             }
         };
         loadData();
-    }, [user.uid, user.linkedCustomerId]);
+
+        // 3. Get Employee Data if Driver
+        if (user.role === 'driver') {
+            const loadEmployee = async () => {
+                setEmployeeLoading(true);
+                try {
+                    const emp = await firebaseService.hrService.getEmployeeByUserId(user.uid);
+                    setEmployeeData(emp);
+                } catch (e) {
+                    console.error("Error loading employee data", e);
+                } finally {
+                    setEmployeeLoading(false);
+                }
+            };
+            loadEmployee();
+        }
+    }, [user.uid, user.linkedCustomerId, user.role]);
 
     // Auto-generate Referral Code if missing
     useEffect(() => {
@@ -157,20 +177,19 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
         e.preventDefault();
         setLoading(true);
         try {
-            // Save to customers collection if linked
+            // Update profile via ConfigService (which handles collection routing)
+            await firebaseService.updateUserProfile(name, { phone, address });
+
+            // Local state update for Customer model if present
             if (customerData) {
-                const updatedCustomer = {
+                setCustomerData({
                     ...customerData,
                     name,
                     phone,
                     address
-                };
-                await firebaseService.updateCustomer(updatedCustomer);
-                setCustomerData(updatedCustomer);
+                });
             }
 
-            // Also update user profile for auth display name
-            await firebaseService.updateUserProfile(name, { phone, address });
             toast.success(t('profile_updated'));
         } catch (e) {
             console.error(e);
@@ -231,14 +250,11 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
         const updatedLocations = [...locations, newLocation];
 
         try {
+            // Update through service (handles routing to 'customers' or 'users')
+            await firebaseService.updateUserLocations(updatedLocations);
+
             if (customerData) {
-                // Save to Customer Doc
-                const updatedCustomer = { ...customerData, savedLocations: updatedLocations };
-                await firebaseService.updateCustomer(updatedCustomer);
-                setCustomerData(updatedCustomer);
-            } else {
-                // Save to User Profile
-                await firebaseService.updateUserLocations(updatedLocations);
+                setCustomerData({ ...customerData, savedLocations: updatedLocations });
             }
 
             setLocations(updatedLocations);
@@ -264,18 +280,20 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
 
         const updated = locations.filter(l => l.id !== confirmDeleteLocationId);
 
-        if (customerData) {
-            const updatedCustomer = { ...customerData, savedLocations: updated };
-            await firebaseService.updateCustomer(updatedCustomer);
-            setCustomerData(updatedCustomer);
-        } else {
+        try {
             await firebaseService.updateUserLocations(updated);
-        }
 
-        setLocations(updated);
-        setConfirmDeleteLocationId(null);
-        // @ts-ignore
-        toast.success(t('location_deleted') || "Location deleted");
+            if (customerData) {
+                setCustomerData({ ...customerData, savedLocations: updated });
+            }
+
+            setLocations(updated);
+            setConfirmDeleteLocationId(null);
+            // @ts-ignore
+            toast.success(t('location_deleted') || "Location deleted");
+        } catch (e) {
+            toast.error("Failed to delete.");
+        }
     };
 
     const handleSetPrimary = async (id: string) => {
@@ -512,7 +530,32 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
 
             {/* BANK ACCOUNTS SECTION */}
             <Card title={t('bank_accounts')}>
-                {!customerData ? (
+                {user.role === 'driver' ? (
+                    <div className="space-y-4">
+                        {employeeData ? (
+                            <div className="border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-4 bg-blue-50/50 hover:border-blue-200 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-gray-900">Official Bank Account</h4>
+                                        <p className="text-sm text-gray-600 font-mono">{employeeData.bankAccount || 'Not set in employee profile'}</p>
+                                        <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-wider">Managed by Administration</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : employeeLoading ? (
+                            <div className="text-center py-6 text-gray-500 text-sm">Loading bank info...</div>
+                        ) : (
+                            <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-200">
+                                <p className="text-gray-500 text-sm">No employee record found for your account.</p>
+                            </div>
+                        )}
+                    </div>
+                ) : !customerData ? (
                     <div className="text-center py-6 bg-gray-50 rounded-xl border border-gray-200">
                         <p className="text-gray-600 mb-4 text-sm">{t('need_billing_profile')}</p>
                         <Button onClick={handleCreateBillingProfile} isLoading={bankLoading}>
@@ -595,91 +638,93 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
             </Card>
 
             {/* SAVED LOCATIONS */}
-            <Card title={t('saved_locations')}>
-                <div className="space-y-4">
-                    {locations.map(loc => (
-                        <div key={loc.id} className="border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-red-200 transition-colors bg-white">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h4 className="font-bold text-gray-900">{loc.label}</h4>
-                                    {loc.isPrimary && <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold">{t('primary_badge')}</span>}
-                                </div>
-                                <p className="text-sm text-gray-600 mt-1">{loc.address}</p>
-                                {loc.coordinates && (
-                                    <p className="text-xs text-gray-400 mt-1 font-mono">
-                                        {(loc.coordinates.lat || 0).toFixed(5)}, {(loc.coordinates.lng || 0).toFixed(5)}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="flex gap-2">
-                                {!loc.isPrimary && (
-                                    <button onClick={() => handleSetPrimary(loc.id)} className="text-xs text-indigo-600 hover:underline">{t('set_primary')}</button>
-                                )}
-                                {confirmDeleteLocationId === loc.id ? (
-                                    <div className="flex gap-2">
-                                        <button onClick={executeDeleteLocation} className="text-xs text-red-600 font-bold hover:underline px-2 py-1 bg-red-50 rounded">{t('confirm')}</button>
-                                        <button onClick={() => setConfirmDeleteLocationId(null)} className="text-xs text-gray-600 hover:underline px-2 py-1 bg-gray-100 rounded">{t('cancel')}</button>
-                                    </div>
-                                ) : (
-                                    <button onClick={() => handleDeleteLocationClick(loc.id)} className="text-xs text-red-600 hover:underline">{t('delete')}</button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {!isAddingLocation ? (
-                        <button
-                            onClick={() => setIsAddingLocation(true)}
-                            className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-red-300 hover:text-red-600 transition-all flex items-center justify-center"
-                        >
-                            <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                            {t('add_new_location')}
-                        </button>
-                    ) : (
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 animate-fade-in-up">
-                            <h4 className="text-sm font-bold text-gray-800 mb-3">{t('add_new_location')}</h4>
-                            <div className="space-y-3">
-                                <Input
-                                    label={t('loc_label_placeholder')}
-                                    value={newLocLabel}
-                                    onChange={e => setNewLocLabel(e.target.value)}
-                                    placeholder="Home, Office, Warehouse A..."
-                                />
-
-                                {/* Address Input with Place Autocomplete */}
+            {user.role !== 'driver' && (
+                <Card title={t('saved_locations')}>
+                    <div className="space-y-4">
+                        {locations.map(loc => (
+                            <div key={loc.id} className="border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-red-200 transition-colors bg-white">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('address_coordinates')}</label>
-                                    <PlaceAutocomplete
-                                        value={newLocAddress}
-                                        onChange={setNewLocAddress}
-                                        onSelect={(place) => {
-                                            setNewLocAddress(place.address || place.name);
-                                            if (place.location) {
-                                                setNewLocLat(place.location.lat);
-                                                setNewLocLng(place.location.lng);
-                                            }
-                                        }}
-                                        onPickMap={() => setShowMapPicker(true)}
-                                        placeholder={t('enter_address_placeholder')}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-red-500 focus:border-red-500"
-                                    />
-                                    {newLocLat !== '' && newLocLng !== '' && (
-                                        <p className="text-xs text-green-600 mt-1 flex items-center">
-                                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                                            {t('coordinates_set')}: {Number(newLocLat).toFixed(6)}, {Number(newLocLng).toFixed(6)}
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-gray-900">{loc.label}</h4>
+                                        {loc.isPrimary && <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold">{t('primary_badge')}</span>}
+                                    </div>
+                                    <p className="text-sm text-gray-600 mt-1">{loc.address}</p>
+                                    {loc.coordinates && (
+                                        <p className="text-xs text-gray-400 mt-1 font-mono">
+                                            {(loc.coordinates.lat || 0).toFixed(5)}, {(loc.coordinates.lng || 0).toFixed(5)}
                                         </p>
                                     )}
                                 </div>
-
-                                <div className="flex justify-end space-x-2 pt-2">
-                                    <Button variant="outline" onClick={() => setIsAddingLocation(false)} className="text-xs">{t('cancel')}</Button>
-                                    <Button onClick={handleAddLocation} isLoading={loading} className="text-xs">{t('save_location')}</Button>
+                                <div className="flex gap-2">
+                                    {!loc.isPrimary && (
+                                        <button onClick={() => handleSetPrimary(loc.id)} className="text-xs text-indigo-600 hover:underline">{t('set_primary')}</button>
+                                    )}
+                                    {confirmDeleteLocationId === loc.id ? (
+                                        <div className="flex gap-2">
+                                            <button onClick={executeDeleteLocation} className="text-xs text-red-600 font-bold hover:underline px-2 py-1 bg-red-50 rounded">{t('confirm')}</button>
+                                            <button onClick={() => setConfirmDeleteLocationId(null)} className="text-xs text-gray-600 hover:underline px-2 py-1 bg-gray-100 rounded">{t('cancel')}</button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => handleDeleteLocationClick(loc.id)} className="text-xs text-red-600 hover:underline">{t('delete')}</button>
+                                    )}
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </div>
-            </Card>
+                        ))}
+
+                        {!isAddingLocation ? (
+                            <button
+                                onClick={() => setIsAddingLocation(true)}
+                                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium hover:border-red-300 hover:text-red-600 transition-all flex items-center justify-center"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                                {t('add_new_location')}
+                            </button>
+                        ) : (
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 animate-fade-in-up">
+                                <h4 className="text-sm font-bold text-gray-800 mb-3">{t('add_new_location')}</h4>
+                                <div className="space-y-3">
+                                    <Input
+                                        label={t('loc_label_placeholder')}
+                                        value={newLocLabel}
+                                        onChange={e => setNewLocLabel(e.target.value)}
+                                        placeholder="Home, Office, Warehouse A..."
+                                    />
+
+                                    {/* Address Input with Place Autocomplete */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('address_coordinates')}</label>
+                                        <PlaceAutocomplete
+                                            value={newLocAddress}
+                                            onChange={setNewLocAddress}
+                                            onSelect={(place) => {
+                                                setNewLocAddress(place.address || place.name);
+                                                if (place.location) {
+                                                    setNewLocLat(place.location.lat);
+                                                    setNewLocLng(place.location.lng);
+                                                }
+                                            }}
+                                            onPickMap={() => setShowMapPicker(true)}
+                                            placeholder={t('enter_address_placeholder')}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-red-500 focus:border-red-500"
+                                        />
+                                        {newLocLat !== '' && newLocLng !== '' && (
+                                            <p className="text-xs text-green-600 mt-1 flex items-center">
+                                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                                {t('coordinates_set')}: {Number(newLocLat).toFixed(6)}, {Number(newLocLng).toFixed(6)}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-end space-x-2 pt-2">
+                                        <Button variant="outline" onClick={() => setIsAddingLocation(false)} className="text-xs">{t('cancel')}</Button>
+                                        <Button onClick={handleAddLocation} isLoading={loading} className="text-xs">{t('save_location')}</Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </Card>
+            )}
 
             {/* Map Picker Modal */}
             {

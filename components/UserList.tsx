@@ -34,6 +34,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
     const [editName, setEditName] = useState('');
     const [editPhone, setEditPhone] = useState('');
     const [isTaxable, setIsTaxable] = useState(false); // New State
+    const [excludeFeesInSettlement, setExcludeFeesInSettlement] = useState(false); // Exclude fees from settlement
 
     const [walletAccount, setWalletAccount] = useState('');
     const [availableAccounts, setAvailableAccounts] = useState<Account[]>([]);
@@ -152,6 +153,7 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
             setCustSavedLocations(customer.savedLocations || []);
             setCustReferralCode(customer.referralCode || '');
             setIsTaxable(customer.isTaxable || false);  // Load from customers collection
+            setExcludeFeesInSettlement(customer.excludeFeesInSettlement || false); // Load exclude fees setting
 
             try {
                 setLoadingRates(true);
@@ -481,7 +483,8 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                 bankAccounts: customerBankAccounts,
                 savedLocations: custSavedLocations,
                 referralCode: custReferralCode,
-                isTaxable: isTaxable  // Save to customers collection
+                isTaxable: isTaxable,  // Save to customers collection
+                excludeFeesInSettlement: excludeFeesInSettlement // Save exclude fees setting
             });
 
             toast.success('Customer details updated');
@@ -1110,6 +1113,42 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                                                                     isLoading={savingBilling}
                                                                 >
                                                                     Save Tax Setting
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Settlement Configuration */}
+                                                    <div className="bg-white border text-card-foreground shadow-sm rounded-xl overflow-hidden">
+                                                        <div className="p-6">
+                                                            <h3 className="text-lg font-semibold leading-none tracking-tight mb-4">Settlement Configuration</h3>
+                                                            <div className="flex items-center bg-green-50 p-4 rounded-lg border border-green-100">
+                                                                <input
+                                                                    id="excludeFeesSettlement"
+                                                                    type="checkbox"
+                                                                    className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                                                    checked={excludeFeesInSettlement}
+                                                                    onChange={(e) => setExcludeFeesInSettlement(e.target.checked)}
+                                                                    disabled={savingBilling}
+                                                                />
+                                                                <div className="ml-3">
+                                                                    <label htmlFor="excludeFeesSettlement" className="block text-sm font-bold text-gray-900">
+                                                                        Exclude Fees from Settlement (Pay Gross)
+                                                                    </label>
+                                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                                        If checked, settlements for this customer will pay the full COD amount without deducting delivery fees.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="mt-4 flex justify-end">
+                                                                <Button
+                                                                    variant="primary"
+                                                                    onClick={handleSaveCustomerDetails}
+                                                                    isLoading={savingBilling}
+                                                                    className="bg-green-600 hover:bg-green-700"
+                                                                >
+                                                                    Save Settlement Setting
                                                                 </Button>
                                                             </div>
                                                         </div>

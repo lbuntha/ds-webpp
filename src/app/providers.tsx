@@ -12,21 +12,43 @@ import { ToastContainer } from '../shared/components/ToastContainer';
  * Wraps all context providers in the correct order
  */
 export function AppProviders({ children }: { children: ReactNode }) {
-    // Re-triggering HMR
     return (
         <ToastProvider>
             <LanguageProvider>
                 <AuthProvider>
-                    <PermissionsProvider>
-                        <DataProviderWrapper>
-                            {children}
-                            <ToastContainer />
-                        </DataProviderWrapper>
-                    </PermissionsProvider>
+                    <AuthLoadingGate>
+                        <PermissionsProvider>
+                            <DataProviderWrapper>
+                                {children}
+                                <ToastContainer />
+                            </DataProviderWrapper>
+                        </PermissionsProvider>
+                    </AuthLoadingGate>
                 </AuthProvider>
             </LanguageProvider>
         </ToastProvider>
     );
+}
+
+/**
+ * Gate that shows loading screen until auth is initialized
+ * Prevents rendering children until auth state is known
+ */
+function AuthLoadingGate({ children }: { children: ReactNode }) {
+    const { loading } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center text-gray-500 font-medium">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-4"></div>
+                    Loading...
+                </div>
+            </div>
+        );
+    }
+
+    return <>{children}</>;
 }
 
 /**
@@ -42,3 +64,4 @@ function DataProviderWrapper({ children }: { children: ReactNode }) {
         </DataProvider>
     );
 }
+

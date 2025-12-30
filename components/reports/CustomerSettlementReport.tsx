@@ -181,6 +181,7 @@ export const CustomerSettlementReport: React.FC = () => {
     // --- Detail View Logic ---
     const [liveBalance, setLiveBalance] = useState<{ usd: number, khr: number } | null>(null);
     const [excludeFees, setExcludeFees] = useState(false);
+    const [excludeFeesFromProfile, setExcludeFeesFromProfile] = useState(false); // Track if set from profile
 
     useEffect(() => {
         if (selectedCustomerId) {
@@ -255,11 +256,20 @@ export const CustomerSettlementReport: React.FC = () => {
                 }
             };
             loadBalance();
+
+            // Auto-set excludeFees from customer profile (admin-controlled)
+            const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+            if (selectedCustomer) {
+                const profileSetting = selectedCustomer.excludeFeesInSettlement || false;
+                setExcludeFees(profileSetting);
+                setExcludeFeesFromProfile(profileSetting); // Remember if it was set from profile
+            }
         } else {
             setLiveBalance(null);
             setExcludeFees(false);
+            setExcludeFeesFromProfile(false);
         }
-    }, [selectedCustomerId, users, customerSummaries]); // Remove bookings dependency to avoid cycle if not needed, or keep it if we want real-time updates from global bookings state.
+    }, [selectedCustomerId, users, customerSummaries, customers]); // Remove bookings dependency to avoid cycle if not needed, or keep it if we want real-time updates from global bookings state.
 
 
     const selectedCustomerDetails = useMemo(() => {
@@ -539,16 +549,29 @@ export const CustomerSettlementReport: React.FC = () => {
                             <h2 className="text-xl font-bold">Settlement Details: {summary?.name}</h2>
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-white rounded border border-gray-200">
+                            <div className={`flex items-center gap-2 px-3 py-2 rounded border ${excludeFeesFromProfile
+                                    ? 'bg-green-50 border-green-200'
+                                    : excludeFees
+                                        ? 'bg-green-50 border-green-200'
+                                        : 'bg-white border-gray-200'
+                                }`} title={excludeFeesFromProfile ? "Set by admin in User Management. Cannot be enabled here." : "Can be enabled for this settlement session."}>
                                 <input
                                     type="checkbox"
                                     id="excludeFees"
                                     checked={excludeFees}
-                                    onChange={e => setExcludeFees(e.target.checked)}
-                                    className="w-4 h-4 text-indigo-600 rounded"
+                                    onChange={e => {
+                                        // Only allow changes if NOT set from profile, OR allow unchecking
+                                        if (!excludeFeesFromProfile || !e.target.checked) {
+                                            setExcludeFees(e.target.checked);
+                                        }
+                                    }}
+                                    disabled={excludeFeesFromProfile && excludeFees} // Disable if already ticked from profile
+                                    className={`w-4 h-4 text-green-600 rounded ${excludeFeesFromProfile && excludeFees ? 'cursor-not-allowed' : 'cursor-pointer'
+                                        }`}
                                 />
-                                <label htmlFor="excludeFees" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-                                    Exclude Fees (Pay Gross)
+                                <label htmlFor="excludeFees" className={`text-sm font-medium select-none ${excludeFeesFromProfile && excludeFees ? 'cursor-not-allowed text-green-700' : 'cursor-pointer text-gray-700'
+                                    } ${excludeFees ? 'font-bold' : ''}`}>
+                                    Exclude Fees (Pay Gross) {excludeFeesFromProfile && excludeFees ? '(Admin Set)' : ''}
                                 </label>
                             </div>
                             {liveBalance && (

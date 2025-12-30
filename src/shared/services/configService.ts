@@ -33,8 +33,28 @@ export class ConfigService extends BaseService {
     async updateUserStatus(uid: string, status: string) { await updateDoc(doc(this.db, 'users', uid), { status }); }
 
     async updateUserProfile(uid: string, name: string, extra?: any, auth?: any) {
-        await updateDoc(doc(this.db, 'users', uid), { name, ...extra });
+        // Core User Profile Update
+        await updateDoc(doc(this.db, 'users', uid), { name, lastLogin: Date.now() });
         if (auth && auth.currentUser) await updateProfile(auth.currentUser, { displayName: name });
+
+        // If Customer, update specific fields in 'customers' collection
+        const userSnap = await getDoc(doc(this.db, 'users', uid));
+        if (userSnap.exists()) {
+            const userData = userSnap.data() as UserProfile;
+            if (userData.linkedCustomerId) {
+                // Filter fields that belong to the customer collection
+                const customerFields: any = { name, updatedAt: Date.now() };
+                const fieldsToMove = ['phone', 'address', 'referralCode', 'isTaxable', 'excludeFeesInSettlement', 'customExchangeRate', 'bankAccounts'];
+
+                if (extra) {
+                    fieldsToMove.forEach(f => {
+                        if (extra[f] !== undefined) customerFields[f] = extra[f];
+                    });
+                }
+
+                await updateDoc(doc(this.db, 'customers', userData.linkedCustomerId), customerFields);
+            }
+        }
     }
     async updateUserBranch(uid: string, branchId: string | null) { await updateDoc(doc(this.db, 'users', uid), { managedBranchId: branchId }); }
     async updateUserWalletMapping(uid: string, walletAccountId: string) { await updateDoc(doc(this.db, 'users', uid), { walletAccountId }); }
@@ -69,6 +89,19 @@ export class ConfigService extends BaseService {
     }
 
     async updateUserLocations(uid: string, locs: SavedLocation[]) {
+        const userSnap = await getDoc(doc(this.db, 'users', uid));
+        if (userSnap.exists()) {
+            const userData = userSnap.data() as UserProfile;
+            if (userData.linkedCustomerId) {
+                // Save to customer collection
+                await updateDoc(doc(this.db, 'customers', userData.linkedCustomerId), {
+                    savedLocations: this.cleanData(locs),
+                    updatedAt: Date.now()
+                });
+                return;
+            }
+        }
+        // Fallback for non-customers
         await updateDoc(doc(this.db, 'users', uid), { savedLocations: this.cleanData(locs) });
     }
 

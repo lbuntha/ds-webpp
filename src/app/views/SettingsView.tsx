@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useData } from '../../shared/contexts/DataContext';
 import { firebaseService } from '../../shared/services/firebaseService';
 import { SettingsDashboard } from '../../../components/settings/SettingsDashboard';
 import { toast } from '../../shared/utils/toast';
 
 export default function SettingsView() {
+  const navigate = useNavigate();
   const { settings, accounts, branches, currencies, taxRates, transactions, refreshData } = useData();
   const [loading, setLoading] = useState(false);
 
@@ -70,9 +72,10 @@ export default function SettingsView() {
         await firebaseService.updateTaxRate(t);
         await refreshData();
       }}
-      onRunSetup={() => {
-        firebaseService.updateSettings({ ...settings, setupComplete: false });
-        refreshData();
+      onRunSetup={async () => {
+        await firebaseService.updateSettings({ ...settings, setupComplete: false });
+        await refreshData();
+        navigate('/onboarding');
       }}
       onUpdateSettings={async (s) => {
         await firebaseService.updateSettings(s);

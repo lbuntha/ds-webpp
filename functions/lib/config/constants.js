@@ -1,0 +1,62 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ERROR_CODES = exports.HTTP_STATUS = exports.APP_CONFIG = void 0;
+exports.APP_CONFIG = {
+    // OTP Configuration
+    OTP_EXPIRY_MINUTES: 5,
+    OTP_MAX_ATTEMPTS: 3,
+    OTP_RATE_LIMIT_REQUESTS: 3,
+    OTP_RATE_LIMIT_WINDOW_HOURS: 1,
+    // JWT Configuration
+    JWT_EXPIRY: '7d',
+    // Pagination
+    DEFAULT_PAGE_SIZE: 20,
+    MAX_PAGE_SIZE: 100,
+    // File Upload
+    MAX_FILE_SIZE_MB: 10,
+    ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
+    // Commission
+    DEFAULT_COMMISSION_RATE: 0.15, // 15%
+    // Currencies
+    SUPPORTED_CURRENCIES: ['USD', 'KHR'],
+    DEFAULT_CURRENCY: 'USD',
+    USD_TO_KHR_RATE: 4100,
+};
+exports.HTTP_STATUS = {
+    OK: 200,
+    CREATED: 201,
+    BAD_REQUEST: 400,
+    UNAUTHORIZED: 401,
+    FORBIDDEN: 403,
+    NOT_FOUND: 404,
+    CONFLICT: 409,
+    INTERNAL_ERROR: 500,
+    NOT_IMPLEMENTED: 501,
+};
+exports.ERROR_CODES = {
+    // Authentication
+    INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+    TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+    UNAUTHORIZED: 'UNAUTHORIZED',
+    FORBIDDEN: 'FORBIDDEN',
+    AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR',
+    // OTP
+    OTP_EXPIRED: 'OTP_EXPIRED',
+    OTP_INVALID: 'OTP_INVALID',
+    OTP_MAX_ATTEMPTS: 'OTP_MAX_ATTEMPTS',
+    OTP_RATE_LIMIT: 'OTP_RATE_LIMIT',
+    // User
+    USER_NOT_FOUND: 'USER_NOT_FOUND',
+    USER_ALREADY_EXISTS: 'USER_ALREADY_EXISTS',
+    USER_NOT_APPROVED: 'USER_NOT_APPROVED',
+    // Booking
+    BOOKING_NOT_FOUND: 'BOOKING_NOT_FOUND',
+    INVALID_BOOKING_STATUS: 'INVALID_BOOKING_STATUS',
+    // Validation
+    VALIDATION_ERROR: 'VALIDATION_ERROR',
+    MISSING_REQUIRED_FIELD: 'MISSING_REQUIRED_FIELD',
+    // General
+    INTERNAL_ERROR: 'INTERNAL_ERROR',
+    NOT_FOUND: 'NOT_FOUND',
+};
+//# sourceMappingURL=constants.js.map

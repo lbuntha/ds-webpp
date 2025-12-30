@@ -3,6 +3,7 @@ import { Employee } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Avatar } from '../ui/Avatar';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
@@ -25,6 +26,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
   const [hasBaseSalary, setHasBaseSalary] = useState(false);
   const [baseSalaryAmount, setBaseSalaryAmount] = useState<number>(0);
   const [baseSalaryCurrency, setBaseSalaryCurrency] = useState<'USD' | 'KHR'>('USD');
+  const [bankAccount, setBankAccount] = useState('');
 
   const [loading, setLoading] = useState(false);
 
@@ -39,6 +41,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setHasBaseSalary(false);
     setBaseSalaryAmount(0);
     setBaseSalaryCurrency('USD');
+    setBankAccount('');
   };
 
   const openAdd = () => {
@@ -57,6 +60,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setHasBaseSalary(e.hasBaseSalary || false);
     setBaseSalaryAmount(e.baseSalaryAmount || 0);
     setBaseSalaryCurrency(e.baseSalaryCurrency || 'USD');
+    setBankAccount(e.bankAccount || '');
     setIsFormOpen(true);
   };
 
@@ -76,6 +80,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
       hasBaseSalary: isDriver ? hasBaseSalary : undefined,
       baseSalaryAmount: isDriver && hasBaseSalary ? baseSalaryAmount : undefined,
       baseSalaryCurrency: isDriver && hasBaseSalary ? baseSalaryCurrency : undefined,
+      bankAccount,
       createdAt: editingId ? (employees.find(e => e.id === editingId)?.createdAt || Date.now()) : Date.now()
     };
 
@@ -96,155 +101,276 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900">Employee Directory</h2>
-        <Button onClick={openAdd} disabled={isFormOpen}>+ Add Employee</Button>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Staff Management</h1>
+          <p className="text-gray-500 font-medium">Manage your team members, organizational roles, and driver payroll.</p>
+        </div>
+        {!isFormOpen && (
+          <Button
+            onClick={openAdd}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-100 px-6 py-2.5 rounded-2xl flex items-center gap-2 transform active:scale-95 transition-all"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add New Member
+          </Button>
+        )}
       </div>
 
       {isFormOpen && (
-        <Card className="mb-6 border-indigo-100 ring-2 ring-indigo-50">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-              <h3 className="font-medium text-gray-900">{editingId ? 'Edit Employee Profile' : 'New Employee Profile'}</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <Input label="Full Name" value={name} onChange={e => setName(e.target.value)} required />
-              </div>
-              <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-              <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-              <Input label="Position / Title" value={position} onChange={e => setPosition(e.target.value)} />
-              <Input label="Department" value={department} onChange={e => setDepartment(e.target.value)} />
-            </div>
-
-            {/* Driver Configuration */}
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex items-center space-x-2 mb-4">
-                <input
-                  type="checkbox"
-                  id="isDriver"
-                  checked={isDriver}
-                  onChange={e => {
-                    setIsDriver(e.target.checked);
-                    if (!e.target.checked) {
-                      setHasBaseSalary(false);
-                      setBaseSalaryAmount(0);
-                    }
-                  }}
-                  className="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
-                />
-                <label htmlFor="isDriver" className="text-sm font-medium text-gray-700 cursor-pointer">
-                  This employee is a driver
-                </label>
+        <Card className="border-none shadow-[0_20px_50px_rgba(79,70,229,0.1)] bg-white rounded-[2rem] overflow-hidden animate-in slide-in-from-top-4 duration-300">
+          <form onSubmit={handleSubmit} className="p-2">
+            <div className="bg-gray-50/50 p-6 rounded-[1.5rem] border border-gray-100">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Employee Profile' : 'Create New Employee'}</h3>
+                  <p className="text-sm text-gray-500 mt-1">Fill in the professional details for your team member.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="p-2 hover:bg-white rounded-full text-gray-400 hover:text-gray-600 transition-colors shadow-sm"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
 
-              {isDriver && (
-                <div className="ml-6 space-y-4 bg-gray-50 p-4 rounded-lg">
-                  <div className="flex items-center space-x-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                <div className="md:col-span-2">
+                  <Input
+                    label="Full Name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                    placeholder="e.g. John Doe"
+                    className="text-lg font-bold py-3 px-4"
+                  />
+                </div>
+
+                <Input label="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" />
+                <Input label="Phone Number" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+855 ..." />
+
+                <Input label="Job Title / Position" value={position} onChange={e => setPosition(e.target.value)} placeholder="e.g. Driver, Manager" />
+                <Input label="Department" value={department} onChange={e => setDepartment(e.target.value)} placeholder="e.g. Logistics, Operations" />
+
+                <div className="md:col-span-2">
+                  <Input
+                    label="Bank Account Information"
+                    value={bankAccount}
+                    onChange={e => setBankAccount(e.target.value)}
+                    placeholder="e.g. ABA: 000 000 000"
+                  />
+                </div>
+              </div>
+
+              {/* Advanced Config Section */}
+              <div className="mt-8 pt-8 border-t border-gray-100">
+                <div className="flex items-center gap-3 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 mb-6">
+                  <div className="flex items-center h-5">
                     <input
                       type="checkbox"
-                      id="hasBaseSalary"
-                      checked={hasBaseSalary}
+                      id="isDriver"
+                      checked={isDriver}
                       onChange={e => {
-                        setHasBaseSalary(e.target.checked);
+                        setIsDriver(e.target.checked);
                         if (!e.target.checked) {
+                          setHasBaseSalary(false);
                           setBaseSalaryAmount(0);
                         }
                       }}
-                      className="rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                      className="w-5 h-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded-lg cursor-pointer transition-all"
                     />
-                    <label htmlFor="hasBaseSalary" className="text-sm font-medium text-gray-700 cursor-pointer">
-                      Driver receives a base salary
-                    </label>
                   </div>
-
-                  {hasBaseSalary && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        label="Base Salary Amount"
-                        type="number"
-                        step="0.01"
-                        value={baseSalaryAmount}
-                        onChange={e => setBaseSalaryAmount(parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
-                      />
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
-                        <div className="flex rounded-md shadow-sm">
-                          <button
-                            type="button"
-                            onClick={() => setBaseSalaryCurrency('USD')}
-                            className={`flex-1 py-2 text-xs font-bold border rounded-l-lg ${baseSalaryCurrency === 'USD' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                          >
-                            USD ($)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setBaseSalaryCurrency('KHR')}
-                            className={`flex-1 py-2 text-xs font-bold border rounded-r-lg ${baseSalaryCurrency === 'KHR' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                          >
-                            KHR (៛)
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <label htmlFor="isDriver" className="font-bold text-indigo-900 cursor-pointer select-none">
+                    This staff member is a Driver
+                  </label>
+                  <span className="text-xs font-medium text-indigo-400 bg-white px-2 py-0.5 rounded-full border border-indigo-100">Enable specialized reporting</span>
                 </div>
-              )}
-            </div>
 
-            <div className="flex justify-end space-x-2 pt-4 border-t border-gray-100">
-              <Button variant="outline" onClick={() => setIsFormOpen(false)} type="button">Cancel</Button>
-              <Button type="submit" isLoading={loading}>{editingId ? 'Update Employee' : 'Save Employee'}</Button>
+                {isDriver && (
+                  <div className="ml-8 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id="hasBaseSalary"
+                          checked={hasBaseSalary}
+                          onChange={e => {
+                            setHasBaseSalary(e.target.checked);
+                            if (!e.target.checked) {
+                              setBaseSalaryAmount(0);
+                            }
+                          }}
+                          className="w-5 h-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-lg cursor-pointer"
+                        />
+                        <label htmlFor="hasBaseSalary" className="font-bold text-gray-700 cursor-pointer select-none">
+                          Enable Base Salary Configuration
+                        </label>
+                      </div>
+
+                      {hasBaseSalary && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                          <Input
+                            label="Monthly Base Salary"
+                            type="number"
+                            step="0.01"
+                            value={baseSalaryAmount}
+                            onChange={e => setBaseSalaryAmount(parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="bg-white"
+                          />
+                          <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Salary Currency</label>
+                            <div className="flex p-1 bg-white border border-gray-200 rounded-2xl shadow-sm">
+                              <button
+                                type="button"
+                                onClick={() => setBaseSalaryCurrency('USD')}
+                                className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${baseSalaryCurrency === 'USD' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-500 hover:bg-gray-50'}`}
+                              >
+                                USD ($)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBaseSalaryCurrency('KHR')}
+                                className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${baseSalaryCurrency === 'KHR' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-500 hover:bg-gray-50'}`}
+                              >
+                                KHR (៛)
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end items-center gap-3 mt-10 pt-6 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
+                >
+                  Discard Changes
+                </button>
+                <Button
+                  type="submit"
+                  isLoading={loading}
+                  className="bg-gray-900 hover:bg-black text-white px-8 py-2.5 rounded-xl shadow-xl transition-all flex items-center gap-2"
+                >
+                  {editingId ? 'Update Profile' : 'Create Staff Record'}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </Button>
+              </div>
             </div>
           </form>
         </Card>
       )}
 
-      <Card>
+      {/* Staff Directory Table */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/30 flex justify-between items-center">
+          <h3 className="font-bold text-gray-900">Active Staff Members</h3>
+          <span className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-500 shadow-sm">
+            {employees.length} Total
+          </span>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role / Dept</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
+          <table className="min-w-full">
+            <thead>
+              <tr className="bg-white">
+                <th className="px-8 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.1em]">Staff Information</th>
+                <th className="px-8 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.1em]">Role & Department</th>
+                <th className="px-8 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.1em]">Contact Details</th>
+                <th className="px-8 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-[0.1em]">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {employees.map(e => (
-                <tr key={e.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">{e.name}</div>
+            <tbody className="divide-y divide-gray-50">
+              {employees.map((e, idx) => (
+                <tr key={e.id} className="group hover:bg-indigo-50/30 transition-all duration-300">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-4">
+                      <Avatar name={e.name} size="md" className="rounded-2xl shadow-sm border-2 border-white group-hover:scale-110 transition-transform duration-300" />
+                      <div>
+                        <div className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{e.name}</div>
+                        <div className="text-[10px] font-bold text-gray-400 mt-0.5 tracking-wider uppercase">ID: {e.id.substring(0, 8)}</div>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {e.position && <div className="text-gray-900 font-medium">{e.position}</div>}
-                    {e.department && <div className="text-xs">{e.department}</div>}
+                  <td className="px-8 py-5">
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-bold text-gray-700 shadow-sm uppercase tracking-wide">
+                          {e.position || 'Staff'}
+                        </span>
+                        {e.isDriver && (
+                          <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-black shadow-lg shadow-indigo-100 uppercase tracking-wide">
+                            Driver
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold text-gray-400 ml-1">
+                        {e.department || 'Unassigned Dept'}
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {e.email && <div className="text-xs">{e.email}</div>}
-                    {e.phone && <div className="text-xs">{e.phone}</div>}
+                  <td className="px-8 py-5">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
+                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {e.email || 'No Email'}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
+                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        {e.phone || 'No Phone'}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-right text-sm font-medium">
+                  <td className="px-8 py-5 text-right">
                     <button
                       onClick={() => openEdit(e)}
-                      className="text-indigo-600 hover:text-indigo-900"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold text-gray-900 shadow-sm hover:shadow-md hover:border-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
                     >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
                       Edit
                     </button>
                   </td>
                 </tr>
               ))}
               {employees.length === 0 && (
-                <tr><td colSpan={4} className="text-center py-8 text-gray-500">No employees found.</td></tr>
+                <tr>
+                  <td colSpan={4} className="px-8 py-20 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 border-2 border-dashed border-gray-200">
+                        <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No Staff Members Found</p>
+                      <p className="text-gray-300 text-sm mt-1">Start by adding your first team member.</p>
+                    </div>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

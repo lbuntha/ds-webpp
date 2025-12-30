@@ -7,7 +7,7 @@ export class HRService extends BaseService {
   async getEmployees() { return this.getCollection<Employee>('employees'); }
   async addEmployee(e: Employee) { await this.saveDocument('employees', e); }
   async updateEmployee(e: Employee) {
-    await this.saveDocument('employees', { ...e, updatedAt: Date.now() });
+    await this.saveDocument('employees', { ...e, updatedAt: Date.now() }, true);
   }
   async deleteEmployee(id: string) { await this.deleteDocument('employees', id); }
 

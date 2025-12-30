@@ -1,4 +1,5 @@
 import { Firestore, collection, doc, setDoc, getDoc, getDocs, query, where, deleteDoc, Timestamp } from 'firebase/firestore';
+import { normalizePhone } from '../utils/phoneUtils';
 
 interface OTPRecord {
     id: string;              // phone number (normalized)
@@ -28,10 +29,10 @@ export class OTPService {
     }
 
     /**
-     * Normalize phone number (remove spaces, dashes, etc.)
+     * Normalize phone number (standardized)
      */
     private normalizePhone(phone: string): string {
-        return phone.replace(/[\s\-\(\)]/g, '');
+        return normalizePhone(phone);
     }
 
     /**
@@ -39,21 +40,21 @@ export class OTPService {
      */
     private async checkRateLimit(phone: string): Promise<boolean> {
         const normalizedPhone = this.normalizePhone(phone);
+        const otpDoc = await getDoc(doc(this.db, 'otp_codes', normalizedPhone));
+
+        if (!otpDoc.exists()) return true;
+
+        const data = otpDoc.data() as OTPRecord;
         const now = Date.now();
         const windowStart = now - this.RATE_LIMIT_WINDOW_MS;
 
-        // Query recent OTP requests
-        const otpRef = collection(this.db, 'otp_codes');
-        const q = query(
-            otpRef,
-            where('id', '==', normalizedPhone),
-            where('createdAt', '>', windowStart)
-        );
+        // If the record is outside our hour window, reset is handled by overwrite
+        if (data.createdAt < windowStart) return true;
 
-        const snapshot = await getDocs(q);
-
-        // Count requests in the last hour
-        return snapshot.size < this.MAX_REQUESTS_PER_HOUR;
+        // Simple check: permit up to MAX_REQUESTS if we had a counter, 
+        // for now we just check if multiple requests happened in a short burst
+        // (This is a dev-mode simplification)
+        return (data.requestCount || 0) < this.MAX_REQUESTS_PER_HOUR;
     }
 
     /**
@@ -77,6 +78,11 @@ export class OTPService {
             const now = Date.now();
             const expiresAt = now + this.OTP_EXPIRY_MS;
 
+            // Get existing to maintain request count
+            const existingDoc = await getDoc(doc(this.db, 'otp_codes', normalizedPhone));
+            const existingData = existingDoc.exists() ? existingDoc.data() as OTPRecord : null;
+            const isFreshWindow = !existingData || (now - existingData.createdAt > this.RATE_LIMIT_WINDOW_MS);
+
             // Store in Firestore
             const otpRecord: OTPRecord = {
                 id: normalizedPhone,
@@ -86,7 +92,8 @@ export class OTPService {
                 expiresAt,
                 attempts: 0,
                 verified: false,
-                purpose
+                purpose,
+                requestCount: isFreshWindow ? 1 : (existingData?.requestCount || 0) + 1
             };
 
             await setDoc(doc(this.db, 'otp_codes', normalizedPhone), otpRecord);

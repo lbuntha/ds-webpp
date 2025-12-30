@@ -184,6 +184,12 @@ export interface UserProfile {
   joinedAt?: number; // Timestamp of registration
   createdAt?: number; // Legacy timestamp
   isTaxable?: boolean; // Customer: Apply tax to transactions
+  excludeFeesInSettlement?: boolean; // Customer: Exclude fees from settlement (pay gross amount)
+  // Authentication
+  authMethod?: 'email' | 'google' | 'phone';
+  hasPin: boolean;
+  pin?: string; // Unified: stores hashed PIN or legacy dev password
+  pinUpdatedAt?: number;
 }
 
 export interface ParcelStatusConfig {
@@ -324,6 +330,7 @@ export interface Customer {
   savedLocations?: SavedLocation[];
   referralCode?: string;
   isTaxable?: boolean;               // Whether VAT/Tax applies to this customer
+  excludeFeesInSettlement?: boolean; // Exclude fees from settlement (pay gross amount)
   createdAt: number;
   updatedAt?: number;
 
@@ -440,6 +447,7 @@ export interface Employee {
   address?: string;
   nationalId?: string;                // National ID / Passport
   dateOfBirth?: string;
+  bankAccount?: string;               // Unified bank account (Bank Name & No)
 
   // Employment Info
   position?: string;
@@ -613,7 +621,7 @@ export interface ParcelServiceType {
   defaultPriceKHR?: number;
   pricePerKm?: number;
   pricePerKmKHR?: number;
-  revenueAccountId: string; // Legacy / Primary USD
+  revenueAccountId?: string; // Legacy / Primary USD
   description?: string;
   image?: string;
 

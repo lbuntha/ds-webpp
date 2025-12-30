@@ -27,14 +27,6 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
     const [image, setImage] = useState('');
     const [taxRateId, setTaxRateId] = useState('');
 
-    // USD Config
-    const [revenueAccountUSD, setRevenueAccountUSD] = useState('');
-    const [taxAccountUSD, setTaxAccountUSD] = useState('');
-
-    // KHR Config
-    const [revenueAccountKHR, setRevenueAccountKHR] = useState('');
-    const [taxAccountKHR, setTaxAccountKHR] = useState('');
-
     // Delete confirmation
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -60,12 +52,6 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
         setDescription('');
         setImage('');
         setTaxRateId('');
-
-        setRevenueAccountUSD('');
-        setTaxAccountUSD('');
-
-        setRevenueAccountKHR('');
-        setTaxAccountKHR('');
     };
 
     const handleEdit = (s: ParcelServiceType) => {
@@ -79,20 +65,13 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
         setDescription(s.description || '');
         setImage(s.image || '');
 
-        // Load or Fallback
-        setRevenueAccountUSD(s.revenueAccountUSD || s.revenueAccountId || '');
-        setTaxAccountUSD(s.taxAccountUSD || '');
-
-        setRevenueAccountKHR(s.revenueAccountKHR || '');
-        setTaxAccountKHR(s.taxAccountKHR || '');
-
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name || !revenueAccountUSD) {
-            toast.warning("Name and USD Revenue Account are required.");
+        if (!name) {
+            toast.warning("Name is required.");
             return;
         }
 
@@ -105,15 +84,10 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
                 pricePerKm,
                 defaultPriceKHR,
                 pricePerKmKHR,
-                revenueAccountId: revenueAccountUSD, // Keep legacy field synced with USD
+                revenueAccountId: editingId ? (services.find(s => s.id === editingId)?.revenueAccountId) : undefined,
                 description,
                 image,
                 taxRateId: taxRateId || undefined,
-
-                revenueAccountUSD,
-                revenueAccountKHR,
-                taxAccountUSD,
-                taxAccountKHR
             };
             await firebaseService.saveParcelService(newService);
             resetForm();
@@ -144,39 +118,6 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
         setConfirmDeleteId(id);
     };
 
-    const renderAccountSelect = (label: string, value: string, setValue: (val: string) => void, types: AccountType[] = [AccountType.REVENUE, AccountType.LIABILITY, AccountType.ASSET]) => (
-        <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
-            <select
-                className="block w-full px-2 py-1.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 sm:text-xs bg-white"
-                value={value}
-                onChange={e => setValue(e.target.value)}
-            >
-                <option value="">-- Select GL Account --</option>
-                {types.includes(AccountType.ASSET) && (
-                    <optgroup label="Assets (Receivables/Cash)">
-                        {availableAccounts.filter(a => a.type === AccountType.ASSET).map(a => (
-                            <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
-                        ))}
-                    </optgroup>
-                )}
-                {types.includes(AccountType.LIABILITY) && (
-                    <optgroup label="Liabilities (Payables/Wallets)">
-                        {availableAccounts.filter(a => a.type === AccountType.LIABILITY).map(a => (
-                            <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
-                        ))}
-                    </optgroup>
-                )}
-                {types.includes(AccountType.REVENUE) && (
-                    <optgroup label="Revenue">
-                        {availableAccounts.filter(a => a.type === AccountType.REVENUE).map(a => (
-                            <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
-                        ))}
-                    </optgroup>
-                )}
-            </select>
-        </div>
-    );
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

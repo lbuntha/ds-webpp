@@ -44,11 +44,20 @@ export class FirebaseService {
 
     logout() { return this.authService.logout(); }
     resetPassword(email: string) { return this.authService.resetPassword(email); }
+    resetPasswordWithOTP(phone: string, code: string, pass: string) { return this.authService.resetPasswordWithOTP(phone, code, pass); }
     getCurrentUser() { return this.authService.getCurrentUser(); }
     subscribeToAuth(cb: (user: any) => void) { return this.authService.subscribeToAuth(cb); }
     sendRegistrationLink(email: string, data: any) { return this.authService.sendRegistrationLink(email, data); }
     isEmailLink(url: string) { return this.authService.isEmailLink(url); }
-    completeRegistrationWithLink(email: string, pass: string) { return this.authService.completeRegistrationWithLink(email, pass); }
+    completeRegistrationWithLink(email: string, pass?: string) { return this.authService.completeRegistrationWithLink(email, pass); }
+
+    // Google OAuth
+    signInWithGoogle(provider: any, role?: string) { return this.authService.signInWithGoogle(provider, role); }
+
+    // PIN Management
+    setUserPIN(uid: string, pin: string) { return this.authService.setUserPIN(uid, pin); }
+    verifyUserPIN(uid: string, pin: string) { return this.authService.verifyUserPIN(uid, pin); }
+    resetPINWithOTP(phone: string, otp: string, newPin: string) { return this.authService.resetPINWithOTP(phone, otp, newPin); }
 
 
     // Config (Settings, Users, etc)

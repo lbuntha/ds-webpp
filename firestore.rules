@@ -3,7 +3,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- 1. HELPER FUNCTIONS ---
+    // --- 1. CORE USERS & CRM ---
+    match /users/{userId} {
+      // DEV MODE: Allow unauthenticated lookup by phone for reset flow (GET and LIST)
+      allow get: if true; 
+      allow list: if request.query.limit == 1;
+      
+      // Allow users to create their own document (for signup) OR system-admin for others
+      allow create: if isSystemAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow delete: if isSystemAdmin();
+      allow update: if isSystemAdmin() || isOwner(userId) || isAuthenticated(); 
+    }
+
+    // OTP Codes - Allow unauthenticated access for phone signup/login
+    // Rate limiting should be handled in application code
+    match /otp_codes/{phone} {
+      allow read, write: if true;
+    }
+
+    // --- 1. HELPER FUNCTIONS (kept for reference) ---
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -13,7 +31,9 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isAuthenticated() && getUserData().get('role', '') == role;
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == role;
     }
 
     function isSystemAdmin() { return hasRole('system-admin'); }
@@ -26,10 +46,7 @@ service cloud.firestore {
 
     // --- 2. CORE USERS & CRM ---
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isSystemAdmin();
-      allow delete: if isSystemAdmin();
-      allow update: if isSystemAdmin() || isOwner(userId) || isAuthenticated(); 
+      // Handled above in section 1
     }
 
     match /customers/{customerId} {
@@ -147,6 +164,10 @@ service cloud.firestore {
     match /app_routes/{routeId} {
       allow read: if isAuthenticated();
       allow write: if isSystemAdmin();
+    }
+    // --- FINAL FALLBACK: AUTHENTICATED USERS ---
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }

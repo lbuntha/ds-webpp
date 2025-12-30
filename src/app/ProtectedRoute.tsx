@@ -35,7 +35,7 @@ export function ProtectedRoute({
     }
 
     // Check if user is pending approval
-    if (user.status === 'PENDING') {
+    if (user.status === 'PENDING' && location.pathname !== '/pending') {
         return <Navigate to="/pending" replace />;
     }
 

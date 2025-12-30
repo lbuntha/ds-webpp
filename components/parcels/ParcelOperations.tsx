@@ -39,6 +39,7 @@ export const ParcelOperations: React.FC = () => {
     const [editReceiverPhone, setEditReceiverPhone] = useState('');
     const [editCodAmount, setEditCodAmount] = useState(0);
     const [editCodCurrency, setEditCodCurrency] = useState<'USD' | 'KHR'>('USD');
+    const [editDeliveryFee, setEditDeliveryFee] = useState(0);
 
     // Transfer/Branch Selection Modal
     const [transferItem, setTransferItem] = useState<{ bookingIds: string[] } | null>(null);
@@ -149,6 +150,7 @@ export const ParcelOperations: React.FC = () => {
         setEditReceiverPhone(item.receiverPhone || '');
         setEditCodAmount(item.productPrice || 0);
         setEditCodCurrency(item.codCurrency || 'USD');
+        setEditDeliveryFee(item.deliveryFee || 0);
         setEditMode(mode);
     };
 
@@ -157,26 +159,19 @@ export const ParcelOperations: React.FC = () => {
         const booking = bookings.find(b => b.id === currentBookingId);
         if (!booking) return;
 
-        // Check if currency changed - need to recalculate fee
+        // Detect if this is a delivered item being edited
+        const isDelivered = verifyItem.status === 'DELIVERED';
+        const codChanged = verifyItem.productPrice !== editCodAmount;
+        const feeChanged = verifyItem.deliveryFee !== editDeliveryFee;
         const currencyChanged = verifyItem.codCurrency !== editCodCurrency;
-        let newDeliveryFee = verifyItem.deliveryFee || 0;
 
-        if (currencyChanged && services.length > 0) {
-            try {
-                const feeResult = await calculateDeliveryFee({
-                    serviceTypeId: booking.serviceTypeId,
-                    customerId: booking.senderId || '',
-                    itemCount: 1, // Per-item fee
-                    codCurrency: editCodCurrency,
-                    exchangeRate: booking.exchangeRateForCOD || 4100,
-                    services
-                });
-                newDeliveryFee = feeResult.pricePerItem;
-                console.log('📦 Recalculated delivery fee for currency change:', { old: verifyItem.deliveryFee, new: newDeliveryFee, currency: editCodCurrency });
-            } catch (e) {
-                console.error('Failed to recalculate fee:', e);
-            }
-        }
+        // Calculate differences for adjustment transactions
+        const oldCOD = verifyItem.productPrice || 0;
+        const newCOD = editCodAmount || 0;
+        const oldFee = verifyItem.deliveryFee || 0;
+        const newFee = editDeliveryFee || 0;
+        const oldCurrency = verifyItem.codCurrency || 'USD';
+        const newCurrency = editCodCurrency || 'USD';
 
         // Warehouse can only edit item details - NO status changes allowed
         const updatedItems = (booking.items || []).map(i => {
@@ -188,7 +183,7 @@ export const ParcelOperations: React.FC = () => {
                     receiverPhone: editReceiverPhone,
                     productPrice: editCodAmount,
                     codCurrency: editCodCurrency,
-                    deliveryFee: newDeliveryFee,
+                    deliveryFee: editDeliveryFee,
                 };
             }
             return i;
@@ -199,10 +194,75 @@ export const ParcelOperations: React.FC = () => {
 
         await firebaseService.saveParcelBooking(updatedBooking);
 
+        // --- WALLET ADJUSTMENT LOGIC FOR DELIVERED ITEMS ---
+        if (isDelivered && (codChanged || feeChanged || currencyChanged)) {
+            try {
+                // Note: Customer wallet entries (COD/Fee) are computed dynamically from booking items,
+                // so they will auto-update. However, we should log the adjustment for transparency.
+
+                // For driver commissions, we need to create adjustment transactions
+                // since commissions are stored as actual wallet_transactions
+
+                // Only process fee-based adjustments if fee changed and currency is same
+                // (cross-currency adjustments are complex and should be handled separately)
+                if (feeChanged && !currencyChanged) {
+                    const feeDifference = newFee - oldFee;
+
+                    // Adjust collector commission (if exists)
+                    if (verifyItem.collectorId && verifyItem.pickupCommission) {
+                        // Commission is typically a percentage of fee, so recalculate
+                        // For simplicity, we'll create a proportional adjustment
+                        const commissionRate = verifyItem.pickupCommission / oldFee;
+                        const commissionAdjustment = feeDifference * commissionRate;
+
+                        if (Math.abs(commissionAdjustment) > 0.01) {
+                            await firebaseService.processWalletTransaction(
+                                verifyItem.collectorId,
+                                commissionAdjustment,
+                                oldCurrency,
+                                'EARNING',
+                                '',
+                                `Pickup Commission Adjustment: ${verifyItem.receiverName} (${booking.id.slice(-4)}) - Fee ${oldFee} → ${newFee}`
+                            );
+                        }
+                    }
+
+                    // Adjust deliverer commission (if exists)
+                    if (verifyItem.delivererId && verifyItem.deliveryCommission) {
+                        const commissionRate = verifyItem.deliveryCommission / oldFee;
+                        const commissionAdjustment = feeDifference * commissionRate;
+
+                        if (Math.abs(commissionAdjustment) > 0.01) {
+                            await firebaseService.processWalletTransaction(
+                                verifyItem.delivererId,
+                                commissionAdjustment,
+                                oldCurrency,
+                                'EARNING',
+                                '',
+                                `Delivery Commission Adjustment: ${verifyItem.receiverName} (${booking.id.slice(-4)}) - Fee ${oldFee} → ${newFee}`
+                            );
+                        }
+                    }
+                }
+
+                console.log('✅ Wallet adjustments processed for delivered item edit:', {
+                    itemId: verifyItem.id,
+                    codChange: codChanged ? `${oldCOD} → ${newCOD}` : 'none',
+                    feeChange: feeChanged ? `${oldFee} → ${newFee}` : 'none',
+                    currencyChange: currencyChanged ? `${oldCurrency} → ${newCurrency}` : 'none'
+                });
+            } catch (error) {
+                console.error('Failed to process wallet adjustments:', error);
+                toast.error('Item updated but wallet adjustment failed. Please check manually.');
+            }
+        }
+
         // Update local state
         setBookings(prev => prev.map(b => b.id === currentBookingId ? updatedBooking : b));
         setVerifyItem(null);
-        toast.success("Parcel details updated.");
+        toast.success(isDelivered && (codChanged || feeChanged) ?
+            "Parcel details and wallet adjustments updated." :
+            "Parcel details updated.");
     };
 
     const handleBulkTransfer = async () => {
@@ -621,29 +681,61 @@ export const ParcelOperations: React.FC = () => {
                             </div>
 
                             {/* COD Amount */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">COD Amount</label>
-                                    <input
-                                        type="number"
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={editCodAmount || ''}
-                                        onChange={e => setEditCodAmount(parseFloat(e.target.value) || 0)}
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-                                    <select
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={editCodCurrency}
-                                        onChange={e => setEditCodCurrency(e.target.value as 'USD' | 'KHR')}
-                                    >
-                                        <option value="USD">USD</option>
-                                        <option value="KHR">KHR</option>
-                                    </select>
-                                </div>
-                            </div>
+                            {(() => {
+                                const isSettled = verifyItem?.driverSettlementStatus === 'SETTLED' || verifyItem?.customerSettlementStatus === 'SETTLED';
+                                return (
+                                    <>
+                                        {isSettled && (
+                                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                                                ⚠️ This parcel has been settled. COD and fee cannot be modified.
+                                            </div>
+                                        )}
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="col-span-2">
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">COD Amount</label>
+                                                <input
+                                                    type="number"
+                                                    className={`w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 ${isSettled ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                    value={editCodAmount || ''}
+                                                    onChange={e => setEditCodAmount(parseFloat(e.target.value) || 0)}
+                                                    placeholder="0.00"
+                                                    disabled={isSettled}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                                                <select
+                                                    className={`w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 ${isSettled ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                    value={editCodCurrency}
+                                                    onChange={e => setEditCodCurrency(e.target.value as 'USD' | 'KHR')}
+                                                    disabled={isSettled}
+                                                >
+                                                    <option value="USD">USD</option>
+                                                    <option value="KHR">KHR</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+
+                            {/* Delivery Fee */}
+                            {(() => {
+                                const isSettled = verifyItem?.driverSettlementStatus === 'SETTLED' || verifyItem?.customerSettlementStatus === 'SETTLED';
+                                return (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Fee</label>
+                                        <input
+                                            type="number"
+                                            className={`w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 ${isSettled ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                            value={editDeliveryFee || ''}
+                                            onChange={e => setEditDeliveryFee(parseFloat(e.target.value) || 0)}
+                                            placeholder="0.00"
+                                            disabled={isSettled}
+                                        />
+                                    </div>
+                                );
+                            })()}
 
                             {/* Weight */}
                             <div>
