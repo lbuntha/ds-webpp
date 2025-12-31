@@ -1,9 +1,10 @@
-import { Auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, updatePassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { Auth, getAuth, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, updatePassword, signInWithPopup } from 'firebase/auth';
 import { Firestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { OTPService } from './otpService';
 import { normalizePhone, getSyntheticEmail } from '../utils/phoneUtils';
 import { hashString } from '../utils/cryptoUtils';
+import { env } from '../../config/env';
 
 export class AuthService {
     private otpService: OTPService;
@@ -13,6 +14,29 @@ export class AuthService {
     }
 
     async login(email: string, pass: string) { await signInWithEmailAndPassword(this.auth, email, pass); }
+
+    private async callApi(path: string, method: string, body: any, authenticate: boolean = false) {
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+        };
+
+        if (authenticate && this.auth.currentUser) {
+            const token = await this.auth.currentUser.getIdToken();
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${env.app.apiUrl}${path}`, {
+            method,
+            headers,
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'API request failed');
+        }
+        return data;
+    }
 
     async sendRegistrationLink(email: string, userData: any) {
         const actionCodeSettings = {
@@ -135,7 +159,14 @@ export class AuthService {
     }
 
     async logout() { await signOut(this.auth); }
-    async resetPassword(email: string) { await sendPasswordResetEmail(this.auth, email); }
+
+    async resetPassword(email: string) {
+        const actionCodeSettings = {
+            url: window.location.origin + '/auth/action',
+            handleCodeInApp: true,
+        };
+        await sendPasswordResetEmail(this.auth, email, actionCodeSettings);
+    }
 
     // ==================== GOOGLE OAUTH ====================
 
@@ -220,28 +251,20 @@ export class AuthService {
     }
 
     /**
-     * Reset PIN after OTP verification
-     * Call this after verifyOTP succeeds
+     * Reset PIN via cloud function API (with server-side OTP verification)
      */
     async resetPINWithOTP(phone: string, otp: string, newPin: string): Promise<{ success: boolean; message: string }> {
-        // First verify OTP
-        const otpResult = await this.otpService.verifyOTP(phone, otp);
-        if (!otpResult.success) {
-            return otpResult;
+        try {
+            const data = await this.callApi('/auth/reset-password-otp', 'POST', {
+                phone,
+                otp,
+                newPassword: newPin
+            });
+            return { success: true, message: data.message || 'PIN reset successfully' };
+        } catch (error: any) {
+            console.error('[PIN RESET] API Error:', error);
+            return { success: false, message: error.message || 'Failed to reset PIN' };
         }
-
-        // Find user by phone
-        const usersRef = collection(this.db, 'users');
-        const normalizedPhone = normalizePhone(phone);
-        const q = query(usersRef, where('phone', '==', normalizedPhone), limit(1));
-        const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            return { success: false, message: 'No account found with this phone number' };
-        }
-
-        const userDoc = snapshot.docs[0];
-        return await this.setUserPIN(userDoc.id, newPin);
     }
 
     /**
@@ -250,16 +273,10 @@ export class AuthService {
      */
     async lookupUserByPhone(phone: string): Promise<string | null> {
         const normalizedPhone = normalizePhone(phone);
-
-        // Query users collection for matching phone
         const usersRef = collection(this.db, 'users');
         const q = query(usersRef, where('phone', '==', normalizedPhone), limit(1));
         const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            return null;
-        }
-
+        if (snapshot.empty) return null;
         const userDoc = snapshot.docs[0];
         const userData = userDoc.data() as UserProfile;
         return userData.email;
@@ -267,31 +284,40 @@ export class AuthService {
 
     /**
      * Login with either email or phone number
-     * Automatically detects input type and handles appropriately
+     * Uses Firebase Auth for verification
      */
     async loginWithEmailOrPhone(identifier: string, password: string) {
-        // Detect if identifier is email or phone
         const isEmail = identifier.includes('@');
 
         if (isEmail) {
-            // Direct email login
+            // Email login - standard Firebase Auth
             return await signInWithEmailAndPassword(this.auth, identifier, password);
         } else {
-            // Phone number login - use synthetic email directly
-            // This avoids an unauthenticated Firestore read to lookup by phone
-            const email = getSyntheticEmail(identifier);
-            return await signInWithEmailAndPassword(this.auth, email, password);
+            // Phone login - use synthetic email with Firebase Auth
+            const normalizedPhone = normalizePhone(identifier);
+            const syntheticEmail = getSyntheticEmail(normalizedPhone);
+
+            try {
+                // Verify password directly through Firebase Auth
+                return await signInWithEmailAndPassword(this.auth, syntheticEmail, password);
+            } catch (authError: any) {
+                if (authError.code === 'auth/user-not-found') {
+                    throw new Error('No account found with this phone number');
+                }
+                if (authError.code === 'auth/wrong-password' || authError.code === 'auth/invalid-credential') {
+                    throw new Error('Invalid PIN');
+                }
+                throw authError;
+            }
         }
     }
 
     /**
-     * Register with phone number (for mobile apps)
-     * Creates a synthetic email
+     * Register with phone number
      */
     async registerWithPhone(phone: string, password: string, name: string, extraData?: any) {
         const syntheticEmail = getSyntheticEmail(phone);
         const normalizedPhone = normalizePhone(phone);
-
         return await this.register(syntheticEmail, password, name, {
             ...extraData,
             phone: normalizedPhone,
@@ -307,16 +333,14 @@ export class AuthService {
                     const snap = await getDoc(doc(this.db, 'users', user.uid));
                     if (snap.exists()) {
                         const userData = snap.data() as UserProfile;
-                        // Merge Customer data if exists
                         if (userData.linkedCustomerId) {
                             const custSnap = await getDoc(doc(this.db, 'customers', userData.linkedCustomerId));
                             if (custSnap.exists()) {
-                                const custData = custSnap.data();
-                                resolve({ ...userData, ...custData, uid: user.uid }); // UID from auth
+                                resolve({ ...userData, ...custSnap.data(), uid: user.uid } as UserProfile);
                                 return;
                             }
                         }
-                        resolve(userData);
+                        resolve(userData as UserProfile);
                     }
                     else resolve({ uid: user.uid, email: user.email!, name: user.displayName || '', role: 'customer', status: 'APPROVED', hasPin: false });
                 } else {
@@ -333,16 +357,14 @@ export class AuthService {
                     const snap = await getDoc(doc(this.db, 'users', user.uid));
                     if (snap.exists()) {
                         const userData = snap.data() as UserProfile;
-                        // Merge Customer data if exists
                         if (userData.linkedCustomerId) {
                             const custSnap = await getDoc(doc(this.db, 'customers', userData.linkedCustomerId));
                             if (custSnap.exists()) {
-                                const custData = custSnap.data();
-                                callback({ ...userData, ...custData, uid: user.uid });
+                                callback({ ...userData, ...custSnap.data(), uid: user.uid } as UserProfile);
                                 return;
                             }
                         }
-                        callback(userData);
+                        callback(userData as UserProfile);
                     } else {
                         callback({ uid: user.uid, email: user.email!, name: user.displayName || '', role: 'customer', status: 'APPROVED', hasPin: false });
                     }
@@ -356,46 +378,50 @@ export class AuthService {
         });
     }
 
-    // ==================== OTP AUTHENTICATION ====================
-
     /**
-     * Request OTP code for phone number
-     * Code will be stored in Firebase (check console or use getOTP to retrieve)
+     * OTP Management via Cloud Function API
      */
-    async requestOTP(phone: string, purpose: 'SIGNUP' | 'LOGIN' = 'LOGIN') {
-        return await this.otpService.requestOTP(phone, purpose);
+    async requestOTP(phone: string, purpose: 'SIGNUP' | 'LOGIN' | 'RESET' = 'LOGIN'): Promise<{ success: boolean; message: string }> {
+        try {
+            const data = await this.callApi('/auth/request-otp', 'POST', { phone, purpose });
+            return { success: true, message: data.message || 'OTP sent successfully' };
+        } catch (error: any) {
+            return { success: false, message: error.message || 'Failed to send OTP' };
+        }
     }
 
-    /**
-     * Get OTP code (for development/testing - view in Firebase Console)
-     */
+    async verifyOTP(phone: string, code: string): Promise<{ success: boolean; message: string }> {
+        try {
+            const data = await this.callApi('/auth/verify-otp', 'POST', { phone, otp: code });
+            return { success: true, message: data.message || 'OTP verified' };
+        } catch (error: any) {
+            return { success: false, message: error.message || 'Invalid OTP' };
+        }
+    }
+
     async getOTP(phone: string) {
+        // Dev-only: Fetch OTP from Firestore for testing
         return await this.otpService.getOTP(phone);
     }
 
     /**
-     * Signup with OTP (passwordless)
+     * Signup with phone number and OTP verification via cloud API
      */
     async signupWithOTP(phone: string, code: string, name: string, extraData?: any) {
-        // 1. Verify OTP
-        const verification = await this.otpService.verifyOTP(phone, code);
-
-        if (!verification.success) {
-            throw new Error(verification.message);
+        // 1. Verify OTP via cloud API
+        const verifyResult = await this.verifyOTP(phone, code);
+        if (!verifyResult.success) {
+            throw new Error(verifyResult.message);
         }
 
-        // 2. Generate synthetic email and status
+        // 2. Create account
         const normalizedPhone = normalizePhone(phone);
         const syntheticEmail = getSyntheticEmail(normalizedPhone);
-        const finalPassword = extraData?.password || Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
+        const finalPassword = extraData?.password || Math.random().toString(36).slice(-12);
 
         try {
-            // 3. Create Firebase Auth user
-            // If phone already exists, Firebase will throw 'auth/email-already-in-use'
             const res = await createUserWithEmailAndPassword(this.auth, syntheticEmail, finalPassword);
             await updateProfile(res.user, { displayName: name });
-
-            // 4. Create Profile (using centralized logic)
             await this.createProfile(res.user, name, {
                 ...extraData,
                 phone: normalizedPhone,
@@ -403,89 +429,12 @@ export class AuthService {
                 authMethod: 'phone',
                 role: extraData?.role || 'customer'
             });
-
             return res.user;
         } catch (error: any) {
-            // If email already in use, it means the phone exists
             if (error.code === 'auth/email-already-in-use') {
-                throw new Error('An account with this phone number already exists. Please log in instead.');
+                throw new Error('An account with this phone number already exists.');
             }
             throw error;
         }
-    }
-
-    /**
-     * Login with OTP (passwordless)
-     */
-    async loginWithOTP(phone: string, code: string) {
-        // 1. Verify OTP
-        const verification = await this.otpService.verifyOTP(phone, code);
-
-        if (!verification.success) {
-            throw new Error(verification.message);
-        }
-
-        // 2. Lookup user by phone
-        const normalizedPhone = normalizePhone(phone);
-        const email = await this.lookupUserByPhone(normalizedPhone);
-
-        if (!email) {
-            throw new Error('No account found with this phone number. Please sign up first.');
-        }
-
-        // 3. Get user document to retrieve password (or use custom token)
-        // Since we don't store password, we'll use Firebase Admin SDK approach
-        // For now, we'll throw an error and suggest using signupWithOTP for new users
-
-        // ALTERNATIVE: Use Firebase Custom Token (requires backend)
-        // For development, user should use the web login with synthetic email
-
-        throw new Error('OTP Login requires Firebase Admin SDK. Please use the mobile app or contact support.');
-    }
-    /**
-     * Reset password using OTP (Client-side Dev Mode)
-     * This avoids using Cloud Functions by leveraging stored passwords in Firestore
-     */
-    async resetPasswordWithOTP(phone: string, code: string, newPassword: string) {
-        // 1. Verify OTP
-        const verification = await this.otpService.verifyOTP(phone, code);
-        if (!verification.success) {
-            throw new Error(verification.message);
-        }
-
-        const normalizedPhone = normalizePhone(phone);
-
-        // 2. Find user by phone to get their CURRENT password (dev mode)
-        const usersRef = collection(this.db, 'users');
-        const q = query(usersRef, where('phone', '==', normalizedPhone), limit(1));
-        const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            throw new Error('No account found with this phone number');
-        }
-
-        const userDoc = snapshot.docs[0];
-        const userData = userDoc.data();
-        const email = userData.email;
-        const currentPin = userData.pin;
-
-        if (!currentPin) {
-            throw new Error('This account was not created with Dev Mode password storage. Cannot reset client-side.');
-        }
-
-        // 3. Sign in to get a fresh session
-        const authResult = await signInWithEmailAndPassword(this.auth, email, currentPin);
-
-        // 4. Update the real Firebase Auth password (using the hash as the password)
-        const hashedNewPassword = await hashString(newPassword);
-        await updatePassword(authResult.user, hashedNewPassword);
-
-        // 5. Update the stored password in Firestore (using the hash)
-        await updateDoc(userDoc.ref, {
-            pin: hashedNewPassword,
-            updatedAt: Date.now()
-        });
-
-        return { success: true, message: 'Password reset successfully' };
     }
 }

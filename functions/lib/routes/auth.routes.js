@@ -43,5 +43,6 @@ router.post('/signup', authController.signup);
 router.post('/login', authController.login);
 router.post('/logout', authController.logout);
 router.post('/refresh-token', authController.refreshToken);
+router.post('/reset-password-otp', authController.resetPasswordWithOTP);
 exports.default = router;
 //# sourceMappingURL=auth.routes.js.map

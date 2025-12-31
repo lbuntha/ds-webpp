@@ -13,6 +13,7 @@ interface EnvConfig {
     // App Config
     VITE_APP_NAME?: string;
     VITE_DEFAULT_LANGUAGE?: string;
+    VITE_API_URL?: string;
 }
 
 class Environment {
@@ -37,6 +38,7 @@ class Environment {
             // App Config
             VITE_APP_NAME: import.meta.env.VITE_APP_NAME || 'Doorstep',
             VITE_DEFAULT_LANGUAGE: import.meta.env.VITE_DEFAULT_LANGUAGE || 'en',
+            VITE_API_URL: import.meta.env.VITE_API_URL || 'https://api-lsv4ogyjva-uc.a.run.app',
         };
     }
 
@@ -77,6 +79,7 @@ class Environment {
         return {
             name: this.config.VITE_APP_NAME!,
             defaultLanguage: this.config.VITE_DEFAULT_LANGUAGE!,
+            apiUrl: this.config.VITE_API_URL!,
         };
     }
 

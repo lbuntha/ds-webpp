@@ -34,7 +34,7 @@ export default function PhoneResetView() {
         setError(null);
 
         try {
-            const result = await firebaseService.requestOTP(phone.trim(), 'LOGIN'); // Using LOGIN purpose for reset
+            const result = await firebaseService.requestOTP(phone.trim(), 'RESET');
             if (result.success) {
                 // For development, fetch the OTP to display
                 const otpData = await firebaseService.getOTP(phone.trim());
@@ -58,14 +58,16 @@ export default function PhoneResetView() {
             return;
         }
 
-        // We verify the OTP at the same time we reset the password in the final step to avoid 
-        // managing state on the server, but we can also verify it here for UX.
         setIsLoading(true);
         setError(null);
         try {
-            // For now, just progress to next step. 
-            // The actual verification happens in the cloud function.
-            setStep('NEW_PASSWORD');
+            // Verify OTP using client-side service
+            const result = await firebaseService.verifyOTP(phone.trim(), otp);
+            if (result.success) {
+                setStep('NEW_PASSWORD');
+            } else {
+                setError(result.message);
+            }
         } catch (err: any) {
             setError(getFriendlyErrorMessage(err));
         } finally {
@@ -74,8 +76,8 @@ export default function PhoneResetView() {
     };
 
     const handleCompleteReset = async () => {
-        if (!password || password.length < 6) {
-            setError('Password must be at least 6 characters');
+        if (!password || password.length < 4) {
+            setError('PIN must be at least 4 characters');
             return;
         }
 
@@ -83,11 +85,15 @@ export default function PhoneResetView() {
         setError(null);
 
         try {
-            await firebaseService.resetPasswordWithOTP(phone.trim(), otp, password);
-            setSuccess('Password reset successfully! You can now log in with your new password.');
-            setTimeout(() => {
-                navigate('/auth/login', { replace: true });
-            }, 3000);
+            const result = await firebaseService.resetPasswordWithOTP(phone.trim(), otp, password);
+            if (result.success) {
+                setSuccess('PIN reset successfully! You can now log in with your new PIN.');
+                setTimeout(() => {
+                    navigate('/auth/login', { replace: true });
+                }, 3000);
+            } else {
+                setError(result.message);
+            }
         } catch (err: any) {
             setError(err.message || getFriendlyErrorMessage(err));
         } finally {

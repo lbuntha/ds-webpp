@@ -17,7 +17,7 @@ export class OTPService {
     private readonly OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
     private readonly MAX_ATTEMPTS = 3;
     private readonly RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-    private readonly MAX_REQUESTS_PER_HOUR = 3;
+    private readonly MAX_REQUESTS_PER_HOUR = 20; // Increased for development
 
     constructor(private db: Firestore) { }
 

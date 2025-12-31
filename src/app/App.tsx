@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { AppProviders } from './providers';
 import { router } from './router';
+import { env } from '../config/env';
 
 /**
  * Main App component - Simplified from 593 lines to ~15 lines!
@@ -22,7 +23,7 @@ export default function App() {
                 console.log('%c[FIREBASE ID TOKEN]', 'color: #00ff00; font-weight: bold; font-size: 14px');
                 console.log(token);
                 console.log('%c[CURL COMMAND]', 'color: #00aaaa; font-weight: bold');
-                console.log(`curl -H "Authorization: Bearer ${token}" https://us-central1-doorstep-c75e3.cloudfunctions.net/api/health`);
+                console.log(`curl -H "Authorization: Bearer ${token}" https://us-central1-${env.firebase.projectId}.cloudfunctions.net/api/health`);
             } else {
                 console.log('[Auth] No user logged in');
             }

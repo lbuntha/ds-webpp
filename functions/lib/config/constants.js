@@ -32,6 +32,7 @@ exports.HTTP_STATUS = {
     CONFLICT: 409,
     INTERNAL_ERROR: 500,
     NOT_IMPLEMENTED: 501,
+    TOO_MANY_REQUESTS: 429,
 };
 exports.ERROR_CODES = {
     // Authentication

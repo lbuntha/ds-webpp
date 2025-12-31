@@ -97,7 +97,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth(): AuthContextValue {
     const context = useContext(AuthContext);
     if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
+        // Return a loading state instead of throwing during HMR/initialization
+        // This prevents "useAuth must be used within AuthProvider" errors
+        return {
+            user: null,
+            firebaseUser: null,
+            loading: true,
+            login: async () => { throw new Error('Auth not initialized'); },
+            register: async () => { throw new Error('Auth not initialized'); },
+            logout: async () => { throw new Error('Auth not initialized'); },
+            resetPassword: async () => { throw new Error('Auth not initialized'); },
+            hasPermission: () => false,
+            hasRole: () => false,
+        };
     }
     return context;
 }

@@ -209,58 +209,172 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 };
 
 /**
- * Request OTP (placeholder for future implementation)
+ * Request OTP via phone
+ * POST /auth/request-otp
+ * Body: { phone, purpose }
  */
 export const requestOTP = async (req: Request, res: Response): Promise<void> => {
-    sendError(res, 'OTP not implemented. Use email/password signup.', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.NOT_IMPLEMENTED);
+    try {
+        const { phone, purpose = 'LOGIN' } = req.body;
+
+        if (!phone) {
+            sendError(res, 'Phone number is required', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        const normalizedPhone = phone.replace(/\D/g, '');
+        const now = Date.now();
+        const OTP_EXPIRY_MS = 5 * 60 * 1000;
+        const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+        const MAX_REQUESTS_PER_HOUR = 5;
+
+        // Check existing OTP for rate limiting
+        const otpRef = db.collection('otp_codes').doc(normalizedPhone);
+        const otpDoc = await otpRef.get();
+        const existingData = otpDoc.exists ? otpDoc.data() : null;
+
+        if (existingData) {
+            const isWithinLimit = (now - existingData.createdAt) < RATE_LIMIT_WINDOW_MS;
+            if (isWithinLimit && (existingData.requestCount || 0) >= MAX_REQUESTS_PER_HOUR) {
+                sendError(res, 'Too many requests. Please try again in an hour.', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.TOO_MANY_REQUESTS);
+                return;
+            }
+        }
+
+        // Generate 6-digit code
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = now + OTP_EXPIRY_MS;
+
+        const otpRecord = {
+            id: normalizedPhone,
+            code,
+            phone,
+            createdAt: now,
+            expiry: expiresAt, // Backend uses 'expiry', frontend uses 'expiresAt'. Synchronizing to 'expiry' for backend consistency.
+            attempts: 0,
+            verified: false,
+            purpose,
+            requestCount: (existingData?.requestCount || 0) + 1
+        };
+
+        await otpRef.set(otpRecord);
+
+        // DEBUG LOG
+        console.log(`[AUTH-API] Generated OTP for ${phone}: ${code}`);
+
+        sendSuccess(res, 'OTP generated successfully', {
+            note: 'In development, check function logs for the code.'
+        });
+    } catch (error: any) {
+        console.error('Request OTP error:', error);
+        sendError(res, error.message || 'Failed to request OTP', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_ERROR);
+    }
 };
 
 /**
- * Verify OTP (placeholder for future implementation)
+ * Verify OTP
+ * POST /auth/verify-otp
+ * Body: { phone, otp }
  */
 export const verifyOTP = async (req: Request, res: Response): Promise<void> => {
-    sendError(res, 'OTP not implemented. Use email/password signup.', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.NOT_IMPLEMENTED);
+    try {
+        const { phone, otp } = req.body;
+
+        if (!phone || !otp) {
+            sendError(res, 'Phone and OTP are required', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        const normalizedPhone = phone.replace(/\D/g, '');
+        const otpDoc = await db.collection('otp_codes').doc(normalizedPhone).get();
+
+        if (!otpDoc.exists) {
+            sendError(res, 'No OTP found for this phone number', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        const data = otpDoc.data();
+        const now = Date.now();
+
+        if (data?.code !== otp) {
+            sendError(res, 'Invalid OTP code', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        if (data?.expiry < now) {
+            sendError(res, 'OTP has expired', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        // Mark as verified instead of deleting (so the next step can use it)
+        await db.collection('otp_codes').doc(normalizedPhone).update({
+            verified: true
+        });
+
+        sendSuccess(res, 'OTP verified successfully');
+    } catch (error: any) {
+        console.error('Verify OTP error:', error);
+        sendError(res, error.message || 'Failed to verify OTP', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_ERROR);
+    }
 };
 
 /**
- * Reset password via OTP
+ * Reset password/PIN via OTP verification
  * POST /auth/reset-password-otp
  * Body: { phone, otp, newPassword }
+ * 
+ * This endpoint validates OTP server-side before resetting the PIN.
  */
 export const resetPasswordWithOTP = async (req: Request, res: Response): Promise<void> => {
     try {
         const { phone, otp, newPassword } = req.body;
 
+        // Validate required fields
         if (!phone || !otp || !newPassword) {
             sendError(res, 'Phone, OTP, and new password are required', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
             return;
         }
 
+        if (newPassword.length < 4) {
+            sendError(res, 'PIN must be at least 4 characters', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
         // 1. Normalize phone
         const normalizedPhone = phone.replace(/\D/g, '');
-        const syntheticEmail = `${normalizedPhone}@doorsteps.tech`;
 
-        // 2. Verify OTP in Firestore
+        // 2. Verify OTP
         const otpDoc = await db.collection('otp_codes').doc(normalizedPhone).get();
+
         if (!otpDoc.exists) {
-            sendError(res, 'No OTP found for this phone number. Please request a new code.', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            sendError(res, 'No OTP found. Please request a new OTP.', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
             return;
         }
 
         const otpData = otpDoc.data();
         const now = Date.now();
 
+        // Check if OTP matches
         if (otpData?.code !== otp) {
             sendError(res, 'Invalid OTP code', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
             return;
         }
 
+        // Check if OTP has expired
         if (otpData?.expiry < now) {
-            sendError(res, 'OTP has expired', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            sendError(res, 'OTP has expired. Please request a new OTP.', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
             return;
         }
 
-        // 3. Find user by synthetic email
+        // Check if OTP purpose is for password reset
+        if (otpData?.purpose && otpData.purpose !== 'RESET' && otpData.purpose !== 'LOGIN') {
+            sendError(res, 'Invalid OTP purpose', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        // 3. Create synthetic email and find user
+        const syntheticEmail = `${normalizedPhone}@doorsteps.tech`;
+
         let userRecord;
         try {
             userRecord = await auth.getUserByEmail(syntheticEmail);
@@ -272,24 +386,27 @@ export const resetPasswordWithOTP = async (req: Request, res: Response): Promise
             throw e;
         }
 
-        // 4. Update password
-        const hashedNewPassword = hashString(newPassword);
+        // 4. Update password in Firebase Auth (Firebase hashes internally, so use RAW password)
         await auth.updateUser(userRecord.uid, {
-            password: hashedNewPassword
+            password: newPassword  // RAW password - Firebase handles hashing
         });
 
-        // 5. Clean up OTP and update User Profile
-        await db.collection('otp_codes').doc(normalizedPhone).delete();
+        // 5. Update PIN hash in Firestore user profile (our own hash for fallback verification)
+        const hashedPin = hashString(newPassword);
         await db.collection('users').doc(userRecord.uid).update({
-            pin: hashedNewPassword,
+            pin: hashedPin,
             hasPin: true,
             updatedAt: Date.now()
         });
 
-        sendSuccess(res, 'Password reset successfully');
+        // 6. Delete the used OTP
+        await db.collection('otp_codes').doc(normalizedPhone).delete();
+
+        console.log(`[PIN RESET] Successfully reset PIN for ${normalizedPhone}`);
+        sendSuccess(res, 'PIN reset successfully');
     } catch (error: any) {
-        console.error('Password reset OTP error:', error);
-        sendError(res, error.message || 'Failed to reset password', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_ERROR);
+        console.error('PIN reset error:', error);
+        sendError(res, error.message || 'Failed to reset PIN', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_ERROR);
     }
 };
 

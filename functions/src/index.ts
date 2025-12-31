@@ -32,5 +32,68 @@ app.use('/wallet', walletRoutes);
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Export the Express app as a Cloud Function
+// Export the Express app as a Cloud Function (REST API)
 export const api = functions.https.onRequest(app);
+
+// Import controllers for Callable mapping
+import * as authController from './controllers/auth.controller';
+
+/**
+ * Callable Functions for "Firebase API" compatibility
+ */
+export const requestOTP = functions.https.onCall(async (data, context) => {
+    console.log('[CALLABLE] requestOTP started', data);
+    try {
+        return await new Promise((resolve) => {
+            const req = { body: data } as any;
+            const res = {
+                status: (code: number) => ({
+                    json: (payload: any) => resolve({ ...payload, httpStatus: code }),
+                    send: (payload: any) => resolve({ ...(typeof payload === 'string' ? { message: payload } : payload), httpStatus: code })
+                })
+            } as any;
+            authController.requestOTP(req, res);
+        });
+    } catch (error: any) {
+        console.error('[CALLABLE] requestOTP error:', error);
+        return { success: false, message: error.message, httpStatus: 500 };
+    }
+});
+
+export const verifyOTP = functions.https.onCall(async (data, context) => {
+    console.log('[CALLABLE] verifyOTP started', data);
+    try {
+        return await new Promise((resolve) => {
+            const req = { body: data } as any;
+            const res = {
+                status: (code: number) => ({
+                    json: (payload: any) => resolve({ ...payload, httpStatus: code }),
+                    send: (payload: any) => resolve({ ...(typeof payload === 'string' ? { message: payload } : payload), httpStatus: code })
+                })
+            } as any;
+            authController.verifyOTP(req, res);
+        });
+    } catch (error: any) {
+        console.error('[CALLABLE] verifyOTP error:', error);
+        return { success: false, message: error.message, httpStatus: 500 };
+    }
+});
+
+export const resetPasswordOTP = functions.https.onCall(async (data, context) => {
+    console.log('[CALLABLE] resetPasswordOTP started', data);
+    try {
+        return await new Promise((resolve) => {
+            const req = { body: data } as any;
+            const res = {
+                status: (code: number) => ({
+                    json: (payload: any) => resolve({ ...payload, httpStatus: code }),
+                    send: (payload: any) => resolve({ ...(typeof payload === 'string' ? { message: payload } : payload), httpStatus: code })
+                })
+            } as any;
+            authController.resetPasswordWithOTP(req, res);
+        });
+    } catch (error: any) {
+        console.error('[CALLABLE] resetPasswordOTP error:', error);
+        return { success: false, message: error.message, httpStatus: 500 };
+    }
+});

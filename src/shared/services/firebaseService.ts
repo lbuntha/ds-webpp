@@ -1,5 +1,4 @@
-
-import { app, auth, db, storage } from './firebaseInstance';
+import { app, auth, db, storage, functions } from './firebaseInstance';
 import { AuthService } from './authService';
 import { ConfigService } from './configService';
 import { FinanceService } from './financeService';
@@ -30,21 +29,20 @@ export class FirebaseService {
 
     // --- PROXY METHODS (To avoid breaking changes in UI components) ---
 
-    // Auth
-    // Unified login - accepts email OR phone number
+    // Auth - Unified login accepts email OR phone number
     login(identifier: string, pass: string) { return this.authService.loginWithEmailOrPhone(identifier, pass); }
     register(email: string, pass: string, name: string, extra?: any) { return this.authService.register(email, pass, name, extra); }
     registerWithPhone(phone: string, pass: string, name: string, extra?: any) { return this.authService.registerWithPhone(phone, pass, name, extra); }
 
-    // OTP Authentication (Passwordless)
-    requestOTP(phone: string, purpose: 'SIGNUP' | 'LOGIN' = 'LOGIN') { return this.authService.requestOTP(phone, purpose); }
+    // OTP Authentication via Cloud API
+    requestOTP(phone: string, purpose: 'SIGNUP' | 'LOGIN' | 'RESET' = 'LOGIN') { return this.authService.requestOTP(phone, purpose); }
+    verifyOTP(phone: string, code: string) { return this.authService.verifyOTP(phone, code); }
     getOTP(phone: string) { return this.authService.getOTP(phone); }
     signupWithOTP(phone: string, code: string, name: string, extra?: any) { return this.authService.signupWithOTP(phone, code, name, extra); }
-    loginWithOTP(phone: string, code: string) { return this.authService.loginWithOTP(phone, code); }
 
     logout() { return this.authService.logout(); }
     resetPassword(email: string) { return this.authService.resetPassword(email); }
-    resetPasswordWithOTP(phone: string, code: string, pass: string) { return this.authService.resetPasswordWithOTP(phone, code, pass); }
+    resetPasswordWithOTP(phone: string, code: string, pass: string) { return this.authService.resetPINWithOTP(phone, code, pass); }
     getCurrentUser() { return this.authService.getCurrentUser(); }
     subscribeToAuth(cb: (user: any) => void) { return this.authService.subscribeToAuth(cb); }
     sendRegistrationLink(email: string, data: any) { return this.authService.sendRegistrationLink(email, data); }

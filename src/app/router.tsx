@@ -14,6 +14,7 @@ const OnboardingView = lazy(() => import('./views/OnboardingView'));
 const OTPSignup = lazy(() => import('../../components/OTPSignup').then(m => ({ default: m.OTPSignup })));
 const PhoneSignupView = lazy(() => import('./views/PhoneSignupView'));
 const PhoneResetView = lazy(() => import('./views/PhoneResetView'));
+const EmailResetView = lazy(() => import('./views/EmailResetView'));
 
 
 // Layouts
@@ -107,6 +108,15 @@ const routes: RouteObject[] = [
     {
         path: '/auth/reset/phone',
         element: withSuspense(PhoneResetView),
+    },
+    {
+        path: '/auth/action',
+        element: withSuspense(EmailResetView),
+    },
+    {
+        // Also handle Firebase's __/auth/action path format for when Console is configured
+        path: '/__/auth/action',
+        element: withSuspense(EmailResetView),
     },
     {
         path: '/pending',

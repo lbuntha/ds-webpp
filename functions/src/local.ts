@@ -7,8 +7,8 @@
  */
 
 // Set project ID for Firebase Admin SDK when running locally
-process.env.GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'doorstep-c75e3';
-process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'doorstep-c75e3';
+process.env.GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'dsaccounting-18f75';
+process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'dsaccounting-18f75';
 
 import express from 'express';
 import cors from 'cors';

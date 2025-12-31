@@ -12,7 +12,11 @@ service cloud.firestore {
       // Allow users to create their own document (for signup) OR system-admin for others
       allow create: if isSystemAdmin() || (isAuthenticated() && request.auth.uid == userId);
       allow delete: if isSystemAdmin();
-      allow update: if isSystemAdmin() || isOwner(userId) || isAuthenticated(); 
+      
+      // Allow authenticated updates OR unauthenticated PIN reset (DEV MODE)
+      // In production, PIN reset should go through a secure backend
+      allow update: if isSystemAdmin() || isOwner(userId) || isAuthenticated() 
+                    || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pin', 'hasPin', 'updatedAt']));
     }
 
     // OTP Codes - Allow unauthenticated access for phone signup/login
@@ -44,11 +48,8 @@ service cloud.firestore {
     
     function isOwner(userId) { return isAuthenticated() && request.auth.uid == userId; }
 
-    // --- 2. CORE USERS & CRM ---
-    match /users/{userId} {
-      // Handled above in section 1
-    }
 
+    // --- 2. CRM ---
     match /customers/{customerId} {
       allow read: if isAuthenticated();
       allow write: if isFinance() || isSystemAdmin();
