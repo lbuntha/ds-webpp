@@ -103,6 +103,7 @@ export const SettingsDashboard: React.FC<Props> = ({
 
     const [savingGeneral, setSavingGeneral] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [cleaningUpUsers, setCleaningUpUsers] = useState(false);
 
     // Filter for Liability accounts (Wallets)
     const liabilityAccounts = accounts.filter(a => a.type === AccountType.LIABILITY && !a.isHeader);
@@ -325,6 +326,22 @@ export const SettingsDashboard: React.FC<Props> = ({
         }
     };
 
+    const handleCleanupUsers = async () => {
+        if (!confirm('This will clean up inconsistent fields in user profiles (remove _dev_password, rename authProvider->authMethod, add missing uid/status). Continue?')) return;
+
+        setCleaningUpUsers(true);
+        try {
+            const { cleanupUserData } = await import('../../src/scripts/cleanupUserData');
+            const result = await cleanupUserData();
+            toast.success(`Cleaned up ${result.updated}/${result.total} users`);
+        } catch (error: any) {
+            console.error('Cleanup error:', error);
+            toast.error('Failed to cleanup users: ' + error.message);
+        } finally {
+            setCleaningUpUsers(false);
+        }
+    };
+
     // ... (Form renders preserved) ...
     if (accountFormOpen) {
         return <AccountForm initialData={editingAccount} accounts={accounts} onSubmit={handleAccountSubmit} onCancel={() => setAccountFormOpen(false)} />;
@@ -532,12 +549,22 @@ export const SettingsDashboard: React.FC<Props> = ({
 
                         {/* Setup & Danger Zone */}
                         <div className="pt-6 border-t border-gray-100">
-                            <div className="flex justify-between">
+                            <h4 className="text-sm font-bold text-gray-900 mb-4">System Maintenance</h4>
+                            <div className="flex flex-wrap gap-3">
                                 <Button onClick={onRunSetup} variant="secondary">Re-run Setup Wizard</Button>
+                                <Button
+                                    onClick={handleCleanupUsers}
+                                    variant="secondary"
+                                    isLoading={cleaningUpUsers}
+                                    className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                                >
+                                    🧹 Cleanup User Data
+                                </Button>
                                 {onClearData && (
                                     <Button onClick={() => setShowClearConfirm(true)} variant="danger">Clear Data</Button>
                                 )}
                             </div>
+                            <p className="text-[10px] text-gray-500 mt-2">"Cleanup User Data" removes legacy fields like _dev_password, renames authProvider→authMethod, and adds missing uid/status fields.</p>
                         </div>
                     </div>
                 </Card>

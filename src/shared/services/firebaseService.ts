@@ -52,9 +52,7 @@ export class FirebaseService {
     // Google OAuth
     signInWithGoogle(provider: any, role?: string) { return this.authService.signInWithGoogle(provider, role); }
 
-    // PIN Management
-    setUserPIN(uid: string, pin: string) { return this.authService.setUserPIN(uid, pin); }
-    verifyUserPIN(uid: string, pin: string) { return this.authService.verifyUserPIN(uid, pin); }
+    // PIN Management (via Cloud Function - Firebase Auth handles password storage)
     resetPINWithOTP(phone: string, otp: string, newPin: string) { return this.authService.resetPINWithOTP(phone, otp, newPin); }
 
 

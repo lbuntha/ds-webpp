@@ -187,9 +187,7 @@ export interface UserProfile {
   excludeFeesInSettlement?: boolean; // Customer: Exclude fees from settlement (pay gross amount)
   // Authentication
   authMethod?: 'email' | 'google' | 'phone';
-  hasPin: boolean;
-  pin?: string; // Unified: stores hashed PIN or legacy dev password
-  pinUpdatedAt?: number;
+  // Note: Password/PIN is handled entirely by Firebase Auth, not stored in Firestore
 }
 
 export interface ParcelStatusConfig {

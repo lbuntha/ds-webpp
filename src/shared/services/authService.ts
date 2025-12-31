@@ -122,11 +122,8 @@ export class AuthService {
             await setDoc(newCustomerRef, customerData);
         }
 
-        // Hash the pin/password before storing
-        const pinToStore = extraData.password || extraData.pin || null;
-        const hashedPin = pinToStore ? await hashString(pinToStore) : null;
-
         // 2. Prepare User Profile (saved to 'users' collection)
+        // Note: Password is handled by Firebase Auth, not stored in Firestore
         const userProfile: UserProfile = {
             uid: user.uid,
             email: user.email!,
@@ -135,9 +132,7 @@ export class AuthService {
             status: role === 'customer' ? 'APPROVED' : 'PENDING',
             linkedCustomerId: linkedCustomerId,
             lastLogin: now,
-            pin: hashedPin, // Stores hashed password or PIN
-            hasPin: !!hashedPin,
-            authMethod: extraData.authProvider || extraData.authMethod || 'email',
+            authMethod: extraData.authMethod || 'email',
             joinedAt: now,
             phone: extraData.phone ? normalizePhone(extraData.phone) : '',
             address: extraData.address || '',
@@ -197,58 +192,8 @@ export class AuthService {
     }
 
     // ==================== PIN MANAGEMENT ====================
-
-    /**
-     * Set or update user PIN (stores hashed PIN)
-     */
-    async setUserPIN(uid: string, pin: string): Promise<{ success: boolean; message: string }> {
-        if (!/^\d{4,6}$/.test(pin)) {
-            return { success: false, message: 'PIN must be 4-6 digits' };
-        }
-
-        try {
-            // PIN Change Algorithm: Unsalted SHA-256
-            const hashedPin = await hashString(pin);
-
-            await updateDoc(doc(this.db, 'users', uid), {
-                pin: hashedPin,
-                hasPin: true,
-                pinUpdatedAt: Date.now()
-            });
-
-            return { success: true, message: 'PIN set successfully' };
-        } catch (error: any) {
-            return { success: false, message: error.message };
-        }
-    }
-
-    /**
-     * Verify user PIN for quick unlock
-     */
-    async verifyUserPIN(uid: string, pin: string): Promise<{ success: boolean; message: string }> {
-        try {
-            const userDocSnap = await getDoc(doc(this.db, 'users', uid));
-
-            if (!userDocSnap.exists()) {
-                return { success: false, message: 'User not found' };
-            }
-
-            const userData = userDocSnap.data();
-            if (!userData.pin) {
-                return { success: false, message: 'No PIN set for this account' };
-            }
-
-            const expectedHash = await hashString(pin);
-
-            if (userData.pin !== expectedHash) {
-                return { success: false, message: 'Incorrect PIN' };
-            }
-
-            return { success: true, message: 'PIN verified' };
-        } catch (error: any) {
-            return { success: false, message: error.message };
-        }
-    }
+    // Note: Password/PIN is now handled entirely by Firebase Auth
+    // Use loginWithEmailOrPhone() for verification
 
     /**
      * Reset PIN via cloud function API (with server-side OTP verification)
@@ -342,7 +287,7 @@ export class AuthService {
                         }
                         resolve(userData as UserProfile);
                     }
-                    else resolve({ uid: user.uid, email: user.email!, name: user.displayName || '', role: 'customer', status: 'APPROVED', hasPin: false });
+                    else resolve({ uid: user.uid, email: user.email!, name: user.displayName || '', role: 'customer', status: 'APPROVED' });
                 } else {
                     resolve(null);
                 }
@@ -366,7 +311,7 @@ export class AuthService {
                         }
                         callback(userData as UserProfile);
                     } else {
-                        callback({ uid: user.uid, email: user.email!, name: user.displayName || '', role: 'customer', status: 'APPROVED', hasPin: false });
+                        callback({ uid: user.uid, email: user.email!, name: user.displayName || '', role: 'customer', status: 'APPROVED' });
                     }
                 } catch (e) {
                     console.error("Auth subscription error", e);

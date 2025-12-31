@@ -87,9 +87,8 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
             address: address || '',
             referralCode: referralCode || undefined,
             referredBy: referredBy || null,
-            pin: password ? hashString(password) : null,
-            hasPin: !!password,
             authMethod: 'email'
+            // Note: Password handled by Firebase Auth, not stored in Firestore
         };
 
         await db.collection('users').doc(userRecord.uid).set(userProfile);
@@ -391,11 +390,8 @@ export const resetPasswordWithOTP = async (req: Request, res: Response): Promise
             password: newPassword  // RAW password - Firebase handles hashing
         });
 
-        // 5. Update PIN hash in Firestore user profile (our own hash for fallback verification)
-        const hashedPin = hashString(newPassword);
+        // 5. Update timestamp in Firestore user profile
         await db.collection('users').doc(userRecord.uid).update({
-            pin: hashedPin,
-            hasPin: true,
             updatedAt: Date.now()
         });
 
