@@ -206,8 +206,10 @@ export interface DriverCommissionRule {
   commissionFor: 'DELIVERY' | 'PICKUP'; // NEW: What action this commission is for
   driverSalaryType: 'WITH_BASE_SALARY' | 'WITHOUT_BASE_SALARY' | 'ALL'; // NEW: Driver salary classification
   type: 'PERCENTAGE' | 'FIXED_AMOUNT';
-  value: number; // e.g. 70 (for 70%) or 1.50 (for $1.50)
-  currency?: 'USD' | 'KHR'; // Only relevant for FIXED_AMOUNT
+  value: number; // e.g. 70 (for 70%) - For PERCENTAGE only
+  valueUSD?: number; // Fixed amount in USD (e.g., 0.13)
+  valueKHR?: number; // Fixed amount in KHR (e.g., 500)
+  currency?: 'USD' | 'KHR'; // Legacy - for backward compatibility
   isDefault: boolean;
 }
 

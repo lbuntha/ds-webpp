@@ -16,8 +16,9 @@ export const DriverCommissionSetup: React.FC = () => {
     const [commissionFor, setCommissionFor] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
     const [driverSalaryType, setDriverSalaryType] = useState<'WITH_BASE_SALARY' | 'WITHOUT_BASE_SALARY' | 'ALL'>('ALL');
     const [type, setType] = useState<'PERCENTAGE' | 'FIXED_AMOUNT'>('PERCENTAGE');
-    const [value, setValue] = useState<number>(70);
-    const [currency, setCurrency] = useState<'USD' | 'KHR'>('USD');
+    const [value, setValue] = useState<number>(70);  // Percentage value
+    const [valueUSD, setValueUSD] = useState<number>(0);  // Fixed amount USD
+    const [valueKHR, setValueKHR] = useState<number>(0);  // Fixed amount KHR
     const [isDefault, setIsDefault] = useState(false);
 
     // Deletion confirm state
@@ -46,7 +47,8 @@ export const DriverCommissionSetup: React.FC = () => {
         setDriverSalaryType('ALL');
         setType('PERCENTAGE');
         setValue(70);
-        setCurrency('USD');
+        setValueUSD(0);
+        setValueKHR(0);
         setIsDefault(false);
     };
 
@@ -57,7 +59,9 @@ export const DriverCommissionSetup: React.FC = () => {
         setDriverSalaryType(rule.driverSalaryType || 'ALL');
         setType(rule.type);
         setValue(rule.value);
-        setCurrency(rule.currency || 'USD');
+        // Load dual currency values (with backward compatibility)
+        setValueUSD(rule.valueUSD ?? (rule.currency === 'USD' ? rule.value : 0));
+        setValueKHR(rule.valueKHR ?? (rule.currency === 'KHR' ? rule.value : 0));
         setIsDefault(rule.isDefault);
     };
 
@@ -81,9 +85,10 @@ export const DriverCommissionSetup: React.FC = () => {
                 commissionFor,
                 driverSalaryType,
                 type,
-                value,
-                isDefault,
-                currency: type === 'FIXED_AMOUNT' ? currency : undefined
+                value: type === 'PERCENTAGE' ? value : 0,
+                valueUSD: type === 'FIXED_AMOUNT' ? valueUSD : undefined,
+                valueKHR: type === 'FIXED_AMOUNT' ? valueKHR : undefined,
+                isDefault
             };
 
             await firebaseService.logisticsService.saveDriverCommissionRule(rule);
@@ -194,33 +199,42 @@ export const DriverCommissionSetup: React.FC = () => {
                         </div>
 
                         <Input
-                            label={type === 'PERCENTAGE' ? "Percentage Value (e.g. 70 for 70%)" : "Fixed Amount ($)"}
+                            label={"Percentage Value (e.g. 70 for 70%)"}
                             type="number"
-                            step={type === 'PERCENTAGE' ? "1" : "0.01"}
+                            step="1"
                             value={value}
-                            onChange={e => setValue(parseFloat(e.target.value))}
-                            required
+                            onChange={e => setValue(parseFloat(e.target.value) || 0)}
+                            required={type === 'PERCENTAGE'}
+                            className={type !== 'PERCENTAGE' ? 'hidden' : ''}
                         />
 
                         {type === 'FIXED_AMOUNT' && (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
-                                <div className="flex rounded-md shadow-sm">
-                                    <button
-                                        type="button"
-                                        onClick={() => setCurrency('USD')}
-                                        className={`flex-1 py-2 text-xs font-bold border rounded-l-lg ${currency === 'USD' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                                    >
-                                        USD ($)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setCurrency('KHR')}
-                                        className={`flex-1 py-2 text-xs font-bold border rounded-r-lg ${currency === 'KHR' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                                    >
-                                        KHR (៛)
-                                    </button>
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-green-700 mb-1">USD Amount ($)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={valueUSD}
+                                            onChange={e => setValueUSD(parseFloat(e.target.value) || 0)}
+                                            className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            placeholder="0.13"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-blue-700 mb-1">KHR Amount (៛)</label>
+                                        <input
+                                            type="number"
+                                            step="100"
+                                            value={valueKHR}
+                                            onChange={e => setValueKHR(parseFloat(e.target.value) || 0)}
+                                            className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            placeholder="500"
+                                        />
+                                    </div>
                                 </div>
+                                <p className="text-xs text-gray-500">Driver earns the amount matching the parcel's COD currency.</p>
                             </div>
                         )}
 
@@ -269,7 +283,9 @@ export const DriverCommissionSetup: React.FC = () => {
                                             Driver gets: <span className="font-bold text-green-600">
                                                 {rule.type === 'PERCENTAGE'
                                                     ? `${rule.value}%`
-                                                    : `${rule.currency === 'KHR' ? '៛' : '$'}${rule.value.toFixed(2)} ${rule.currency}`
+                                                    : (rule.valueUSD || rule.valueKHR)
+                                                        ? `$${(rule.valueUSD || 0).toFixed(2)} / ៛${(rule.valueKHR || 0).toLocaleString()}`
+                                                        : `${rule.currency === 'KHR' ? '៛' : '$'}${rule.value?.toFixed(2) || 0} ${rule.currency || ''}`
                                                 }
                                             </span> per {(rule.commissionFor || 'delivery').toLowerCase()}
                                         </p>

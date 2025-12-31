@@ -91,9 +91,20 @@ export function calculateDriverCommission(
         // For percentage, the result is in the same currency as the fee
         return round2(feeToCalculateOn * (applicableRule.value / 100));
     } else {
-        // FIXED_AMOUNT
-        // Use targetCurrency (item's currency) if provided, otherwise use booking currency
+        // FIXED_AMOUNT - Use dual currency values if available
         const outputCurrency = targetCurrency || booking.currency || 'USD';
+
+        // Check for new dual-currency format first
+        if (applicableRule.valueUSD !== undefined || applicableRule.valueKHR !== undefined) {
+            // Use the amount matching the output currency
+            if (outputCurrency === 'USD') {
+                return round2(applicableRule.valueUSD || 0);
+            } else {
+                return round2(applicableRule.valueKHR || 0);
+            }
+        }
+
+        // Fallback to legacy single-value format
         const ruleCurrency = applicableRule.currency || 'USD';
 
         if (ruleCurrency === outputCurrency) {

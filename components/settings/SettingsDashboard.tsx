@@ -104,6 +104,8 @@ export const SettingsDashboard: React.FC<Props> = ({
     const [savingGeneral, setSavingGeneral] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [cleaningUpUsers, setCleaningUpUsers] = useState(false);
+    const [migratingPlaces, setMigratingPlaces] = useState(false);
+    const [buildingIndex, setBuildingIndex] = useState(false);
 
     // Filter for Liability accounts (Wallets)
     const liabilityAccounts = accounts.filter(a => a.type === AccountType.LIABILITY && !a.isHeader);
@@ -342,6 +344,42 @@ export const SettingsDashboard: React.FC<Props> = ({
         }
     };
 
+    const handleMigratePlaces = async () => {
+        if (!confirm('This will import places from dsaccounting-18f75 to this project. Continue?')) return;
+
+        setMigratingPlaces(true);
+        try {
+            const { migratePlaces } = await import('../../src/scripts/migratePlaces');
+            const result = await migratePlaces();
+            if (result.success) {
+                toast.success(`Migrated ${result.migrated}/${result.total} places`);
+            } else {
+                toast.error('Migration failed: ' + result.errors.join(', '));
+            }
+        } catch (error: any) {
+            console.error('Migration error:', error);
+            toast.error('Failed to migrate places: ' + error.message);
+        } finally {
+            setMigratingPlaces(false);
+        }
+    };
+
+    const handleBuildPlaceIndex = async () => {
+        if (!confirm('This will build search keywords for all places. This is safe but may take a moment. Continue?')) return;
+
+        setBuildingIndex(true);
+        try {
+            const { buildPlaceSearchIndex } = await import('../../src/scripts/buildPlaceIndex');
+            const result = await buildPlaceSearchIndex();
+            toast.success(`Built search index for ${result.indexed}/${result.total} places`);
+        } catch (error: any) {
+            console.error('Build index error:', error);
+            toast.error('Failed to build index: ' + error.message);
+        } finally {
+            setBuildingIndex(false);
+        }
+    };
+
     // ... (Form renders preserved) ...
     if (accountFormOpen) {
         return <AccountForm initialData={editingAccount} accounts={accounts} onSubmit={handleAccountSubmit} onCancel={() => setAccountFormOpen(false)} />;
@@ -560,11 +598,27 @@ export const SettingsDashboard: React.FC<Props> = ({
                                 >
                                     🧹 Cleanup User Data
                                 </Button>
+                                <Button
+                                    onClick={handleMigratePlaces}
+                                    variant="secondary"
+                                    isLoading={migratingPlaces}
+                                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                                >
+                                    📥 Import Places
+                                </Button>
+                                <Button
+                                    onClick={handleBuildPlaceIndex}
+                                    variant="secondary"
+                                    isLoading={buildingIndex}
+                                    className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                                >
+                                    🔍 Build Search Index
+                                </Button>
                                 {onClearData && (
                                     <Button onClick={() => setShowClearConfirm(true)} variant="danger">Clear Data</Button>
                                 )}
                             </div>
-                            <p className="text-[10px] text-gray-500 mt-2">"Cleanup User Data" removes legacy fields like _dev_password, renames authProvider→authMethod, and adds missing uid/status fields.</p>
+                            <p className="text-[10px] text-gray-500 mt-2">"Import Places" migrates location data from dsaccounting-18f75 project.</p>
                         </div>
                     </div>
                 </Card>
