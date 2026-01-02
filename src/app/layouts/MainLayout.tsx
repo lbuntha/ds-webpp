@@ -17,9 +17,6 @@ export default function MainLayout() {
 
     if (!user) return null;
 
-    console.log('🏠 MAINLAYOUT RENDERING for user:', user.name, 'role:', user.role);
-    console.log('📋 Menu items available:', menuItems.length);
-
     return (
         <div className="flex h-screen bg-gray-100">
             <Sidebar

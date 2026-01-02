@@ -293,6 +293,36 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
         setLoading(true);
         try {
             const svc = services.find(s => s.id === serviceTypeId);
+
+            // Import fee calculator
+            const { calculateDeliveryFee } = await import('../../src/shared/utils/feeCalculator');
+
+            // Calculate fees for each item with both currencies
+            const itemsWithFees = await Promise.all(items.map(async (item, idx) => {
+                const feeResult = await calculateDeliveryFee({
+                    serviceTypeId,
+                    customerId: senderId || '',
+                    itemCount: 1,
+                    codCurrency: item.codCurrency || 'USD',
+                    exchangeRate: effectiveExchangeRate,
+                    services,
+                    specialRates
+                });
+
+                return {
+                    ...item,
+                    trackingCode: item.trackingCode || `TRK-${Date.now().toString().slice(-6)}-${idx + 1}`,
+                    weight: item.weight || 0,
+                    productPrice: typeof item.productPrice === 'number' && !isNaN(item.productPrice)
+                        ? item.productPrice
+                        : 0,
+                    status: 'PENDING' as const,
+                    deliveryFee: feeResult.pricePerItem,
+                    deliveryFeeUSD: feeResult.pricePerItemUSD,
+                    deliveryFeeKHR: feeResult.pricePerItemKHR
+                };
+            }));
+
             const booking: ParcelBooking = {
                 id: `pb-${Date.now()}`,
                 bookingDate,
@@ -300,18 +330,10 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
                 senderName,
                 senderPhone,
                 pickupAddress: pickupAddress || 'Branch Drop-off',
-                pickupLocation, // Include coordinates if set
+                pickupLocation,
                 serviceTypeId,
                 serviceTypeName: svc?.name || 'Unknown',
-                items: items.map((item, idx) => ({
-                    ...item,
-                    trackingCode: item.trackingCode || `TRK-${Date.now().toString().slice(-6)}-${idx + 1}`,
-                    weight: item.weight || 0,
-                    productPrice: typeof item.productPrice === 'number' && !isNaN(item.productPrice)
-                        ? item.productPrice
-                        : 0,
-                    status: 'PENDING' // Ensure all new items start as pending
-                })),
+                items: itemsWithFees,
                 distance: isNaN(distance) ? 0 : distance,
                 subtotal: pricing.subtotal,
                 discountAmount: pricing.discount,
@@ -324,7 +346,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
                 branchId,
                 notes: bookingNotes,
                 createdAt: Date.now(),
-                exchangeRateForCOD: effectiveExchangeRate // Save the rate
+                exchangeRateForCOD: effectiveExchangeRate
             };
 
             await firebaseService.saveParcelBooking(booking, depositAccountId || undefined);

@@ -52,6 +52,9 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
         let deliveryFeesUSD = 0;
         let deliveryFeesKHR = 0;
 
+        let taxiFeesUSD = 0;
+        let taxiFeesKHR = 0;
+
         let codCollectedUSD = 0;
         let codCollectedKHR = 0;
 
@@ -67,30 +70,56 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
             (b.items || []).forEach(item => {
                 totalItems++;
                 const amount = item.productPrice || 0;
-                const fee = item.deliveryFee || 0;
                 const isKHR = item.codCurrency === 'KHR';
+                const isDelivered = item.status === 'DELIVERED';
 
-                // Delivery fee by currency (only for delivered items)
-                if (item.status === 'DELIVERED' && fee > 0) {
-                    if (isKHR) deliveryFeesKHR += fee;
-                    else deliveryFeesUSD += fee;
+                // Delivery fees - use the fee matching item's codCurrency only
+                // Only charge if item is DELIVERED
+                if (isDelivered) {
+                    if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                        if (isKHR) {
+                            deliveryFeesKHR += item.deliveryFeeKHR || 0;
+                        } else {
+                            deliveryFeesUSD += item.deliveryFeeUSD || 0;
+                        }
+                    } else {
+                        // Fallback for legacy bookings
+                        const fee = item.deliveryFee || 0;
+                        if (isKHR) deliveryFeesKHR += fee;
+                        else deliveryFeesUSD += fee;
+                    }
                 }
 
                 // COD logic
                 if (amount > 0) {
-                    if (item.status === 'DELIVERED') {
+                    if (isDelivered) {
                         if (isKHR) codCollectedKHR += amount;
                         else codCollectedUSD += amount;
-                    } else if (item.status !== 'RETURN_TO_SENDER') {
+                    } else if (item.status !== 'RETURN_TO_SENDER' && item.status !== 'CANCELLED') {
                         // Pending if not delivered, not returned
                         if (isKHR) codPendingKHR += amount;
                         else codPendingUSD += amount;
                     }
                 }
+
+                // Taxi fees - track separately (Only if DELIVERED)
+                if (isDelivered && item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                    if (item.taxiFeeCurrency === 'KHR') {
+                        taxiFeesKHR += item.taxiFee;
+                    } else {
+                        taxiFeesUSD += item.taxiFee;
+                    }
+                }
             });
         });
 
-        return { deliveryFeesUSD, deliveryFeesKHR, codCollectedUSD, codCollectedKHR, codPendingUSD, codPendingKHR, totalOrders, totalItems };
+        return {
+            deliveryFeesUSD, deliveryFeesKHR,
+            taxiFeesUSD, taxiFeesKHR,
+            codCollectedUSD, codCollectedKHR,
+            codPendingUSD, codPendingKHR,
+            totalOrders, totalItems
+        };
     }, [reportData]);
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
@@ -112,14 +141,24 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
         });
     };
 
-    // Calculate booking-level fee split
+    // Calculate booking-level fee split using dual currency fields
     const getBookingFeeSplit = (items: ParcelItem[]) => {
         let usd = 0;
         let khr = 0;
         items.forEach(i => {
-            const fee = i.deliveryFee || 0;
-            if (i.codCurrency === 'KHR') khr += fee;
-            else usd += fee;
+            // Use pre-stored dual currency if available
+            if (i.deliveryFeeUSD !== undefined || i.deliveryFeeKHR !== undefined) {
+                if (i.codCurrency === 'KHR') {
+                    khr += i.deliveryFeeKHR || 0;
+                } else {
+                    usd += i.deliveryFeeUSD || 0;
+                }
+            } else {
+                // Fallback for legacy
+                const fee = i.deliveryFee || 0;
+                if (i.codCurrency === 'KHR') khr += fee;
+                else usd += fee;
+            }
         });
         return { usd, khr };
     };
@@ -162,41 +201,123 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
         URL.revokeObjectURL(link.href);
     };
 
+    // Quick date filter helpers
+    const setDateRange = (preset: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month') => {
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+
+        switch (preset) {
+            case 'today':
+                setStartDate(todayStr);
+                setEndDate(todayStr);
+                break;
+            case 'yesterday':
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
+                setStartDate(yesterdayStr);
+                setEndDate(yesterdayStr);
+                break;
+            case 'this_week':
+                const weekStart = new Date(today);
+                weekStart.setDate(today.getDate() - today.getDay()); // Sunday
+                setStartDate(weekStart.toISOString().split('T')[0]);
+                setEndDate(todayStr);
+                break;
+            case 'this_month':
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                setStartDate(monthStart.toISOString().split('T')[0]);
+                setEndDate(todayStr);
+                break;
+            case 'last_month':
+                const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                setStartDate(lastMonthStart.toISOString().split('T')[0]);
+                setEndDate(lastMonthEnd.toISOString().split('T')[0]);
+                break;
+        }
+    };
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 print:hidden">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{t('summary_report')}</h2>
-                    <p className="text-sm text-gray-500">{t('financial_overview')}</p>
+            <div className="flex flex-col gap-4 print:hidden">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">{t('summary_report')}</h2>
+                        <p className="text-sm text-gray-500">{t('financial_overview')}</p>
+                    </div>
+                    <div className="flex items-end gap-2">
+                        <Button variant="outline" onClick={handlePrint} className="h-[30px] text-xs px-3">
+                            {t('print')}
+                        </Button>
+                        <Button variant="outline" onClick={handleExportCSV} className="h-[30px] text-xs px-3">
+                            <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Export CSV
+                        </Button>
+                    </div>
                 </div>
-                <div className="flex items-end gap-2 bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('from_date')}</label>
-                        <input
-                            type="date"
-                            className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                            value={startDate}
-                            onChange={e => setStartDate(e.target.value)}
-                        />
+
+                {/* Quick Filters + Date Range */}
+                <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-gray-500 mr-2">Quick:</span>
+                        <button
+                            onClick={() => setDateRange('today')}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                        >
+                            Today
+                        </button>
+                        <button
+                            onClick={() => setDateRange('yesterday')}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                        >
+                            Yesterday
+                        </button>
+                        <button
+                            onClick={() => setDateRange('this_week')}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                        >
+                            This Week
+                        </button>
+                        <button
+                            onClick={() => setDateRange('this_month')}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                        >
+                            This Month
+                        </button>
+                        <button
+                            onClick={() => setDateRange('last_month')}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors"
+                        >
+                            Last Month
+                        </button>
+
+                        <div className="hidden md:block w-px h-6 bg-gray-200 mx-2"></div>
+
+                        <div className="flex items-center gap-2 ml-auto">
+                            <div>
+                                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">{t('from_date')}</label>
+                                <input
+                                    type="date"
+                                    className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    value={startDate}
+                                    onChange={e => setStartDate(e.target.value)}
+                                />
+                            </div>
+                            <span className="text-gray-400 mt-4">→</span>
+                            <div>
+                                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">{t('to_date')}</label>
+                                <input
+                                    type="date"
+                                    className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    value={endDate}
+                                    onChange={e => setEndDate(e.target.value)}
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">{t('to_date')}</label>
-                        <input
-                            type="date"
-                            className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                            value={endDate}
-                            onChange={e => setEndDate(e.target.value)}
-                        />
-                    </div>
-                    <Button variant="outline" onClick={handlePrint} className="h-[30px] text-xs px-3">
-                        {t('print')}
-                    </Button>
-                    <Button variant="outline" onClick={handleExportCSV} className="h-[30px] text-xs px-3">
-                        <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Export CSV
-                    </Button>
                 </div>
             </div>
 
@@ -204,10 +325,17 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="bg-red-50 border-red-100">
                     <div className="text-red-800 text-sm font-medium uppercase tracking-wide">{t('delivery_expenses')}</div>
-                    <div className="text-3xl font-bold text-red-900 mt-1 truncate" title={formatDualCurrency(stats.deliveryFeesUSD, stats.deliveryFeesKHR)}>
-                        {formatDualCurrency(stats.deliveryFeesUSD, stats.deliveryFeesKHR)}
+                    <div className="text-3xl font-bold text-red-900 mt-1 truncate" title={formatDualCurrency(stats.deliveryFeesUSD + stats.taxiFeesUSD, stats.deliveryFeesKHR + stats.taxiFeesKHR)}>
+                        {formatDualCurrency(stats.deliveryFeesUSD + stats.taxiFeesUSD, stats.deliveryFeesKHR + stats.taxiFeesKHR)}
                     </div>
-                    <p className="text-xs text-red-600 mt-2">{t('total_spent_orders').replace('{0}', stats.totalOrders.toString())} </p>
+                    <p className="text-xs text-red-600 mt-2">
+                        {t('total_spent_orders').replace('{0}', stats.totalOrders.toString())}
+                        {(stats.taxiFeesUSD > 0 || stats.taxiFeesKHR > 0) && (
+                            <span className="ml-2 text-orange-600">
+                                (incl. 🚕 {formatDualCurrency(stats.taxiFeesUSD, stats.taxiFeesKHR)})
+                            </span>
+                        )}
+                    </p>
                 </Card>
 
                 <Card className="bg-green-50 border-green-100">
@@ -308,6 +436,7 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
                                                                         <th className="text-left py-1 px-2">Destination</th>
                                                                         <th className="text-center py-1 px-2">{t('status')}</th>
                                                                         <th className="text-right py-1 px-2">{t('fee')}</th>
+                                                                        <th className="text-right py-1 px-2">🚕 Taxi</th>
                                                                         <th className="text-right py-1 px-2">COD</th>
                                                                     </tr>
                                                                 </thead>
@@ -349,9 +478,18 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
                                                                                 </span>
                                                                             </td>
                                                                             <td className="py-2 px-2 text-right text-red-600">
-                                                                                {item.codCurrency === 'KHR'
-                                                                                    ? `${(item.deliveryFee || 0).toLocaleString()} ៛`
-                                                                                    : formatCurrency(item.deliveryFee || 0)}
+                                                                                {item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined
+                                                                                    ? formatDualCurrency(item.deliveryFeeUSD || 0, item.deliveryFeeKHR || 0)
+                                                                                    : (item.codCurrency === 'KHR'
+                                                                                        ? `${(item.deliveryFee || 0).toLocaleString()} ៛`
+                                                                                        : formatCurrency(item.deliveryFee || 0))}
+                                                                            </td>
+                                                                            <td className="py-2 px-2 text-right text-orange-600">
+                                                                                {item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0
+                                                                                    ? (item.taxiFeeCurrency === 'KHR'
+                                                                                        ? `${item.taxiFee.toLocaleString()} ៛`
+                                                                                        : formatCurrency(item.taxiFee))
+                                                                                    : '-'}
                                                                             </td>
                                                                             <td className="py-2 px-2 text-right font-medium">
                                                                                 {item.productPrice
@@ -376,7 +514,7 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
                                 <tr className="bg-gray-100 font-bold border-t-2 border-gray-200">
                                     <td colSpan={5} className="px-4 py-3 text-right text-gray-800">{t('total')}</td>
                                     <td className="px-4 py-3 text-right text-red-700 whitespace-nowrap">
-                                        {formatDualCurrency(stats.deliveryFeesUSD, stats.deliveryFeesKHR)}
+                                        {formatDualCurrency(stats.deliveryFeesUSD + stats.taxiFeesUSD, stats.deliveryFeesKHR + stats.taxiFeesKHR)}
                                     </td>
                                     <td className="px-4 py-3 text-right text-gray-900 whitespace-nowrap">
                                         {formatDualCurrency(stats.codCollectedUSD + stats.codPendingUSD, stats.codCollectedKHR + stats.codPendingKHR)}

@@ -19,7 +19,7 @@ interface LedgerItem {
     date: string;
     timestamp?: number; // For sorting and display
     description: string;
-    type: 'FEE' | 'COD' | 'DEPOSIT' | 'WITHDRAWAL' | 'SETTLEMENT' | 'EARNING' | 'REFUND';
+    type: 'FEE' | 'COD' | 'DEPOSIT' | 'WITHDRAWAL' | 'SETTLEMENT' | 'EARNING' | 'REFUND' | 'TAXI_FEE';
     amount: number;
     currency: string;
     status: string;
@@ -57,32 +57,26 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
     const [description, setDescription] = useState('');
     const [attachment, setAttachment] = useState('');
 
-    // Initial Load
+    // Initial Load - Optimized: Split essential vs deferred fetches
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Use getUserBookings to fetch only allowed data for the specific user
-                const [myBookings, accs, sysSettings, commRules, allEmployees, allCurrencies] = await Promise.all([
-                    firebaseService.getUserBookings(user),
-                    firebaseService.getAccounts(),
+                // ESSENTIAL: Only fetch what's immediately needed for wallet display
+                // Bookings + Settings are critical; commission rules for ledger calculation
+                const [myBookings, sysSettings, commRules] = await Promise.all([
+                    firebaseService.getUserBookings(user), // Now limited to 90 days
                     firebaseService.getSettings(),
                     firebaseService.logisticsService.getDriverCommissionRules(),
-                    firebaseService.getEmployees(),
-                    firebaseService.getCurrencies()
                 ]);
 
                 setSettings(sysSettings);
                 setCommissionRules(commRules);
-                setEmployees(allEmployees);
-                setBookings(myBookings); // Already filtered securely by service
+                setBookings(myBookings);
 
-                // Fetch Nostro Accounts (Company Assets: Cash & Bank)
-                const banks = accs.filter(a =>
-                    a.type === AccountType.ASSET &&
-                    (a.subType === AccountSubType.CURRENT_ASSET || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash')) &&
-                    !a.isHeader
-                );
-                setBankAccounts(banks);
+                // DEFERRED: Load employees only for drivers (needed for zone lookup)
+                if (user.role === 'driver' || user.role === 'warehouse') {
+                    firebaseService.getEmployees().then(setEmployees).catch(console.warn);
+                }
 
             } catch (e) {
                 console.error("Failed to load wallet data", e);
@@ -90,6 +84,20 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
         };
         fetchData();
     }, [user]);
+
+    // Load bank accounts only when modal opens (deferred)
+    useEffect(() => {
+        if (modalOpen) {
+            firebaseService.getAccounts().then(accs => {
+                const banks = accs.filter(a =>
+                    a.type === AccountType.ASSET &&
+                    (a.subType === AccountSubType.CURRENT_ASSET || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash')) &&
+                    !a.isHeader
+                );
+                setBankAccounts(banks);
+            }).catch(console.warn);
+        }
+    }, [modalOpen]);
 
     // Real-time Balance & Transaction Listener
     useEffect(() => {
@@ -198,17 +206,30 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                     const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
                     // Deduct fee if items are delivered or booking is completed
                     if (itemsDelivered > 0 || b.status === 'COMPLETED' || b.status === 'CONFIRMED') {
-                        // Sum fees by currency from delivered items (use item-level deliveryFee)
+                        // Sum fees by currency from delivered items
+                        // Each item's fee is in ONE currency matching its codCurrency
                         let khrFeeTotal = 0;
                         let usdFeeTotal = 0;
 
                         bItems.forEach(item => {
                             if (item.status === 'DELIVERED') {
-                                const itemFee = Number(item.deliveryFee) || 0;
-                                if (item.codCurrency === 'KHR') {
-                                    khrFeeTotal += itemFee;
+                                const isKHR = item.codCurrency === 'KHR';
+
+                                // Use dual currency fields if available, but only the one matching codCurrency
+                                if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                                    if (isKHR) {
+                                        khrFeeTotal += item.deliveryFeeKHR || 0;
+                                    } else {
+                                        usdFeeTotal += item.deliveryFeeUSD || 0;
+                                    }
                                 } else {
-                                    usdFeeTotal += itemFee;
+                                    // Fallback for legacy items
+                                    const itemFee = Number(item.deliveryFee) || 0;
+                                    if (isKHR) {
+                                        khrFeeTotal += itemFee;
+                                    } else {
+                                        usdFeeTotal += itemFee;
+                                    }
                                 }
                             }
                         });
@@ -245,6 +266,24 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                         }
                     }
                 }
+
+                // 3. Taxi Fee Deduction (Debit from Customer Wallet)
+                bItems.forEach(item => {
+                    if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                        ledger.push({
+                            id: `taxi-${item.id}`,
+                            date: b.bookingDate,
+                            timestamp: b.createdAt || new Date(b.bookingDate).getTime(),
+                            description: `🚕 Taxi Fee: ${item.receiverName}`,
+                            type: 'FEE',
+                            amount: item.taxiFee,
+                            currency: item.taxiFeeCurrency || 'USD',
+                            status: 'APPLIED',
+                            reference: item.trackingCode || 'N/A',
+                            isCredit: false // Customer pays this
+                        });
+                    }
+                });
             }
 
             // B. If User is Driver
@@ -263,6 +302,7 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                         (!item.delivererId && item.driverId === user.uid);
 
                     if (item.status === 'DELIVERED' && isDeliveredByMe) {
+                        // COD Cash Held - driver owes this money (show even for $0 to maintain audit trail)
                         ledger.push({
                             id: `held-${item.id}`,
                             date: b.bookingDate,
@@ -274,6 +314,22 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                             reference: item.trackingCode || 'N/A',
                             isCredit: false // Driver OWES this (Negative balance impact)
                         });
+
+                        // Taxi Fee Reimbursement - driver gets credited
+                        if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                            ledger.push({
+                                id: `taxi-reimburse-${item.id}`,
+                                date: b.bookingDate,
+                                timestamp: b.createdAt || new Date(b.bookingDate).getTime(),
+                                description: `🚕 Taxi Reimbursement: ${item.receiverName}`,
+                                type: 'TAXI_FEE',
+                                amount: item.taxiFee,
+                                currency: item.taxiFeeCurrency || 'USD',
+                                status: 'EARNED',
+                                reference: item.trackingCode || 'N/A',
+                                isCredit: true // Driver gets reimbursed (Positive balance impact)
+                            });
+                        }
                     }
                 });
             }
@@ -629,7 +685,8 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                                                 <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${txn.type === 'FEE' ? 'bg-red-50 text-red-600 border border-red-100' :
                                                     txn.type === 'COD' && txn.isCredit ? 'bg-green-50 text-green-600 border border-green-100' :
                                                         txn.type === 'DEPOSIT' || txn.type === 'SETTLEMENT' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                                                            'bg-gray-50 text-gray-600 border border-gray-200'
+                                                            txn.type === 'TAXI_FEE' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                                                                'bg-gray-50 text-gray-600 border border-gray-200'
                                                     }`}>
                                                     {txn.type}
                                                 </span>

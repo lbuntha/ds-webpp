@@ -156,8 +156,17 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     const cashInHand = useMemo(() => {
         let usd = 0, khr = 0;
         unsettledItems.forEach(i => {
-            const amt = Number(i.productPrice) || 0;
-            if (i.codCurrency === 'KHR') khr += amt; else usd += amt;
+            // COD collected (driver owes this)
+            if (!i.isTaxiDelivery) {
+                const amt = Number(i.productPrice) || 0;
+                if (i.codCurrency === 'KHR') khr += amt; else usd += amt;
+            }
+
+            // Taxi fee reimbursement (company owes driver - reduces debt)
+            if (i.isTaxiDelivery && i.taxiFee && i.taxiFee > 0) {
+                if (i.taxiFeeCurrency === 'KHR') khr -= i.taxiFee;
+                else usd -= i.taxiFee;
+            }
         });
         return { usd, khr };
     }, [unsettledItems]);
@@ -204,7 +213,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
     }, [cashInHand, payAmountBankUSD, payAmountBankKHR, payAmountCashUSD, payAmountCashKHR, currencies]);
 
     // Handlers
-    const handleParcelAction = async (bookingId: string, itemId: string, action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'TRANSFER' | 'OUT_FOR_DELIVERY', branchId?: string, proof?: string, updatedCOD?: { amount: number, currency: 'USD' | 'KHR' }) => {
+    const handleParcelAction = async (bookingId: string, itemId: string, action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'TRANSFER' | 'OUT_FOR_DELIVERY', branchId?: string, proof?: string, updatedCOD?: { amount: number, currency: 'USD' | 'KHR' }, taxiData?: { isTaxiDelivery: boolean, taxiFee: number, taxiFeeCurrency: 'USD' | 'KHR' }) => {
         const booking = bookings.find(b => b.id === bookingId);
         if (!booking) return;
 
@@ -212,7 +221,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             if (item.id === itemId) {
                 if (action === 'TRANSIT') return { ...item, status: 'IN_TRANSIT' as const };
                 if (action === 'DELIVER') {
-                    const newItem = {
+                    const newItem: any = {
                         ...item,
                         status: 'DELIVERED' as const,
                         settlementStatus: 'UNSETTLED' as const,
@@ -221,7 +230,14 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                         delivererName: user.name,
                         targetBranchId: null // Clear to indicate Out for Delivery
                     };
-                    if (updatedCOD) {
+
+                    // Handle taxi delivery
+                    if (taxiData?.isTaxiDelivery) {
+                        newItem.isTaxiDelivery = true;
+                        newItem.taxiFee = taxiData.taxiFee;
+                        newItem.taxiFeeCurrency = taxiData.taxiFeeCurrency;
+                        newItem.productPrice = 0; // No COD for taxi delivery
+                    } else if (updatedCOD) {
                         newItem.productPrice = updatedCOD.amount;
                         newItem.codCurrency = updatedCOD.currency;
                     }
@@ -259,10 +275,10 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                             services
                         });
 
-                        // Update the item's delivery fee in the new currency
+                        // Update the item's delivery fee in both currencies
                         finalBooking.items = finalBooking.items.map(i =>
                             i.id === itemId
-                                ? { ...i, deliveryFee: feeResult.pricePerItem }
+                                ? { ...i, deliveryFee: feeResult.pricePerItem, deliveryFeeUSD: feeResult.pricePerItemUSD, deliveryFeeKHR: feeResult.pricePerItemKHR }
                                 : i
                         );
 
@@ -327,29 +343,24 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const booking = bookings.find(b => b.id === bookingId);
         if (!booking) return;
 
-        // Calculate fee for THIS item
-        // Note: senderId is optional - if not present, just use default service price
-        let itemDeliveryFee = 0;
-        if (services.length > 0) {
-            const feeResult = await calculateDeliveryFee({
-                serviceTypeId: booking.serviceTypeId,
-                customerId: booking.senderId || '', // Optional - empty string means no special rate lookup
-                itemCount: 1, // Fee for this single item
+        // Update the specific item with new COD - use pre-stored fees (no recalculation needed)
+        const updatedItems = (booking.items || []).map(i => {
+            if (i.id !== itemId) return i;
+
+            // Use pre-stored fee for the selected currency
+            const deliveryFee = currency === 'KHR'
+                ? (i.deliveryFeeKHR || i.deliveryFee || 0)
+                : (i.deliveryFeeUSD || i.deliveryFee || 0);
+
+            return {
+                ...i,
+                productPrice: amount,
                 codCurrency: currency,
-                exchangeRate: booking.exchangeRateForCOD || 4100,
-                services
-            });
-            itemDeliveryFee = feeResult.pricePerItem;
-        }
+                deliveryFee
+            };
+        });
 
-        // Update the specific item with new COD and fee
-        const updatedItems = (booking.items || []).map(i =>
-            i.id === itemId
-                ? { ...i, productPrice: amount, codCurrency: currency, deliveryFee: itemDeliveryFee }
-                : i
-        );
-
-        // Aggregate total fee from all items (for legacy compatibility)
+        // Aggregate total fee from all items
         const totalFee = updatedItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);
 
         await firebaseService.saveParcelBooking({
@@ -748,11 +759,19 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             {/* --- SETTLEMENT --- */}
             {activeTab === 'SETTLEMENT' && (
                 <div className="space-y-6 animate-fade-in-up">
-                    <div className="bg-gradient-to-br from-indigo-900 to-purple-800 rounded-2xl p-6 text-white shadow-lg">
-                        <h3 className="text-sm font-medium text-indigo-200 mb-2">{t('floating_cash')}</h3>
-                        <div className="flex items-baseline space-x-2">
-                            <span className="text-3xl font-bold">${cashInHand.usd.toFixed(2)}</span>
-                            {cashInHand.khr > 0 && <span className="text-xl text-indigo-300">+ {cashInHand.khr.toLocaleString()} ៛</span>}
+                    <div className={`rounded-2xl p-6 text-white shadow-lg ${cashInHand.usd >= 0 && cashInHand.khr >= 0 ? 'bg-gradient-to-br from-indigo-900 to-purple-800' : 'bg-gradient-to-br from-emerald-700 to-teal-600'}`}>
+                        <h3 className="text-sm font-medium text-white/80 mb-2">
+                            {cashInHand.usd >= 0 && cashInHand.khr >= 0 ? t('floating_cash') : '🚕 Taxi Reimbursement Owed'}
+                        </h3>
+                        <div className="flex items-baseline flex-wrap gap-2">
+                            <span className="text-3xl font-bold">${Math.abs(cashInHand.usd).toFixed(2)}</span>
+                            {cashInHand.usd < 0 && <span className="text-xs bg-white/20 px-2 py-0.5 rounded">TO RECEIVE</span>}
+                            {Math.abs(cashInHand.khr) > 0 && (
+                                <>
+                                    <span className="text-xl text-white/80">+ {Math.abs(cashInHand.khr).toLocaleString()} ៛</span>
+                                    {cashInHand.khr < 0 && <span className="text-xs bg-white/20 px-2 py-0.5 rounded">TO RECEIVE</span>}
+                                </>
+                            )}
                         </div>
                         <button onClick={() => setIsSettling(true)} className="w-full mt-6 bg-white text-indigo-900 font-bold py-3 rounded-xl shadow-lg hover:bg-indigo-50">{t('request_settlement')}</button>
                     </div>
@@ -804,8 +823,8 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 initialCodAmount={bookings.find(b => b.id === actionModal?.bookingId)?.items?.find(i => i.id === actionModal?.itemId)?.productPrice || 0}
                 initialCodCurrency={bookings.find(b => b.id === actionModal?.bookingId)?.items?.find(i => i.id === actionModal?.itemId)?.codCurrency || 'USD'}
                 onCancel={() => setActionModal(null)}
-                onConfirm={(proof, cod) => {
-                    if (actionModal) handleParcelAction(actionModal.bookingId, actionModal.itemId, actionModal.action, undefined, proof, cod);
+                onConfirm={(proof, cod, taxiData) => {
+                    if (actionModal) handleParcelAction(actionModal.bookingId, actionModal.itemId, actionModal.action, undefined, proof, cod, taxiData);
                     setActionModal(null);
                 }}
             />

@@ -35,7 +35,9 @@ export interface ParcelItem {
   destinationLocation?: GeoPoint;
   productPrice: number;
   codCurrency?: 'USD' | 'KHR';
-  deliveryFee?: number; // Per-item delivery fee (in same currency as codCurrency)
+  deliveryFee?: number; // Per-item delivery fee (legacy, in same currency as codCurrency)
+  deliveryFeeUSD?: number; // Delivery fee in USD
+  deliveryFeeKHR?: number; // Delivery fee in KHR
   settlementStatus?: 'UNSETTLED' | 'SETTLED'; // Legacy field (deprecated)
   driverSettlementStatus?: 'UNSETTLED' | 'SETTLED'; // Driver → Company settlement
   driverSettledCurrency?: 'USD' | 'KHR'; // Currency that was settled
@@ -57,6 +59,10 @@ export interface ParcelItem {
   pickupCommission?: number;
   deliveryCommission?: number;
   modifications?: ParcelModification[];
+  // Taxi delivery fields
+  isTaxiDelivery?: boolean;        // Flag for taxi handoff
+  taxiFee?: number;                 // Fee paid to taxi driver
+  taxiFeeCurrency?: 'USD' | 'KHR'; // Currency of taxi fee
 }
 
 export enum AccountType {
@@ -596,6 +602,7 @@ export interface SystemSettings {
   defaultTaxAccountId?: string;
   defaultTaxAccountUSD?: string;
   defaultTaxAccountKHR?: string;
+  defaultTaxiExpenseAccountId?: string; // NEW: For Taxi Fee tracking
 
   // Legacy Fallback
   defaultSettlementBankAccountId?: string;

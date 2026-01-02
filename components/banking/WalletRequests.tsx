@@ -138,7 +138,7 @@ export const WalletRequests: React.FC = () => {
             // Dynamic Import of Service (to avoid circular deps if any, though standard import is preferred)
             const { GLBookingService } = await import('../../src/shared/services/glBookingService');
 
-            await GLBookingService.createGLEntry({
+            const entry = await GLBookingService.createGLEntry({
                 transactionType: txn.type as any,
                 userId: txn.userId,
                 userName: txn.userName,
@@ -158,14 +158,11 @@ export const WalletRequests: React.FC = () => {
                 currencies
             });
 
-            // Update Transaction Status
-            // Note: createGLEntry returns the entry but doesn't update the WalletTransaction status itself 
-            // (Wait, the original logic did `firebaseService.approveWalletTransaction`).
-            // The service createGLEntry DOES NOT call approveWalletTransaction (it creates JE). 
-            // We need to link them.
-            // Actually, looking at my service implementation step 1990:
-            // It calls `firebaseService.addTransaction(entry)` AND `firebaseService.approveWalletTransaction`.
-            // Excellent. It does everything.
+            // 1. Save Journal Entry to Firestore
+            await firebaseService.addTransaction(entry);
+
+            // 2. Update Transaction Status & Link JE
+            await firebaseService.approveWalletTransaction(txn.id, currentUser.uid, entry.id);
 
             const notif: AppNotification = {
                 id: `notif-wallet-${Date.now()}`,

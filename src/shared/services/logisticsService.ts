@@ -57,13 +57,21 @@ export class LogisticsService extends BaseService {
     async getParcelBookings() { return this.getCollection<ParcelBooking>('parcel_bookings'); }
 
     // --- Ops (Secure Fetch for Wallet/Profile) ---
-    async getUserBookings(user: UserProfile): Promise<ParcelBooking[]> {
+    // Optimized: Limits to last 90 days for performance (client-side filter to avoid index requirements)
+    async getUserBookings(user: UserProfile, daysBack: number = 90): Promise<ParcelBooking[]> {
         try {
+            // Calculate cutoff date for performance optimization
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+            const cutoffTimestamp = cutoffDate.getTime();
+
+            // Helper to filter by date client-side (avoids composite index requirements)
+            const filterRecent = (bookings: ParcelBooking[]) =>
+                bookings.filter(b => (b.createdAt || 0) >= cutoffTimestamp);
+
             if (user.role === 'driver') {
                 // Fetch jobs where this driver is involved (booking-level or item-level)
-                // Query 1: driverId matches
                 const q1 = query(collection(this.db, 'parcel_bookings'), where('driverId', '==', user.uid));
-                // Query 2: involvedDriverIds contains this driver (for item-level assignments)
                 const q2 = query(collection(this.db, 'parcel_bookings'), where('involvedDriverIds', 'array-contains', user.uid));
 
                 const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
@@ -73,7 +81,8 @@ export class LogisticsService extends BaseService {
                 snap1.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
                 snap2.docs.forEach(d => bookingsMap.set(d.id, d.data() as ParcelBooking));
 
-                return Array.from(bookingsMap.values());
+                // Apply client-side date filter
+                return filterRecent(Array.from(bookingsMap.values()));
             } else if (user.role === 'customer') {
                 let q;
                 if (user.linkedCustomerId) {
@@ -82,11 +91,9 @@ export class LogisticsService extends BaseService {
                     q = query(collection(this.db, 'parcel_bookings'), where('senderName', '==', user.name));
                 }
                 const snap = await getDocs(q);
-                return snap.docs.map(d => d.data() as ParcelBooking);
+                // Apply client-side date filter
+                return filterRecent(snap.docs.map(d => d.data() as ParcelBooking));
             } else if (['system-admin', 'accountant', 'finance-manager', 'warehouse'].includes(user.role)) {
-                // Internal staff can likely read all, but generally wallet view is personal.
-                // If an admin views their own wallet, they might not have bookings.
-                // We return empty for now unless they are also active as a driver/customer.
                 return [];
             }
             return [];

@@ -2,11 +2,9 @@ import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../utils/response';
 import { HTTP_STATUS, ERROR_CODES } from '../config/constants';
 import { auth, db } from '../config/firebase';
-import * as crypto from 'crypto';
 
-const hashString = (text: string): string => {
-    return crypto.createHash('sha256').update(text).digest('hex');
-};
+
+
 
 const generateReferralCode = (name: string): string => {
     const prefix = (name || 'USR').replace(/[^A-Z]/gi, '').substring(0, 3).toUpperCase() || 'USR';

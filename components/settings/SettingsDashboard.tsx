@@ -107,6 +107,29 @@ export const SettingsDashboard: React.FC<Props> = ({
     const [migratingPlaces, setMigratingPlaces] = useState(false);
     const [buildingIndex, setBuildingIndex] = useState(false);
 
+    // Sync state with settings prop (Handle async loading)
+    React.useEffect(() => {
+        if (settings) {
+            setCustWalletUSD(settings.customerWalletAccountUSD || settings.defaultCustomerWalletAccountId || '');
+            setCustWalletKHR(settings.customerWalletAccountKHR || '');
+            setDriverWalletUSD(settings.driverWalletAccountUSD || settings.defaultDriverWalletAccountId || '');
+            setDriverWalletKHR(settings.driverWalletAccountKHR || '');
+            setDriverCommExpUSD(settings.driverCommissionExpenseAccountUSD || '');
+            setDriverCommExpKHR(settings.driverCommissionExpenseAccountKHR || '');
+            setCommissionExchangeRate(settings.commissionExchangeRate || 4100);
+            setDriverSettlementBankUSD(settings.defaultDriverSettlementBankIdUSD || settings.defaultSettlementBankAccountId || '');
+            setDriverSettlementBankKHR(settings.defaultDriverSettlementBankIdKHR || '');
+            setCustomerSettlementBankUSD(settings.defaultCustomerSettlementBankIdUSD || settings.defaultSettlementBankAccountId || '');
+            setCustomerSettlementBankKHR(settings.defaultCustomerSettlementBankIdKHR || '');
+            setDriverCashAccUSD(settings.defaultDriverCashAccountIdUSD || '');
+            setDriverCashAccKHR(settings.defaultDriverCashAccountIdKHR || '');
+            setDefaultRevenueUSD(settings.defaultRevenueAccountUSD || '');
+            setDefaultRevenueKHR(settings.defaultRevenueAccountKHR || '');
+            setDefaultTaxUSD(settings.defaultTaxAccountUSD || '');
+            setDefaultTaxKHR(settings.defaultTaxAccountKHR || '');
+        }
+    }, [settings]);
+
     // Filter for Liability accounts (Wallets)
     const liabilityAccounts = accounts.filter(a => a.type === AccountType.LIABILITY && !a.isHeader);
 

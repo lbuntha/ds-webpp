@@ -134,24 +134,38 @@ export const SettlementReportModal: React.FC<Props> = ({
                             const parcelItem = bItems.find(i => i.id === rel.itemId);
                             if (parcelItem) {
                                 const targetCurrency = transaction.currency || 'USD';
-                                const RATE = 4000; // Standard display rate
+                                const RATE = 4000;
 
-                                // Calculate commissions
-                                const pRule = getApplicableCommissionRule(driverEmp, 'PICKUP', commissionRules);
-                                const pickupCommTotal = calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules);
-                                const deliveryCommTotal = calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules);
-
+                                // Determine Item Fee & Currency
                                 const totalItems = bItems.length > 0 ? bItems.length : 1;
+                                const itemFee = parcelItem.deliveryFee ?? ((booking.totalDeliveryFee || 0) / totalItems);
+                                const itemFeeCurrency = parcelItem.deliveryFee !== undefined
+                                    ? (parcelItem.codCurrency || booking.currency || 'USD')
+                                    : (booking.currency || 'USD');
 
-                                // 1. Pro-rate Delivery (Per Item)
-                                let finalDeliveryComm = deliveryCommTotal / totalItems;
+                                // Helper for conversion
+                                const convertToTarget = (amount: number, fromCurr: string) => {
+                                    if (fromCurr === targetCurrency) return amount;
+                                    if (fromCurr === 'USD' && targetCurrency === 'KHR') return amount * RATE;
+                                    if (fromCurr === 'KHR' && targetCurrency === 'USD') return amount / RATE;
+                                    return amount;
+                                };
 
-                                // 2. Pickup (Per Item if Fixed, Pro-rated if Percentage)
-                                let finalPickupComm = 0;
-                                if (pRule?.type === 'FIXED_AMOUNT') {
-                                    finalPickupComm = pickupCommTotal;
-                                } else {
-                                    finalPickupComm = pickupCommTotal / totalItems;
+                                // 1. Pickup Commission
+                                const pRule = getApplicableCommissionRule(driverEmp, 'PICKUP', commissionRules);
+                                let finalPickupComm = calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules, itemFee, targetCurrency, RATE);
+
+                                // Conversion logic mismatch fix: Percentage returns in Source Currency, Fixed returns in Target
+                                if (pRule?.type === 'PERCENTAGE') {
+                                    finalPickupComm = convertToTarget(finalPickupComm, itemFeeCurrency);
+                                }
+
+                                // 2. Delivery Commission
+                                const dRule = getApplicableCommissionRule(driverEmp, 'DELIVERY', commissionRules);
+                                let finalDeliveryComm = calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules, itemFee, targetCurrency, RATE);
+
+                                if (dRule?.type === 'PERCENTAGE') {
+                                    finalDeliveryComm = convertToTarget(finalDeliveryComm, itemFeeCurrency);
                                 }
 
                                 // Split attribution for preview (Who did what?)
@@ -161,18 +175,6 @@ export const SettlementReportModal: React.FC<Props> = ({
 
                                 const dlvMod = mods.find(m => m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER');
                                 const dlvDriverName = dlvMod?.userName || (parcelItem.status !== 'PENDING' ? parcelItem.driverName : 'Unknown');
-
-                                // Currency Conversion
-                                const sourceCurrency = booking.currency || 'USD';
-                                if (sourceCurrency !== targetCurrency) {
-                                    if (sourceCurrency === 'USD' && targetCurrency === 'KHR') {
-                                        finalPickupComm *= RATE;
-                                        finalDeliveryComm *= RATE;
-                                    } else if (sourceCurrency === 'KHR' && targetCurrency === 'USD') {
-                                        finalPickupComm /= RATE;
-                                        finalDeliveryComm /= RATE;
-                                    }
-                                }
 
                                 finalPickupComm = Math.round((finalPickupComm + Number.EPSILON) * 100) / 100;
                                 finalDeliveryComm = Math.round((finalDeliveryComm + Number.EPSILON) * 100) / 100;
@@ -198,7 +200,6 @@ export const SettlementReportModal: React.FC<Props> = ({
                                     });
                                 }
 
-
                                 // Add DELIVERY commission line item (if > 0)
                                 if (finalDeliveryComm > 0) {
                                     reportItems.push({
@@ -210,6 +211,62 @@ export const SettlementReportModal: React.FC<Props> = ({
                                         currency: parcelItem.codCurrency || 'USD',
                                         status: parcelItem.settlementStatus || 'UNSETTLED',
                                         commission: finalDeliveryComm,
+                                        commissionCurrency: targetCurrency,
+                                        details: {
+                                            sender: booking.senderName || 'Unknown Sender',
+                                            receiver: parcelItem.receiverName || 'Unknown Receiver',
+                                            type: 'PARCEL'
+                                        }
+                                    });
+                                }
+
+                                // 3. Taxi Fee (Cost Reimbursed/Paid)
+                                // If driver paid taxi fee, it appears here vs his COD collection
+                                // Logic: Driver Collected COD. Driver Paid Taxi Fee.
+                                // Net = COD - Comm - Taxi Fee.
+                                // This breakdown shows "Amount" (Transaction Value) and "Est Comm" (Deduction/Earning).
+                                // Usually Taxi Fee is an expense for the Driver? 
+                                // Actually, if Driver PAID the taxi fee, he needs CREDIT. 
+                                // If Customer PAID via COD including taxi fee, it's revenue.
+                                // Let's follow WalletReport logic: "Taxi Fee paid by Driver".
+                                // In WalletReport: Debit Customer. Credit Driver?
+                                // If Taxi Fee > 0, we show it as a negative amount? Or positive expense?
+                                // The table columns are "Amount" and "Est Comm". 
+                                // "Amount" usually means COD Collected.
+                                // "Est Comm" means what company takes? Or what driver gets?
+                                // In the Screenshot: Amount 10,000 KHR. Est Comm 2750 KHR.
+                                // 10,000 is COD. 2750 is Comm. Net to Driver = 10,000 - 2750 = 7250.
+                                // If Driver Paid Taxi Fee of 5000:
+                                // He should get 5000 BACK.
+                                // So we should show Taxi Fee as a CREDIT to Driver.
+                                // In this table, maybe show as separate line item?
+                                if (parcelItem.isTaxiDelivery && parcelItem.taxiFee && parcelItem.taxiFee > 0) {
+                                    // Taxi Fee is usually reimbursed to driver if he paid it
+                                    // So it reduces the "Shortage" (Amount he owes company)
+                                    // OR it increases "Commission" (Earning)
+                                    // Let's put it in Est Comm column? Or Amount?
+                                    // Logic: Item Breakdown sums to "Total Amount" (COD).
+                                    // Est Comm sums to total deduction.
+                                    // If we add Taxi Fee to Est Comm, it increases deduction? No.
+                                    // Driver KEEPS Taxi Fee.
+                                    // If Driver Paid it, he needs to KEEP that amount from COD.
+                                    // So it's similar to Commission (Driver Retention).
+                                    // Let's add it as a line item with "Amount: 0" (unless specific collection) and "Est Comm: <TaxiFee>"
+                                    // This way it adds to Total Commission (Driver Retention).
+
+                                    const taxiFeeRaw = parcelItem.taxiFee;
+                                    const taxiFeeCurrency = parcelItem.taxiFeeCurrency || 'USD';
+                                    const taxiFeeConverted = convertToTarget(taxiFeeRaw, taxiFeeCurrency);
+
+                                    reportItems.push({
+                                        id: `${parcelItem.id}-taxi`,
+                                        date: booking.bookingDate,
+                                        reference: parcelItem.trackingCode || 'N/A',
+                                        description: `Taxi Fee (Paid by Driver)`,
+                                        amount: 0,
+                                        currency: taxiFeeCurrency,
+                                        status: 'REIMBURSED',
+                                        commission: taxiFeeConverted, // Driver keeps this
                                         commissionCurrency: targetCurrency,
                                         details: {
                                             sender: booking.senderName || 'Unknown Sender',

@@ -6,6 +6,9 @@ export interface FeeCalculationResult {
     currency: 'USD' | 'KHR';
     isSpecialRate: boolean;
     pricePerItem: number;
+    // Dual currency support
+    pricePerItemUSD: number;
+    pricePerItemKHR: number;
 }
 
 export interface FeeCalculationInput {
@@ -42,7 +45,7 @@ export async function calculateDeliveryFee(input: FeeCalculationInput): Promise<
     const service = services.find(s => s.id === serviceTypeId);
     if (!service) {
         console.warn('⚠️ Service not found for fee calculation:', serviceTypeId, 'Available:', services.map(s => s.id));
-        return { fee: 0, currency: codCurrency, isSpecialRate: false, pricePerItem: 0 };
+        return { fee: 0, currency: codCurrency, isSpecialRate: false, pricePerItem: 0, pricePerItemUSD: 0, pricePerItemKHR: 0 };
     }
 
     // Get special rates (use provided or fetch)
@@ -56,10 +59,9 @@ export async function calculateDeliveryFee(input: FeeCalculationInput): Promise<
         }
     }
 
-    // Start with service default price based on currency
-    let pricePerItem = isKHR
-        ? (service.defaultPriceKHR || 0)
-        : (service.defaultPrice || 0);
+    // Calculate BOTH currency prices
+    let pricePerItemUSD = service.defaultPrice || 0;
+    let pricePerItemKHR = service.defaultPriceKHR || 0;
     let isSpecialRate = false;
 
     // Check for active special rate
@@ -72,37 +74,23 @@ export async function calculateDeliveryFee(input: FeeCalculationInput): Promise<
         );
 
         if (activeSpecial) {
-            // Apply special rate based on COD currency
-            if (isKHR) {
-                // Use KHR special rate if available, otherwise convert USD rate
-                if (activeSpecial.priceKHR) {
-                    pricePerItem = activeSpecial.priceKHR;
-                } else {
-                    pricePerItem = activeSpecial.price * exchangeRate;
-                }
-            } else {
-                pricePerItem = activeSpecial.price;
-            }
+            pricePerItemUSD = activeSpecial.price;
+            pricePerItemKHR = activeSpecial.priceKHR || (activeSpecial.price * exchangeRate);
             isSpecialRate = true;
         }
     }
 
+    // Use the appropriate currency for the current calculation
+    const pricePerItem = isKHR ? pricePerItemKHR : pricePerItemUSD;
     const totalFee = pricePerItem * Math.max(itemCount, 1);
-
-    console.log('💰 Fee calculated:', {
-        isKHR,
-        pricePerItem,
-        itemCount,
-        totalFee,
-        isSpecialRate,
-        serviceName: service.name
-    });
 
     return {
         fee: totalFee,
         currency: codCurrency,
         isSpecialRate,
-        pricePerItem
+        pricePerItem,
+        pricePerItemUSD,
+        pricePerItemKHR
     };
 }
 

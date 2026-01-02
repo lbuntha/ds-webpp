@@ -92,6 +92,7 @@ const translations = {
     wallet_debit: "Wallet Debit",
     transaction_type: "Transaction Type",
     pending_approval: "Pending Approval",
+    i_am_paying: "I Am Paying",
 
     // Admin Sidebar
     analytics: "Analytics",
@@ -476,6 +477,7 @@ const translations = {
     wallet_debit: "ឥណពន្ធកាបូប",
     transaction_type: "ប្រភេទប្រតិបត្តិការ",
     pending_approval: "រង់ចាំការអនុម័ត",
+    i_am_paying: "ខ្ញុំកំពុងបង់ប្រាក់",
 
     // Admin Sidebar
     analytics: "វិភាគទិន្នន័យ",

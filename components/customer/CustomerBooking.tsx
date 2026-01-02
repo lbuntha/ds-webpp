@@ -361,12 +361,31 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                 }
             }
 
-            const finalItems = items.map(i => ({
-                ...i,
-                productPrice: Number(i.productPrice) || 0,
-                codCurrency: i.codCurrency || (Number(i.productPrice) >= 1000 ? 'KHR' : 'USD'),
-                receiverName: i.receiverName || 'Details in Photo',
-                destinationAddress: i.destinationAddress || 'Driver to Extract',
+            // Import fee calculator for dual currency support
+            const { calculateDeliveryFee } = await import('../../src/shared/utils/feeCalculator');
+
+            // Calculate fees for each item with both currencies
+            const finalItems = await Promise.all(items.map(async (i) => {
+                const feeResult = await calculateDeliveryFee({
+                    serviceTypeId,
+                    customerId: user.linkedCustomerId || '',
+                    itemCount: 1,
+                    codCurrency: i.codCurrency || (Number(i.productPrice) >= 1000 ? 'KHR' : 'USD'),
+                    exchangeRate: effectiveExchangeRate,
+                    services,
+                    specialRates
+                });
+
+                return {
+                    ...i,
+                    productPrice: Number(i.productPrice) || 0,
+                    codCurrency: i.codCurrency || (Number(i.productPrice) >= 1000 ? 'KHR' : 'USD'),
+                    receiverName: i.receiverName || 'Details in Photo',
+                    destinationAddress: i.destinationAddress || 'Driver to Extract',
+                    deliveryFee: feeResult.pricePerItem,
+                    deliveryFeeUSD: feeResult.pricePerItemUSD,
+                    deliveryFeeKHR: feeResult.pricePerItemKHR
+                };
             }));
 
             const booking: ParcelBooking = {
@@ -387,7 +406,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                 taxAmount: 0,
                 totalDeliveryFee: pricing.total,
                 currency: (finalItems[0]?.codCurrency === 'KHR') ? 'KHR' : 'USD',
-                status: status, // Configured status
+                status: status,
                 statusId: status === 'PENDING' ? 'ps-pending' : 'ps-pickup',
                 statusHistory: [
                     {
@@ -401,7 +420,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                 branchId: 'b1',
                 notes: notes,
                 createdAt: Date.now(),
-                exchangeRateForCOD: effectiveExchangeRate // Snapshot rate
+                exchangeRateForCOD: effectiveExchangeRate
             };
 
             await firebaseService.saveParcelBooking(booking);
@@ -668,9 +687,9 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                 <input
                                     type="file"
                                     id="photo-upload-input"
-                                    hidden
+                                    className="hidden"
                                     accept="image/*"
-                                    multiple // Allow multiple selection
+                                    multiple
                                     onChange={handlePhotoUpload}
                                 />
 

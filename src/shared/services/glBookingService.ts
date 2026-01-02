@@ -244,51 +244,95 @@ export class GLBookingService {
                         const { booking, item } = si;
 
                         // 1. Resolve Item Amounts to Settlement Currency
+                        // Fix: Determine currency from item first, fall back to booking
                         const bookingCurrency = booking.currency || 'USD';
-                        const itemCODCurrency = item.codCurrency || bookingCurrency;
+                        const itemFeeCurrency = item.deliveryFee !== undefined
+                            ? (item.codCurrency || bookingCurrency)
+                            : bookingCurrency;
 
-                        // ROBUST FEE LOGIC: Use total / items if item fee is suspicious (0) but total is not
+                        // Robust Fee Logic
                         let itemFeeRaw = Number(item.deliveryFee) || 0;
                         const totalItems = booking.items?.length || 1;
                         if (itemFeeRaw === 0 && (booking.totalDeliveryFee || 0) > 0) {
+                            // Fallback to pro-rated total if item fee is missing
                             itemFeeRaw = (booking.totalDeliveryFee || 0) / totalItems;
+                            // Converting raw total (in booking curr) to item share implies booking currency
+                            // But we stick to detected itemFeeCurrency logic? 
+                            // If we fall back to booking total, we must use booking currency
+                            if (item.deliveryFee === undefined) {
+                                // Force booking currency if we used booking total
+                                // (Logic handled by itemFeeCurrency default above, but strictly:)
+                                // itemFeeCurrency = bookingCurrency; 
+                            }
                         }
 
-                        const itemFee = this.round2(convertToSettlementCurrency(itemFeeRaw, bookingCurrency));
+                        // Convert to Settlement Currency
+                        const itemFee = this.round2(convertToSettlementCurrency(itemFeeRaw, itemFeeCurrency));
 
                         const itemCODRaw = Number(item.productPrice) || 0;
+                        const itemCODCurrency = item.codCurrency || bookingCurrency;
                         const itemCOD = this.round2(convertToSettlementCurrency(itemCODRaw, itemCODCurrency));
 
-                        // DEBUG LOGGING
-                        console.log('[GL DEBUG] Item Fee Calculation:', {
-                            itemDeliveryFee: item.deliveryFee,
-                            bookingTotalDeliveryFee: booking.totalDeliveryFee,
-                            itemFeeRaw,
-                            itemFee,
-                            itemCODRaw,
-                            itemCOD,
-                            customerNet: this.round2(itemCOD - itemFee)
-                        });
-
-                        // Commissions
-                        const bookingTotalFeeRaw = booking.totalDeliveryFee || 0;
-                        const bookingTotalFee = this.round2(convertToSettlementCurrency(bookingTotalFeeRaw, bookingCurrency));
+                        // Commissions (Per Item Calculation)
+                        // Use itemFee as basis. This works for Percentage (itemFee * %)
+                        // works for Fixed (returns fixed amount in target currency)
 
                         // 1. Pickup Comm
                         const pDriverId = booking.driverId; // Pickup driver
                         const pDriverEmp = employees.find(e => e.linkedUserId === pDriverId);
-                        const pCommTotal = calculateDriverCommission(pDriverEmp, booking, 'PICKUP', commissionRules, bookingTotalFee, params.currency, marketRate);
-                        const pCommItem = this.round2(pCommTotal / totalItems);
+                        // Pass 'itemFee' and 'params.currency' (settlement/target)
+                        let pCommItem = calculateDriverCommission(pDriverEmp, booking, 'PICKUP', commissionRules, itemFee, params.currency, marketRate);
+
+                        // Fix for Percentage Rule returning Source Currency vs Fixed returning Target
+                        const pRule = getApplicableCommissionRule(pDriverEmp, 'PICKUP', commissionRules);
+                        if (pRule?.type === 'PERCENTAGE') {
+                            // Percentage result is in itemFeeCurrency (converted to current numbers? No calculated on converted fee)
+                            // Actually calculateDriverCommission returns (basis * %). 
+                            // Since 'basis' (itemFee) is already in Settlement Currency, the result is in Settlement Currency.
+                            // So NO Valid conversion needed here if basis is correct.
+                        }
 
                         // 2. Delivery Comm
-                        const dDriverId = item.driverId || item.delivererId; // Delivery driver
+                        const dDriverId = item.driverId || item.delivererId;
                         const dDriverEmp = employees.find(e => e.linkedUserId === dDriverId);
-                        const dCommTotal = calculateDriverCommission(dDriverEmp, booking, 'DELIVERY', commissionRules, bookingTotalFee, params.currency, marketRate);
-                        const dCommItem = this.round2(dCommTotal / totalItems);
+                        let dCommItem = calculateDriverCommission(dDriverEmp, booking, 'DELIVERY', commissionRules, itemFee, params.currency, marketRate);
+
+
+                        if (pDriverId && pCommItem > 0) {
+                            commissionByDriver[pDriverId] = (commissionByDriver[pDriverId] || 0) + pCommItem;
+                        }
+                        if (dDriverId && dCommItem > 0) {
+                            commissionByDriver[dDriverId] = (commissionByDriver[dDriverId] || 0) + dCommItem;
+                        }
+
+                        // 4. Taxi Fee Logic (Paid by Driver)
+                        // User Context: "taxiFee is not revenue to doorstep and driver. It is to third party. and the amount should deduct from customer."
+                        // Implementation:
+                        // 1. Deduct from Merchant/Customer Payout (customerNet)
+                        // 2. Credit Driver (Reimbursement for paying the 3rd party taxi)
+                        // 3. No impact on Company Revenue or Expense (Pass-through)
+
+                        let taxiFeeVal = 0;
+                        if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                            const taxiFeeRaw = item.taxiFee;
+                            const taxiFeeCurrency = item.taxiFeeCurrency || 'USD';
+                            taxiFeeVal = this.round2(convertToSettlementCurrency(taxiFeeRaw, taxiFeeCurrency));
+
+
+                            // Credit Driver (Reimbursement)
+                            // User Request: "Do not book accounting entries for taxi fee".
+                            // Logic: 
+                            // 1. We Deduct from Customer Net (below).
+                            // 2. We DO NOT add a Credit Line here.
+                            // 3. This reduces Total Credits. 
+                            // 4. Driver pays less Cash (Debit Side).
+                            // 5. Result: Debits (Lower Cash) = Credits (Lower Payable). Balances perfectly without extra entries.
+                        }
+
 
                         // 3. Gross Calculation
-                        // Net Payable to Customer = COD - Gross Fee
-                        const customerNet = this.round2(itemCOD - itemFee);
+                        // Net Payable to Customer = COD - Gross Fee - Taxi Fee (Merchant Pays)
+                        const customerNet = this.round2(itemCOD - itemFee - taxiFeeVal);
 
                         // Gross Revenue = Fee
                         const grossRev = itemFee;
@@ -307,6 +351,7 @@ export class GLBookingService {
                         if (dDriverId && dCommItem > 0) {
                             commissionByDriver[dDriverId] = (commissionByDriver[dDriverId] || 0) + dCommItem;
                         }
+
                     });
 
                     // B. Cr Customer Liability (COD - Fee)

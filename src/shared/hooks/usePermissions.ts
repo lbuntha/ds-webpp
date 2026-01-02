@@ -17,12 +17,6 @@ export function usePermission(permission: Permission): boolean {
     const userPermissions = rolePermissions[user.role] || [];
     const hasPermission = userPermissions.includes(permission);
 
-    console.log(`🔍 Permission check for ${user.email} (${user.role}):`, {
-        checking: permission,
-        userPermissions,
-        hasPermission
-    });
-
     return hasPermission;
 }
 

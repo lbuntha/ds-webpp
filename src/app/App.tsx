@@ -15,22 +15,6 @@ import { env } from '../config/env';
  * - views/ (page components)
  */
 export default function App() {
-    // TEMP: Log ID Token for API testing
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                const token = await user.getIdToken();
-                console.log('%c[FIREBASE ID TOKEN]', 'color: #00ff00; font-weight: bold; font-size: 14px');
-                console.log(token);
-                console.log('%c[CURL COMMAND]', 'color: #00aaaa; font-weight: bold');
-                console.log(`curl -H "Authorization: Bearer ${token}" https://us-central1-${env.firebase.projectId}.cloudfunctions.net/api/health`);
-            } else {
-                console.log('[Auth] No user logged in');
-            }
-        });
-        return () => unsubscribe();
-    }, []);
-
     return (
         <AppProviders>
             <RouterProvider router={router} />

@@ -136,15 +136,27 @@ export const CustomerSettlementReport: React.FC = () => {
             (b.items || []).forEach(item => {
                 if (item.status === 'DELIVERED' && item.customerSettlementStatus !== 'SETTLED') {
                     const cod = Number(item.productPrice) || 0;
-                    // Use item-level deliveryFee directly
-                    const fee = Number(item.deliveryFee) || 0;
+                    const isKHR = item.codCurrency === 'KHR';
 
-                    if (item.codCurrency === 'KHR') {
-                        summary.totalCodKHR += cod;
-                        summary.totalFeeKHR += fee;
+                    // Fee is in ONE currency matching item's codCurrency
+                    if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                        if (isKHR) {
+                            summary.totalCodKHR += cod;
+                            summary.totalFeeKHR += item.deliveryFeeKHR || 0;
+                        } else {
+                            summary.totalCodUSD += cod;
+                            summary.totalFeeUSD += item.deliveryFeeUSD || 0;
+                        }
                     } else {
-                        summary.totalCodUSD += cod;
-                        summary.totalFeeUSD += fee;
+                        // Fallback for legacy items
+                        const fee = Number(item.deliveryFee) || 0;
+                        if (isKHR) {
+                            summary.totalCodKHR += cod;
+                            summary.totalFeeKHR += fee;
+                        } else {
+                            summary.totalCodUSD += cod;
+                            summary.totalFeeUSD += fee;
+                        }
                     }
 
                     summary.unsettledCount++;
@@ -232,15 +244,22 @@ export const CustomerSettlementReport: React.FC = () => {
                                 }
                             });
 
-                            // B. Service Fee Deduction (Debit) - Use item-level deliveryFee
+                            // B. Service Fee Deduction (Debit) - Use dual currency fees
                             if (b.status !== 'CANCELLED') {
                                 bItems.forEach(item => {
                                     if (item.status === 'DELIVERED') {
-                                        const itemFee = Number(item.deliveryFee) || 0;
-                                        if (item.codCurrency === 'KHR') {
-                                            khr -= itemFee;
+                                        // Use pre-stored dual currency fees if available
+                                        if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                                            usd -= item.deliveryFeeUSD || 0;
+                                            khr -= item.deliveryFeeKHR || 0;
                                         } else {
-                                            usd -= itemFee;
+                                            // Fallback for legacy items
+                                            const itemFee = Number(item.deliveryFee) || 0;
+                                            if (item.codCurrency === 'KHR') {
+                                                khr -= itemFee;
+                                            } else {
+                                                usd -= itemFee;
+                                            }
                                         }
                                     }
                                 });
@@ -279,9 +298,19 @@ export const CustomerSettlementReport: React.FC = () => {
             if (b.senderId !== selectedCustomerId) return;
             (b.items || []).forEach(item => {
                 if (item.status === 'DELIVERED' && item.customerSettlementStatus !== 'SETTLED') {
-                    // Use item-level deliveryFee directly
-                    const fee = Number(item.deliveryFee) || 0;
-                    const feeCurrency = item.codCurrency || 'USD';
+                    // Use pre-stored dual currency fees if available
+                    let fee = 0;
+                    let feeCurrency = item.codCurrency || 'USD';
+
+                    if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                        // For display, use the fee matching COD currency
+                        fee = feeCurrency === 'KHR'
+                            ? (item.deliveryFeeKHR || 0)
+                            : (item.deliveryFeeUSD || 0);
+                    } else {
+                        // Fallback for legacy items
+                        fee = Number(item.deliveryFee) || 0;
+                    }
 
                     details.push({
                         bookingId: b.id,
@@ -550,10 +579,10 @@ export const CustomerSettlementReport: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-4">
                             <div className={`flex items-center gap-2 px-3 py-2 rounded border ${excludeFeesFromProfile
+                                ? 'bg-green-50 border-green-200'
+                                : excludeFees
                                     ? 'bg-green-50 border-green-200'
-                                    : excludeFees
-                                        ? 'bg-green-50 border-green-200'
-                                        : 'bg-white border-gray-200'
+                                    : 'bg-white border-gray-200'
                                 }`} title={excludeFeesFromProfile ? "Set by admin in User Management. Cannot be enabled here." : "Can be enabled for this settlement session."}>
                                 <input
                                     type="checkbox"

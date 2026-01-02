@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { ParcelBooking, ParcelItem, UserProfile, ParcelModification, ParcelServiceType } from '../../src/shared/types';
+import React, { useState } from 'react';
+import { ParcelBooking, ParcelItem, UserProfile, ParcelModification } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { firebaseService } from '../../src/shared/services/firebaseService';
-import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
 import { ChatModal } from '../ui/ChatModal';
 import { toast } from '../../src/shared/utils/toast';
 
@@ -26,14 +25,6 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
 
     // Chat State
     const [activeChat, setActiveChat] = useState<{ itemId: string, itemName: string, driverName: string, driverId?: string } | null>(null);
-
-    // Services State (for fee calculation)
-    const [services, setServices] = useState<ParcelServiceType[]>([]);
-
-    // Fetch services on mount
-    useEffect(() => {
-        firebaseService.getParcelServices().then(setServices);
-    }, []);
 
     // Helper to determine step index (0-4)
     const getStepStatus = (status: string) => {
@@ -67,50 +58,33 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
         if (!editingCodItem) return;
         setIsSaving(true);
         try {
-            const updatedItems = booking.items.map(i => {
-                if (i.id === editingCodItem) {
-                    return {
-                        ...i,
-                        productPrice: editAmount,
-                        codCurrency: editCurrency,
-                        // Track modification
-                        modifications: [
-                            ...(i.modifications || []),
-                            {
-                                timestamp: Date.now(),
-                                userId: currentUser?.uid || 'customer',
-                                userName: currentUser?.name || 'Customer',
-                                field: 'COD Amount',
-                                oldValue: `${i.productPrice} ${i.codCurrency}`,
-                                newValue: `${editAmount} ${editCurrency}`
-                            }
-                        ]
-                    };
-                }
-                return i;
-            });
+            // Update items with new COD - use pre-stored fees (no recalculation needed)
+            const finalItems = booking.items.map(i => {
+                if (i.id !== editingCodItem) return i;
 
-            // Calculate fee for THIS item
-            // Note: senderId is optional - if not present, just use default service price
-            let itemDeliveryFee = 0;
-            if (services.length > 0) {
-                const feeResult = await calculateDeliveryFee({
-                    serviceTypeId: booking.serviceTypeId,
-                    customerId: booking.senderId || '', // Optional - empty string means no special rate lookup
-                    itemCount: 1, // Fee for this single item
+                // Use pre-stored fee for the selected currency
+                const deliveryFee = editCurrency === 'KHR'
+                    ? (i.deliveryFeeKHR || i.deliveryFee || 0)
+                    : (i.deliveryFeeUSD || i.deliveryFee || 0);
+
+                return {
+                    ...i,
+                    productPrice: editAmount,
                     codCurrency: editCurrency,
-                    exchangeRate: booking.exchangeRateForCOD || 4100,
-                    services
-                });
-                itemDeliveryFee = feeResult.pricePerItem;
-            }
-
-            // Update item with fee
-            const finalItems = updatedItems.map(i =>
-                i.id === editingCodItem
-                    ? { ...i, deliveryFee: itemDeliveryFee }
-                    : i
-            );
+                    deliveryFee,
+                    modifications: [
+                        ...(i.modifications || []),
+                        {
+                            timestamp: Date.now(),
+                            userId: currentUser?.uid || 'customer',
+                            userName: currentUser?.name || 'Customer',
+                            field: 'COD Amount',
+                            oldValue: `${i.productPrice} ${i.codCurrency}`,
+                            newValue: `${editAmount} ${editCurrency}`
+                        }
+                    ]
+                };
+            });
 
             // Aggregate total fee from all items
             const totalFee = finalItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);

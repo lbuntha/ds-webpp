@@ -7,7 +7,7 @@ const router = Router();
 // All wallet routes require authentication
 router.use(authenticate);
 
-router.get('/balance', walletController.getBalance);
-router.get('/transactions', walletController.getTransactions);
+// Main wallet endpoint (returns balance + ledger)
+router.get('/ledger', walletController.getWalletLedger);
 
 export default router;

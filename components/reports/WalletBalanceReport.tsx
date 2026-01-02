@@ -103,14 +103,37 @@ export const WalletBalanceReport: React.FC = () => {
                     }
                 });
 
-                // Debit: Delivery Fees - Use item-level deliveryFee directly
+                // Debit: Service Fees (Delivery + Taxi)
                 bItems.forEach(item => {
                     if (item.status === 'DELIVERED') {
-                        const itemFee = Number(item.deliveryFee) || 0;
-                        if (item.codCurrency === 'KHR') {
+                        // 1. Delivery Fee
+                        const isKHR = item.codCurrency === 'KHR';
+                        const totalItems = bItems.length || 1;
+
+                        // Robust Fee: Use item fee if exists, else pro-rated booking total
+                        let itemFee = 0;
+                        if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                            itemFee = isKHR ? (item.deliveryFeeKHR || 0) : (item.deliveryFeeUSD || 0);
+                        } else {
+                            // Fallback to legacy field or pro-rated total
+                            const rawFee = item.deliveryFee ?? ((b.totalDeliveryFee || 0) / totalItems);
+                            itemFee = Number(rawFee) || 0;
+                        }
+
+                        if (isKHR) {
                             balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr - itemFee);
                         } else {
                             balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd - itemFee);
+                        }
+
+                        // 2. Taxi Fee (New)
+                        if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                            const isTaxiKHR = item.taxiFeeCurrency === 'KHR';
+                            if (isTaxiKHR) {
+                                balanceMap[senderUid].khr = round2(balanceMap[senderUid].khr - item.taxiFee);
+                            } else {
+                                balanceMap[senderUid].usd = round2(balanceMap[senderUid].usd - item.taxiFee);
+                            }
                         }
                     }
                 });

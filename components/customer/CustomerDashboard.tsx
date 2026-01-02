@@ -166,32 +166,40 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
         let spentKHR = 0;
 
         bookings.forEach(b => {
-            const fee = b.totalDeliveryFee || 0;
             const items = b.items || [];
-            const itemCurrencies = new Set(items.map(i => i.codCurrency || 'USD'));
-            const isMixed = itemCurrencies.has('USD') && itemCurrencies.has('KHR');
 
-            if (isMixed && items.length > 0) {
-                const khrCount = items.filter(i => (i.codCurrency || 'USD') === 'KHR').length;
-                const usdCount = items.filter(i => (i.codCurrency || 'USD') === 'USD').length;
-                const feePerItem = fee / items.length;
+            items.forEach(item => {
+                const isKHR = item.codCurrency === 'KHR';
 
-                // KHR Portion
-                let khrPart = feePerItem * khrCount;
-                if (b.currency === 'USD') khrPart = khrPart * 4000;
-                spentKHR += khrPart;
+                const isDelivered = item.status === 'DELIVERED';
 
-                // USD Portion
-                let usdPart = feePerItem * usdCount;
-                if (b.currency === 'KHR') usdPart = usdPart / 4000;
-                spentUSD += usdPart;
+                // Delivery fees - use the fee matching item's codCurrency only
+                // Only charge if item is DELIVERED
+                if (isDelivered) {
+                    if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                        if (isKHR) {
+                            spentKHR += item.deliveryFeeKHR || 0;
+                        } else {
+                            spentUSD += item.deliveryFeeUSD || 0;
+                        }
+                    } else {
+                        // Fallback for legacy bookings without dual currency fees
+                        const itemFee = item.deliveryFee || 0;
+                        if (isKHR) spentKHR += itemFee;
+                        else spentUSD += itemFee;
+                    }
+                }
 
-            } else {
-                // Single Currency
-                const isKHR = b.currency === 'KHR' || (!b.currency && items[0]?.codCurrency === 'KHR');
-                if (isKHR) spentKHR += fee;
-                else spentUSD += fee;
-            }
+                // Taxi fees - add to spent (uses its own currency)
+                // Only charge if DELIVERED
+                if (isDelivered && item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                    if (item.taxiFeeCurrency === 'KHR') {
+                        spentKHR += item.taxiFee;
+                    } else {
+                        spentUSD += item.taxiFee;
+                    }
+                }
+            });
         });
 
         return {

@@ -39,7 +39,7 @@ const walletController = __importStar(require("../controllers/wallet.controller"
 const router = (0, express_1.Router)();
 // All wallet routes require authentication
 router.use(auth_1.authenticate);
-router.get('/balance', walletController.getBalance);
-router.get('/transactions', walletController.getTransactions);
+// Main wallet endpoint (returns balance + ledger)
+router.get('/ledger', walletController.getWalletLedger);
 exports.default = router;
 //# sourceMappingURL=wallet.routes.js.map
