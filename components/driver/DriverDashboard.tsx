@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParcelBooking, UserProfile, ParcelItem, Account, Branch, AccountType, AccountSubType, WalletTransaction, SystemSettings, AppNotification, CurrencyConfig, ParcelServiceType, Employee, DriverCommissionRule } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
-import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
+// import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator'; // Removed per request
 import { createBilingualNotification, formatDeliveredMessage, formatReturnedMessage, formatCodUpdatedByDriverMessage } from '../../src/shared/utils/notificationService';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -253,44 +253,32 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const allDone = updatedItems.every(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER');
         const bookingStatus = allDone ? 'COMPLETED' : booking.status;
 
-        // FEE RECALCULATION START
-        // When COD currency changes during delivery, we MUST recalculate the fee in the new currency
+        // FEE RECALCULATION START - REFACTORED
+        // User Request: "just swap the fee by currency, no calculation"
         let finalBooking = { ...booking, items: updatedItems, status: bookingStatus };
 
-        if (action === 'DELIVER' && updatedCOD && services.length > 0) {
+        if (action === 'DELIVER' && updatedCOD) {
             const targetItem = updatedItems.find(i => i.id === itemId);
             if (targetItem) {
                 const newCurrency = updatedCOD.currency;
-                const originalItemCurrency = booking.items.find(i => i.id === itemId)?.codCurrency || 'USD';
 
-                // If currency changed, recalculate the delivery fee for this item
-                if (newCurrency !== originalItemCurrency) {
-                    try {
-                        const feeResult = await calculateDeliveryFee({
-                            serviceTypeId: booking.serviceTypeId,
-                            customerId: booking.senderId || '',
-                            itemCount: 1,
-                            codCurrency: newCurrency,
-                            exchangeRate: booking.exchangeRateForCOD || 4000,
-                            services
-                        });
+                // Assign the correct pre-calculated fee based on the new COD currency
+                const newFee = newCurrency === 'KHR'
+                    ? (targetItem.deliveryFeeKHR || targetItem.deliveryFee || 0)
+                    : (targetItem.deliveryFeeUSD || targetItem.deliveryFee || 0);
 
-                        // Update the item's delivery fee in both currencies
-                        finalBooking.items = finalBooking.items.map(i =>
-                            i.id === itemId
-                                ? { ...i, deliveryFee: feeResult.pricePerItem, deliveryFeeUSD: feeResult.pricePerItemUSD, deliveryFeeKHR: feeResult.pricePerItemKHR }
-                                : i
-                        );
+                // Update the item's delivery fee
+                finalBooking.items = finalBooking.items.map(i =>
+                    i.id === itemId
+                        ? { ...i, deliveryFee: newFee, codCurrency: newCurrency }
+                        : i
+                );
 
-                        // Recalculate total fee
-                        finalBooking.totalDeliveryFee = finalBooking.items.reduce(
-                            (sum, item) => sum + (item.deliveryFee || 0), 0
-                        );
-                        finalBooking.currency = newCurrency;
-                    } catch (e) {
-                        console.warn('Failed to recalculate fee on currency change:', e);
-                    }
-                }
+                // Recalculate total fee
+                finalBooking.totalDeliveryFee = finalBooking.items.reduce(
+                    (sum, item) => sum + (item.deliveryFee || 0), 0
+                );
+                finalBooking.currency = newCurrency;
             }
         }
         // FEE RECALCULATION END

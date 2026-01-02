@@ -5,7 +5,7 @@ import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { LocationPicker } from '../ui/LocationPicker';
 import { PlaceAutocomplete } from '../ui/PlaceAutocomplete';
 import { toast } from '../../src/shared/utils/toast';
-import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator';
+// import { calculateDeliveryFee } from '../../src/shared/utils/feeCalculator'; // Removed per request
 
 interface Props {
     job: ParcelBooking;
@@ -188,36 +188,28 @@ export const DriverPickupProcessor: React.FC<Props> = ({ job, user, services, on
 
             // Fee Calculation using centralized utility - PER ITEM
             // Each item gets its own fee based on its own currency
-            // Note: senderId is optional - if not present, just use default service price (no special rate)
-            if (services && services.length > 0) {
-                // Compute currency directly from CURRENT item's productPrice
-                const productPrice = Number(processedItem?.productPrice) || 0;
-                const computedCurrency: 'USD' | 'KHR' = productPrice >= 1000 ? 'KHR' : 'USD';
+            // Fee Assignment (No On-the-fly Calculation)
+            // User Request: "Remove fee calculation on the fly... fee is already in deliveryFeeKHR and deliveryFeeUSD"
 
-                // Calculate fee for THIS item only (itemCount = 1)
-                const feeResult = await calculateDeliveryFee({
-                    serviceTypeId: job.serviceTypeId,
-                    customerId: job.senderId,
-                    itemCount: 1, // Calculate fee for this single item
-                    codCurrency: computedCurrency,
-                    exchangeRate: job.exchangeRateForCOD || 4100,
-                    services
-                });
+            // Compute currency directly from CURRENT item's productPrice
+            const productPrice = Number(processedItem?.productPrice) || 0;
+            const computedCurrency: 'USD' | 'KHR' = productPrice >= 1000 ? 'KHR' : 'USD';
 
-                // Store fee at ITEM level
-                processedItem.codCurrency = computedCurrency;
-                processedItem.deliveryFee = feeResult.pricePerItem;
-                newItems[activeIndex] = processedItem;
+            processedItem.codCurrency = computedCurrency;
 
-                // Aggregate total fee from all items (for legacy compatibility)
-                // Note: This sums fees in their native currencies (not ideal but maintains backward compat)
-                const totalFee = newItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);
-
-                // Use the most common currency or the current item's currency for booking-level currency
-                updatedJob.totalDeliveryFee = totalFee;
-                updatedJob.currency = computedCurrency;
-                updatedJob.items = newItems;
+            // Assign the correct pre-calculated fee based on the COD currency
+            if (computedCurrency === 'USD') {
+                processedItem.deliveryFee = processedItem.deliveryFeeUSD || 0;
+            } else {
+                processedItem.deliveryFee = processedItem.deliveryFeeKHR || 0;
             }
+            newItems[activeIndex] = processedItem;
+
+            // Update parent total fee (Sum of active fees)
+            const totalFee = newItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);
+            updatedJob.totalDeliveryFee = totalFee;
+            updatedJob.currency = computedCurrency; // Or keep mixed? Usually booking follows last item or checks mostly
+            updatedJob.items = newItems;
 
             await onSave(updatedJob);
 
