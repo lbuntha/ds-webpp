@@ -181,14 +181,104 @@ export class GLBookingService {
                 }
 
                 // Check for mismatched currency in debt
-                // Debt currency is determined by codCurrency of the items
-                const mismatchedItems = settleItems.filter(si => (si.item.codCurrency || 'USD') !== params.currency);
-                if (mismatchedItems.length > 0) {
+                // For Taxi Fee Reimbursements: check taxiFeeCurrency, not codCurrency
+                const isTaxiReimbursement = (params.description || '').toLowerCase().includes('taxi');
+
+                const mismatchedItems = settleItems.filter(si => {
+                    if (isTaxiReimbursement) {
+                        // For taxi: check taxiFeeCurrency
+                        return (si.item.taxiFeeCurrency || 'USD') !== params.currency;
+                    }
+                    // For COD: check codCurrency
+                    return (si.item.codCurrency || 'USD') !== params.currency;
+                });
+
+                if (mismatchedItems.length > 0 && !isTaxiReimbursement) {
+                    // Only block for COD mismatches, not taxi
                     errors.push(`Strict Currency Matching Block: You are settling ${params.currency} but ${mismatchedItems.length} items are in ${mismatchedItems[0].item.codCurrency}. Please create separate requests.`);
                 }
 
                 if (errors.length === 0) {
-                    // Proceed with GL Construction
+                    // SPECIAL CASE: Taxi Fee Reimbursement
+                    // Taxi fee is a pass-through customer expense. Driver paid upfront.
+                    // GL: Dr - Customer Receivable (will be deducted from customer payout)
+                    //     Cr - Cash/Bank (we reimburse driver)
+                    if (isTaxiReimbursement) {
+                        // --- TAXI FEE REIMBURSEMENT STRATEGY ---
+                        // 1. Transaction: Driver paid taxi upfront, we are now reimbursing them.
+                        // 2. Liability: We owed the driver (Driver Payable). Customer owes us (Customer Receivable).
+                        // 3. Action: Clear Driver Payable with Cash. Record Customer Receivable.
+
+                        // Resolve Accounts
+                        const bankAcc = getAccount(params.bankAccountId);
+
+                        const driverAccId = params.currency === 'USD' ? settings.driverWalletAccountUSD : settings.driverWalletAccountKHR;
+                        const driverPayableAcc = getAccount(driverAccId) || getAccount(settings.defaultDriverWalletAccountId);
+
+                        const custAccId = params.currency === 'USD' ? settings.customerWalletAccountUSD : settings.customerWalletAccountKHR;
+                        const custRecvAcc = getAccount(custAccId) || getAccount(settings.defaultCustomerWalletAccountId);
+
+                        // Validation
+                        if (!bankAcc) errors.push("Settlement Bank Account not found");
+                        if (!driverPayableAcc) errors.push("Driver Wallet/Payable Account not found");
+                        if (!custRecvAcc) errors.push("Customer Wallet/Receivable Account not found");
+
+                        if (bankAcc && driverPayableAcc && custRecvAcc) {
+                            // A. Record Liability & Receivable (The underlying event)
+                            // Dr Customer Receivable (Asset increases)
+                            lines.push({
+                                accountId: custRecvAcc.id,
+                                debit: baseAmount, credit: 0,
+                                originalCurrency: params.currency, originalExchangeRate: rate,
+                                originalDebit: safeAmount, originalCredit: 0,
+                                description: `Taxi Fee Receivable from Customer`
+                            });
+
+                            // Cr Driver Payable (Liability increases)
+                            lines.push({
+                                accountId: driverPayableAcc.id,
+                                debit: 0, credit: baseAmount,
+                                originalCurrency: params.currency, originalExchangeRate: rate,
+                                originalDebit: 0, originalCredit: safeAmount,
+                                description: `Taxi Fee Payable to ${params.userName}`
+                            });
+
+                            // B. Settle Liability (The reimbursement payment)
+                            // Dr Driver Payable (Liability decreases)
+                            lines.push({
+                                accountId: driverPayableAcc.id,
+                                debit: baseAmount, credit: 0,
+                                originalCurrency: params.currency, originalExchangeRate: rate,
+                                originalDebit: safeAmount, originalCredit: 0,
+                                description: `Driver Taxi Fee Payable Cleared`
+                            });
+
+                            // Cr Cash/Bank (Asset decreases)
+                            lines.push({
+                                accountId: bankAcc.id,
+                                debit: 0, credit: baseAmount,
+                                originalCurrency: params.currency, originalExchangeRate: rate,
+                                originalDebit: 0, originalCredit: safeAmount,
+                                description: `Taxi Fee Reimbursement to ${params.userName}`
+                            });
+                        }
+
+                        // Return early with calculated totals
+                        const totalDebit = lines.reduce((sum, l) => sum + l.debit, 0);
+                        const totalCredit = lines.reduce((sum, l) => sum + l.credit, 0);
+
+                        return {
+                            lines,
+                            errors,
+                            warnings,
+                            isValid: errors.length === 0,
+                            totalDebit,
+                            totalCredit,
+                            difference: totalDebit - totalCredit
+                        };
+                    }
+
+                    // Proceed with Regular Settlement GL Construction (COD)
 
                     // A. Dr Cash (Full Amount Paid)
                     const bankAcc = getAccount(params.bankAccountId);

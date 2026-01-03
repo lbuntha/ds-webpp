@@ -212,6 +212,7 @@ export class FirebaseService {
     getReferralRules() { return this.logisticsService.getReferralRules(); }
     saveReferralRule(rule: any) { return this.logisticsService.saveReferralRule(rule); }
     deleteReferralRule(id: string) { return this.logisticsService.deleteReferralRule(id); }
+    markTaxiFeesAsReimbursed(items: { bookingId: string, itemId: string }[]) { return this.logisticsService.markTaxiFeesAsReimbursed(items); }
 
     // Wallet
     getWalletTransactions(uid: string) { return this.walletService.getWalletTransactions(uid); }

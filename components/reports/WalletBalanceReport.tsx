@@ -64,14 +64,23 @@ export const WalletBalanceReport: React.FC = () => {
         // 2. Process Wallet Transactions (Approved Only)
         txns.forEach(t => {
             if (t.status === 'APPROVED' && balanceMap[t.userId]) {
-                // Find user role to determine SETTLEMENT direction
+                // Find user role to determine which transactions apply
                 const txnUser = users.find(u => u.uid === t.userId);
                 const isCustomerUser = txnUser?.role === 'customer';
+                const isDriverUser = txnUser?.role === 'driver';
 
-                // SETTLEMENT: Credit for drivers (offsets debt), Debit for customers (payout)
-                let isCredit = ['DEPOSIT', 'EARNING', 'REFUND'].includes(t.type);
+                // For DRIVERS: Only EARNING and TAXI_FEE (exclude SETTLEMENT)
+                if (isDriverUser) {
+                    if (!['EARNING', 'TAXI_FEE'].includes(t.type)) return; // Skip non-earning transactions
+                }
+
+                // Determine if credit or debit
+                let isCredit = ['DEPOSIT', 'EARNING', 'REFUND', 'TAXI_FEE'].includes(t.type);
+
+                // SETTLEMENT: Only applies to customers (Debit for payout)
                 if (t.type === 'SETTLEMENT') {
-                    isCredit = !isCustomerUser; // false for customers, true for drivers
+                    if (isDriverUser) return; // Skip SETTLEMENT for drivers
+                    isCredit = false; // Debit for customers (payout)
                 }
 
                 const val = t.amount;
@@ -139,31 +148,11 @@ export const WalletBalanceReport: React.FC = () => {
                 });
             }
 
-            // B. Driver Logic - Cash Held Only (Commissions are now real EARNING transactions in wallet_transactions)
-            bItems.forEach(item => {
-                // Find who delivered this item
-                const mods = item.modifications || [];
-                const isProcessed = item.status === 'DELIVERED' || item.status === 'RETURN_TO_SENDER';
-                const dlvMod = mods.find(m => m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER');
-                const dlvUid = dlvMod?.userId || item.delivererId || (isProcessed ? item.driverId : null);
-
-                // Cash Held (Debit from Delivery Driver) - Driver owes this to company
-                if (item.status === 'DELIVERED' && dlvUid && balanceMap[dlvUid]) {
-                    const amount = item.productPrice || 0;
-                    if (item.codCurrency === 'KHR') balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr - amount);
-                    else balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd - amount);
-
-                    // Taxi Fee Reimbursement (Credit to Delivery Driver) - Company owes driver
-                    if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
-                        const isTaxiKHR = item.taxiFeeCurrency === 'KHR';
-                        if (isTaxiKHR) {
-                            balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr + item.taxiFee);
-                        } else {
-                            balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd + item.taxiFee);
-                        }
-                    }
-                }
-            });
+            // B. Driver Balance - NOW ONLY FROM wallet_transactions (Step 2 above)
+            // REMOVED: Parcel-based COD/Taxi derivation. Drivers now use only:
+            // - EARNING (commissions, taxi reimbursements)
+            // - SETTLEMENT (amounts paid to company)
+            // This is already handled in Step 2's transaction processing.
 
         });
 

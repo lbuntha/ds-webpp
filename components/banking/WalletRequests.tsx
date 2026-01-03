@@ -164,6 +164,27 @@ export const WalletRequests: React.FC = () => {
             // 2. Update Transaction Status & Link JE
             await firebaseService.approveWalletTransaction(txn.id, currentUser.uid, entry.id);
 
+            // 3. Mark related items as SETTLED (for SETTLEMENT transactions)
+            if (txn.type === 'SETTLEMENT' && txn.relatedItems && txn.relatedItems.length > 0) {
+                // Determine settlement type: if description contains 'Settlement' it's a driver, else customer payout
+                const isDriverSettlement = (txn.description || '').toLowerCase().includes('settlement') &&
+                    !(txn.description || '').toLowerCase().includes('payout');
+                const isTaxiReimbursement = (txn.description || '').toLowerCase().includes('taxi');
+
+                if (isTaxiReimbursement) {
+                    // Mark taxi fee as reimbursed on the parcel items
+                    await firebaseService.markTaxiFeesAsReimbursed(txn.relatedItems);
+                } else {
+                    // Regular driver/customer settlement
+                    await firebaseService.settleParcelItems(
+                        txn.relatedItems,
+                        isDriverSettlement ? 'driver' : 'customer',
+                        txn.currency as 'USD' | 'KHR',
+                        txn.id
+                    );
+                }
+            }
+
             const notif: AppNotification = {
                 id: `notif-wallet-${Date.now()}`,
                 targetAudience: txn.userId,

@@ -165,8 +165,8 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 if (i.codCurrency === 'KHR') codKhr += amt; else codUsd += amt;
             }
 
-            // Taxi fee reimbursement (company owes driver)
-            if (i.isTaxiDelivery && i.taxiFee && i.taxiFee > 0) {
+            // Taxi fee reimbursement (company owes driver) - only if not yet reimbursed
+            if (i.isTaxiDelivery && i.taxiFee && i.taxiFee > 0 && !i.taxiFeeReimbursed) {
                 if (i.taxiFeeCurrency === 'KHR') taxiKhr += i.taxiFee;
                 else taxiUsd += i.taxiFee;
             }
@@ -240,7 +240,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                     const newItem: any = {
                         ...item,
                         status: 'DELIVERED' as const,
-                        settlementStatus: 'UNSETTLED' as const,
+                        driverSettlementStatus: 'UNSETTLED' as const,
                         proofOfDelivery: proof,
                         delivererId: user.uid,
                         delivererName: user.name,

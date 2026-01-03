@@ -63,6 +63,7 @@ export interface ParcelItem {
   isTaxiDelivery?: boolean;        // Flag for taxi handoff
   taxiFee?: number;                 // Fee paid to taxi driver
   taxiFeeCurrency?: 'USD' | 'KHR'; // Currency of taxi fee
+  taxiFeeReimbursed?: boolean;      // True when driver has been reimbursed
 }
 
 export enum AccountType {

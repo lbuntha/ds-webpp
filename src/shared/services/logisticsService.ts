@@ -512,6 +512,31 @@ export class LogisticsService extends BaseService {
             }
         }
     }
+
+    async markTaxiFeesAsReimbursed(items: { bookingId: string, itemId: string }[]) {
+        const bookingUpdates: Record<string, string[]> = {};
+        items.forEach(i => {
+            if (!bookingUpdates[i.bookingId]) bookingUpdates[i.bookingId] = [];
+            bookingUpdates[i.bookingId].push(i.itemId);
+        });
+
+        for (const [bookingId, itemIds] of Object.entries(bookingUpdates)) {
+            const ref = doc(this.db, 'parcel_bookings', bookingId);
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+                const booking = snap.data() as ParcelBooking;
+                if (booking.items) {
+                    const updatedItems = booking.items.map(i => {
+                        if (itemIds.includes(i.id)) {
+                            return { ...i, taxiFeeReimbursed: true };
+                        }
+                        return i;
+                    });
+                    await updateDoc(ref, { items: updatedItems });
+                }
+            }
+        }
+    }
 }
 
 export const logisticsService = new LogisticsService(db, storage);
