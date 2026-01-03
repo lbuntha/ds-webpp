@@ -153,23 +153,35 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         i.driverId === user.uid && i.status === 'DELIVERED' && (!i.driverSettlementStatus || i.driverSettlementStatus === 'UNSETTLED')
     );
 
-    const cashInHand = useMemo(() => {
-        let usd = 0, khr = 0;
+    // Separate tracking for COD Collection and Taxi Reimbursement
+    const settlementBreakdown = useMemo(() => {
+        let codUsd = 0, codKhr = 0;
+        let taxiUsd = 0, taxiKhr = 0;
+
         unsettledItems.forEach(i => {
             // COD collected (driver owes this)
-            if (!i.isTaxiDelivery) {
-                const amt = Number(i.productPrice) || 0;
-                if (i.codCurrency === 'KHR') khr += amt; else usd += amt;
+            const amt = Number(i.productPrice) || 0;
+            if (amt > 0) {
+                if (i.codCurrency === 'KHR') codKhr += amt; else codUsd += amt;
             }
 
-            // Taxi fee reimbursement (company owes driver - reduces debt)
+            // Taxi fee reimbursement (company owes driver)
             if (i.isTaxiDelivery && i.taxiFee && i.taxiFee > 0) {
-                if (i.taxiFeeCurrency === 'KHR') khr -= i.taxiFee;
-                else usd -= i.taxiFee;
+                if (i.taxiFeeCurrency === 'KHR') taxiKhr += i.taxiFee;
+                else taxiUsd += i.taxiFee;
             }
         });
-        return { usd, khr };
+
+        return {
+            cod: { usd: codUsd, khr: codKhr },
+            taxi: { usd: taxiUsd, khr: taxiKhr },
+            // Net (for backward compatibility)
+            net: { usd: codUsd - taxiUsd, khr: codKhr - taxiKhr }
+        };
     }, [unsettledItems]);
+
+    // Backward compatibility alias
+    const cashInHand = settlementBreakdown.net;
 
     // Determine Default Settlement Banks
     const defaultBankUSD = companyBanks.find(b => b.id === (settings.defaultDriverSettlementBankIdUSD || settings.defaultDriverSettlementBankId));
@@ -199,11 +211,15 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         const difference = totalProvidedBase - totalDebtBase;
         const isBalanced = Math.abs(difference) < 0.05; // 5 cent buffer for rounding
 
+        // Credit Balance = Company owes driver (negative debt)
+        const isCreditBalance = totalDebtBase < -0.01;
+
         return {
             totalDebtBase,
             totalProvidedBase,
             difference,
             isBalanced,
+            isCreditBalance,
             bankUSD,
             bankKHR,
             cashUSD,
@@ -236,8 +252,10 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                         newItem.isTaxiDelivery = true;
                         newItem.taxiFee = taxiData.taxiFee;
                         newItem.taxiFeeCurrency = taxiData.taxiFeeCurrency;
-                        newItem.productPrice = 0; // No COD for taxi delivery
-                    } else if (updatedCOD) {
+                        // REMOVED: newItem.productPrice = 0; -> We now assume Driver is responsible for COD or it was collected via Taxi but accounted to Driver
+                    }
+
+                    if (updatedCOD) {
                         newItem.productPrice = updatedCOD.amount;
                         newItem.codCurrency = updatedCOD.currency;
                     }
@@ -387,16 +405,17 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         // --- STRICT CURRENCY VALIDATION ---
         const totalPaidUSD = bankUSD + cashUSD;
         const totalPaidKHR = bankKHR + cashKHR;
-        const debtUSD = cashInHand.usd;
-        const debtKHR = cashInHand.khr;
+        // Use GROSS COD amounts for validation (not net after taxi offset)
+        const codUSD = settlementBreakdown.cod.usd;
+        const codKHR = settlementBreakdown.cod.khr;
 
-        // Block paying USD if no USD debt (prevents clearing KHR debt with USD)
-        if (totalPaidUSD > 0 && debtUSD <= 0.01) {
+        // Block paying USD if no USD COD (prevents clearing KHR debt with USD)
+        if (totalPaidUSD > 0 && codUSD <= 0.01) {
             return toast.error("Strict Currency Rule: You cannot settle in USD because you only owe KHR. Please pay in KHR.");
         }
 
-        // Block paying KHR if no KHR debt
-        if (totalPaidKHR > 0 && debtKHR <= 100) { // 100 Riel buffer
+        // Block paying KHR if no KHR COD
+        if (totalPaidKHR > 0 && codKHR <= 100) { // 100 Riel buffer
             return toast.error("Strict Currency Rule: You cannot settle in KHR because you only owe USD. Please pay in USD.");
         }
 
@@ -418,6 +437,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
         setIsSaving(true);
         try {
+            // Prepare items lists split by currency
             // Prepare items lists split by currency
             const usdItemsToSettle = unsettledItems
                 .filter(i => (i.codCurrency || 'USD').toUpperCase() === 'USD')
@@ -473,9 +493,37 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 );
             }
 
+            // 5. TAXI FEE REIMBURSEMENT (Separate Accounting Entries)
+            // Always create taxi fee transactions when taxi amounts exist
+            const taxiUsdItems = unsettledItems.filter(i => i.isTaxiDelivery && (i.taxiFeeCurrency || 'USD') !== 'KHR');
+            const taxiKhrItems = unsettledItems.filter(i => i.isTaxiDelivery && i.taxiFeeCurrency === 'KHR');
+
+            if (settlementBreakdown.taxi.usd > 0) {
+                requestsToMake.push(
+                    firebaseService.requestSettlement(
+                        user.uid, user.name, settlementBreakdown.taxi.usd, 'USD',
+                        defaultBankUSD?.id || 'system', '',
+                        'Taxi Fee Reimbursement (USD)',
+                        taxiUsdItems.map(i => ({ bookingId: i.bookingId, itemId: i.id }))
+                    )
+                );
+            }
+            if (settlementBreakdown.taxi.khr > 0) {
+                requestsToMake.push(
+                    firebaseService.requestSettlement(
+                        user.uid, user.name, settlementBreakdown.taxi.khr, 'KHR',
+                        defaultBankKHR?.id || 'system', '',
+                        'Taxi Fee Reimbursement (KHR)',
+                        taxiKhrItems.map(i => ({ bookingId: i.bookingId, itemId: i.id }))
+                    )
+                );
+            }
+
             if (requestsToMake.length > 0) {
                 await Promise.all(requestsToMake);
-                toast.success(`Settlement requested successfully. (${requestsToMake.length} transactions)`);
+                const codCount = (bankUSD > 0 ? 1 : 0) + (bankKHR > 0 ? 1 : 0) + (cashUSD > 0 ? 1 : 0) + (cashKHR > 0 ? 1 : 0);
+                const taxiCount = (settlementBreakdown.taxi.usd > 0 ? 1 : 0) + (settlementBreakdown.taxi.khr > 0 ? 1 : 0);
+                toast.success(`Settlement requested! (${codCount} COD + ${taxiCount} Taxi = ${requestsToMake.length} transactions)`);
                 setIsSettling(false);
                 setSettleProof('');
                 setPayAmountBankUSD('');
@@ -485,13 +533,8 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 setSettlementReason('');
                 loadJobs();
             } else {
-                // Edge case: 0 amount settlement (Cleaning up very small decimals or just closing items?)
-                // If items exist but amounts are 0?
-                // Allowed if debt is 0.
-                await firebaseService.requestSettlement(
-                    user.uid, user.name, 0, 'USD', defaultBankUSD?.id || 'system', '', 'Zero-Value Settlement', unsettledItems.map(i => ({ bookingId: i.bookingId, itemId: i.id }))
-                );
-                toast.success("Items cleared.");
+                // Edge case: No COD payment and no taxi - nothing to do
+                toast.info("No amounts to settle.");
                 setIsSettling(false);
                 loadJobs();
             }
@@ -747,22 +790,64 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             {/* --- SETTLEMENT --- */}
             {activeTab === 'SETTLEMENT' && (
                 <div className="space-y-6 animate-fade-in-up">
-                    <div className={`rounded-2xl p-6 text-white shadow-lg ${cashInHand.usd >= 0 && cashInHand.khr >= 0 ? 'bg-gradient-to-br from-indigo-900 to-purple-800' : 'bg-gradient-to-br from-emerald-700 to-teal-600'}`}>
-                        <h3 className="text-sm font-medium text-white/80 mb-2">
-                            {cashInHand.usd >= 0 && cashInHand.khr >= 0 ? t('floating_cash') : '🚕 Taxi Reimbursement Owed'}
-                        </h3>
-                        <div className="flex items-baseline flex-wrap gap-2">
-                            <span className="text-3xl font-bold">${Math.abs(cashInHand.usd).toFixed(2)}</span>
-                            {cashInHand.usd < 0 && <span className="text-xs bg-white/20 px-2 py-0.5 rounded">TO RECEIVE</span>}
-                            {Math.abs(cashInHand.khr) > 0 && (
-                                <>
-                                    <span className="text-xl text-white/80">+ {Math.abs(cashInHand.khr).toLocaleString()} ៛</span>
-                                    {cashInHand.khr < 0 && <span className="text-xs bg-white/20 px-2 py-0.5 rounded">TO RECEIVE</span>}
-                                </>
-                            )}
+                    {/* Split Display: COD vs Taxi */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* COD Collection Card */}
+                        <div className="rounded-xl p-4 bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-lg">
+                            <h3 className="text-xs font-medium text-white/80 uppercase tracking-wide mb-1">💰 COD Collection</h3>
+                            <p className="text-[10px] text-white/60 mb-3">You owe this to the company</p>
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-white/80">USD:</span>
+                                    <span className="text-xl font-bold">${settlementBreakdown.cod.usd.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-white/80">KHR:</span>
+                                    <span className="text-xl font-bold">{settlementBreakdown.cod.khr.toLocaleString()} ៛</span>
+                                </div>
+                            </div>
                         </div>
-                        <button onClick={() => setIsSettling(true)} className="w-full mt-6 bg-white text-indigo-900 font-bold py-3 rounded-xl shadow-lg hover:bg-indigo-50">{t('request_settlement')}</button>
+
+                        {/* Taxi Reimbursement Card */}
+                        <div className="rounded-xl p-4 bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg">
+                            <h3 className="text-xs font-medium text-white/80 uppercase tracking-wide mb-1">🚕 Taxi Reimbursement</h3>
+                            <p className="text-[10px] text-white/60 mb-3">Company owes you this</p>
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-white/80">USD:</span>
+                                    <span className="text-xl font-bold">${settlementBreakdown.taxi.usd.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-white/80">KHR:</span>
+                                    <span className="text-xl font-bold">{settlementBreakdown.taxi.khr.toLocaleString()} ៛</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Net Summary */}
+                    <div className={`rounded-xl p-4 border-2 ${cashInHand.usd >= 0 && cashInHand.khr >= 0 ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <p className="text-xs font-bold text-gray-600 uppercase">Net Settlement</p>
+                                <p className="text-[10px] text-gray-500">
+                                    {cashInHand.usd >= 0 && cashInHand.khr >= 0 ? 'Amount you pay to company' : 'Amount company pays you'}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <span className={`text-2xl font-bold ${cashInHand.usd >= 0 && cashInHand.khr >= 0 ? 'text-red-700' : 'text-green-700'}`}>
+                                    ${Math.abs(cashInHand.usd).toFixed(2)}
+                                </span>
+                                {Math.abs(cashInHand.khr) > 0 && (
+                                    <span className="text-sm text-gray-600 ml-2">+ {Math.abs(cashInHand.khr).toLocaleString()} ៛</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onClick={() => setIsSettling(true)} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-indigo-700 transition-colors">
+                        {t('request_settlement')}
+                    </button>
 
                     <div className="space-y-3">
                         <h4 className="text-sm font-bold text-gray-800">{t('settlement_history')}</h4>
@@ -802,6 +887,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                     accounts={companyBanks}
                     employees={employees}
                     commissionRules={commissionRules}
+                    bookings={bookings}
                 />
             )}
 
@@ -848,85 +934,112 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
                         <div className="space-y-4">
 
-                            {/* Summary of Debt */}
-                            <div className="bg-red-50 p-4 rounded-lg border border-red-100">
-                                <p className="text-xs font-bold text-red-800 uppercase mb-2">Total Outstanding Debt</p>
-                                <div className="flex justify-between items-end">
+                            {/* COD Collection Section */}
+                            <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50">
+                                <div className="flex justify-between items-center mb-3">
                                     <div>
-                                        <p className="text-sm text-red-700">USD: <span className="font-bold">${cashInHand.usd.toLocaleString()}</span></p>
-                                        <p className="text-sm text-red-700">KHR: <span className="font-bold">{cashInHand.khr.toLocaleString()} ៛</span></p>
+                                        <h4 className="text-sm font-bold text-red-800">💰 COD Collection</h4>
+                                        <p className="text-[10px] text-red-600">You owe this to company</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] text-gray-500">Total in Base (USD)</p>
-                                        <p className="text-lg font-bold text-gray-900">${settlementCalc.totalDebtBase.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-[10px] text-gray-500">Outstanding</p>
+                                        <p className="text-sm font-bold text-red-700">
+                                            ${settlementBreakdown.cod.usd.toFixed(2)} / {settlementBreakdown.cod.khr.toLocaleString()} ៛
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Bank Transfer */}
+                                <p className="text-[10px] font-bold text-red-500 uppercase mb-2">🏦 Bank Transfer</p>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className="block text-[10px] text-red-500 mb-1">USD</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full border border-red-200 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-red-400 outline-none bg-white"
+                                            placeholder="0.00"
+                                            value={payAmountBankUSD}
+                                            onChange={e => setPayAmountBankUSD(parseFloat(e.target.value) || 0)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-red-500 mb-1">KHR</label>
+                                        <input
+                                            type="number"
+                                            className="w-full border border-red-200 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-red-400 outline-none bg-white"
+                                            placeholder="0"
+                                            value={payAmountBankKHR}
+                                            onChange={e => setPayAmountBankKHR(parseFloat(e.target.value) || 0)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Cash Handover */}
+                                <p className="text-[10px] font-bold text-red-500 uppercase mb-2">💵 Cash Handover</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] text-red-500 mb-1">USD</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full border border-red-200 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-red-400 outline-none bg-white"
+                                            placeholder="0.00"
+                                            value={payAmountCashUSD}
+                                            onChange={e => setPayAmountCashUSD(parseFloat(e.target.value) || 0)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-red-500 mb-1">KHR</label>
+                                        <input
+                                            type="number"
+                                            className="w-full border border-red-200 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-red-400 outline-none bg-white"
+                                            placeholder="0"
+                                            value={payAmountCashKHR}
+                                            onChange={e => setPayAmountCashKHR(parseFloat(e.target.value) || 0)}
+                                        />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Multi-Currency Inputs */}
-                            <div className="space-y-4">
-                                <p className="text-xs font-bold text-gray-500 uppercase">{t('i_am_paying')}:</p>
-
-                                {/* Bank Transfer Section */}
-                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                            {/* Taxi Reimbursement Section - Only show if taxi fees exist */}
+                            {(settlementBreakdown.taxi.usd > 0 || settlementBreakdown.taxi.khr > 0) && (
+                                <div className="p-4 rounded-xl border-2 border-green-200 bg-green-50">
                                     <div className="flex justify-between items-center mb-3">
-                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Option 1: Bank Transfer</h4>
-                                        <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 italic">
-                                            Rate: 1 USD = {settlementCalc.exchangeRate.toLocaleString()} KHR
+                                        <div>
+                                            <h4 className="text-sm font-bold text-green-800">🚕 Taxi Reimbursement</h4>
+                                            <p className="text-[10px] text-green-600">Company owes you this</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] text-gray-500">To Receive</p>
+                                            <p className="text-sm font-bold text-green-700">
+                                                {settlementBreakdown.taxi.usd > 0 && `$${settlementBreakdown.taxi.usd.toFixed(2)}`}
+                                                {settlementBreakdown.taxi.usd > 0 && settlementBreakdown.taxi.khr > 0 && ' / '}
+                                                {settlementBreakdown.taxi.khr > 0 && `${settlementBreakdown.taxi.khr.toLocaleString()} ៛`}
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">Amount in USD</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                placeholder="0.00"
-                                                value={payAmountBankUSD}
-                                                onChange={e => setPayAmountBankUSD(parseFloat(e.target.value) || 0)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">Amount in KHR</label>
-                                            <input
-                                                type="number"
-                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                placeholder="0"
-                                                value={payAmountBankKHR}
-                                                onChange={e => setPayAmountBankKHR(parseFloat(e.target.value) || 0)}
-                                            />
-                                        </div>
-                                    </div>
+                                    <p className="text-[10px] text-green-600 italic mb-2">
+                                        This amount will be automatically credited to your wallet or offset against COD.
+                                    </p>
                                 </div>
+                            )}
 
-                                {/* Cash Handover Section */}
-                                <div className="p-4 bg-indigo-50/30 rounded-xl border border-indigo-100">
-                                    <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-3">Option 2: Cash Handover</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-indigo-400 mb-1">Amount in USD</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                className="w-full border border-indigo-100 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                                placeholder="0.00"
-                                                value={payAmountCashUSD}
-                                                onChange={e => setPayAmountCashUSD(parseFloat(e.target.value) || 0)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-indigo-400 mb-1">Amount in KHR</label>
-                                            <input
-                                                type="number"
-                                                className="w-full border border-indigo-100 rounded-lg px-3 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                                placeholder="0"
-                                                value={payAmountCashKHR}
-                                                onChange={e => setPayAmountCashKHR(parseFloat(e.target.value) || 0)}
-                                            />
-                                        </div>
+                            {/* Net Summary */}
+                            <div className="p-3 rounded-lg bg-gray-100 border border-gray-200">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-600">Net Settlement</p>
+                                        <p className="text-[10px] text-gray-500">
+                                            (COD - Taxi = {settlementCalc.difference >= 0 ? 'You pay' : 'You receive'})
+                                        </p>
                                     </div>
-                                    <p className="text-[9px] text-indigo-300 mt-2 italic text-center">Handover physical cash at the office.</p>
+                                    <div className="text-right">
+                                        <p className={`text-lg font-bold ${settlementCalc.totalDebtBase >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                            ${Math.abs(settlementCalc.totalDebtBase).toFixed(2)}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500">Rate: 1 USD = {settlementCalc.exchangeRate.toLocaleString()} KHR</p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1011,7 +1124,10 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                                 <Button
                                     onClick={handleSettlement}
                                     isLoading={isSaving}
-                                    disabled={settlementCalc.totalProvidedBase <= 0 || ((settlementCalc.bankUSD > 0 || settlementCalc.bankKHR > 0) && !settleProof)}
+                                    disabled={
+                                        (!settlementCalc.isCreditBalance && settlementCalc.totalProvidedBase <= 0) ||
+                                        ((settlementCalc.bankUSD > 0 || settlementCalc.bankKHR > 0) && !settleProof)
+                                    }
                                     className="flex-1 bg-indigo-600 hover:bg-indigo-700"
                                 >
                                     {t('submit_request')}

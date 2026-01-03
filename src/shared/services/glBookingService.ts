@@ -313,7 +313,7 @@ export class GLBookingService {
                         // 3. No impact on Company Revenue or Expense (Pass-through)
 
                         let taxiFeeVal = 0;
-                        if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                        if ((item.taxiFee || 0) > 0) {
                             const taxiFeeRaw = item.taxiFee;
                             const taxiFeeCurrency = item.taxiFeeCurrency || 'USD';
                             taxiFeeVal = this.round2(convertToSettlementCurrency(taxiFeeRaw, taxiFeeCurrency));
@@ -345,12 +345,7 @@ export class GLBookingService {
                         totalGrossRevenue += grossRev;
                         totalCommExpense += totalComm;
 
-                        if (pDriverId && pCommItem > 0) {
-                            commissionByDriver[pDriverId] = (commissionByDriver[pDriverId] || 0) + pCommItem;
-                        }
-                        if (dDriverId && dCommItem > 0) {
-                            commissionByDriver[dDriverId] = (commissionByDriver[dDriverId] || 0) + dCommItem;
-                        }
+
 
                     });
 
@@ -410,6 +405,14 @@ export class GLBookingService {
                         }
                     });
 
+                    // Track Total Taxi Deduction for balancing context
+                    const totalTaxiFeeReduction = settleItems.reduce((sum, si) => {
+                        const feeRaw = Number(si.item.taxiFee) || 0;
+                        const feeCurr = si.item.taxiFeeCurrency || 'USD';
+                        const feeVal = this.round2(convertToSettlementCurrency(feeRaw, feeCurr));
+                        return sum + feeVal;
+                    }, 0);
+
                     // F. Balancing (Shortage/Overpayment)
                     // Calculate Total Credits so far
                     const currentDebits = lines.reduce((sum, l) => sum + (l.debit || 0), 0);
@@ -430,7 +433,13 @@ export class GLBookingService {
                             if (diffBase > 0) {
                                 // Overpayment -> Credit Driver
                                 // If no items were settled, this is just a Wallet Deposit/Credit
-                                const desc = settleItems.length === 0 ? `Wallet Credit` : `Settlement Overpayment`;
+                                let desc = settleItems.length === 0 ? `Wallet Credit` : `Settlement Overpayment`;
+
+                                // Check if this Overpayment matches Taxi Feet Adjustment
+                                if (Math.abs(diffBase - totalTaxiFeeReduction) < 0.05) {
+                                    desc = `Taxi Fee Reimbursement (Adjusted)`;
+                                }
+
                                 lines.push({
                                     accountId: settlerWallet.id,
                                     debit: 0, credit: diffBase,

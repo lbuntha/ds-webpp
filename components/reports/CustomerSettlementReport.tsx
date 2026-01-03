@@ -248,7 +248,7 @@ export const CustomerSettlementReport: React.FC = () => {
                             if (b.status !== 'CANCELLED') {
                                 bItems.forEach(item => {
                                     if (item.status === 'DELIVERED') {
-                                        // Use pre-stored dual currency fees if available
+                                        // 1. Delivery Fee
                                         if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
                                             usd -= item.deliveryFeeUSD || 0;
                                             khr -= item.deliveryFeeKHR || 0;
@@ -259,6 +259,16 @@ export const CustomerSettlementReport: React.FC = () => {
                                                 khr -= itemFee;
                                             } else {
                                                 usd -= itemFee;
+                                            }
+                                        }
+
+                                        // 2. Taxi Fee (Deduction - Strict Currency Separation)
+                                        // If Taxi Fee is KHR, it reduces KHR balance.
+                                        if (item.taxiFee && item.taxiFee > 0) {
+                                            if (item.taxiFeeCurrency === 'KHR') {
+                                                khr -= item.taxiFee;
+                                            } else {
+                                                usd -= item.taxiFee; // Assuming USD if not KHR, though predominantly KHR
                                             }
                                         }
                                     }
@@ -312,6 +322,17 @@ export const CustomerSettlementReport: React.FC = () => {
                         fee = Number(item.deliveryFee) || 0;
                     }
 
+                    // Taxi Fee Info
+                    const taxiFee = item.taxiFee || 0;
+                    const taxiFeeCurrency = item.taxiFeeCurrency || 'KHR';
+
+                    // Net Calculation (Indicative only, mixed currencies might exist)
+                    // If currencies match, we deduct. If not, we don't for 'Net' of this specific item row unless we want to show mixed net.
+                    let net = (Number(item.productPrice) || 0) - fee;
+                    if (taxiFee > 0 && taxiFeeCurrency === feeCurrency) {
+                        net -= taxiFee;
+                    }
+
                     details.push({
                         bookingId: b.id,
                         itemId: item.id,
@@ -324,7 +345,9 @@ export const CustomerSettlementReport: React.FC = () => {
                         codCurrency: item.codCurrency || 'USD',
                         fee: fee,
                         feeCurrency: feeCurrency,
-                        net: (Number(item.productPrice) || 0) - fee
+                        taxiFee: taxiFee,
+                        taxiFeeCurrency: taxiFeeCurrency,
+                        net: net
                     });
                 }
             });
@@ -351,6 +374,13 @@ export const CustomerSettlementReport: React.FC = () => {
             selectedCustomerDetails.forEach(d => {
                 if (d.feeCurrency === 'USD') feesUSD += d.fee;
                 if (d.feeCurrency === 'KHR') feesKHR += d.fee;
+
+                // Add back Taxi Fee if excluded? Generally 'Exclude Fees' means pay Gross COD.
+                // So yes, add back the deduction.
+                if (d.taxiFee > 0) {
+                    if (d.taxiFeeCurrency === 'USD') feesUSD += d.taxiFee;
+                    if (d.taxiFeeCurrency === 'KHR') feesKHR += d.taxiFee;
+                }
             });
             netUSD += feesUSD;
             netKHR += feesKHR;
@@ -678,6 +708,7 @@ export const CustomerSettlementReport: React.FC = () => {
                                     <th className="px-4 py-3 text-left font-medium text-gray-500">Receiver</th>
                                     <th className="px-4 py-3 text-right font-medium text-gray-500">COD Amount</th>
                                     <th className="px-4 py-3 text-right font-medium text-gray-500">Delivery Fee</th>
+                                    <th className="px-4 py-3 text-right font-medium text-gray-500">Taxi Fee</th>
                                     <th className="px-4 py-3 text-right font-medium text-gray-500 font-bold">Net Payout</th>
                                 </tr>
                             </thead>
@@ -707,8 +738,21 @@ export const CustomerSettlementReport: React.FC = () => {
                                         </td>
                                         <td className="px-4 py-2 text-right">{d.cod.toLocaleString()} {d.codCurrency}</td>
                                         <td className="px-4 py-2 text-right">{d.fee.toLocaleString()} {d.feeCurrency}</td>
+                                        <td className="px-4 py-2 text-right">
+                                            {d.taxiFee > 0 ? (
+                                                <span className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs font-bold border border-red-100">
+                                                    {d.taxiFee.toLocaleString()} {d.taxiFeeCurrency}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-300">-</span>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-2 text-right font-bold text-green-700">
-                                            {d.net !== null ? (d.net.toLocaleString() + " " + d.codCurrency) : 'Split Currency'}
+                                            {d.net !== null && d.codCurrency === d.feeCurrency && (!d.taxiFee || d.taxiFeeCurrency === d.codCurrency) ? (
+                                                d.net.toLocaleString() + " " + d.codCurrency
+                                            ) : (
+                                                <span className=" text-amber-600 italic">Mixed Currency</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

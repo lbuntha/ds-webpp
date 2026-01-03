@@ -129,10 +129,11 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             // DEPOSIT: Money IN to Wallet (Credit) - Customer topping up
             // EARNING: Money IN to Wallet (Credit) - Commission earned
             // REFUND: Money IN to Wallet (Credit)
+            // TAXI_FEE: Reimbursement for taxi paid (Credit for drivers)
             // SETTLEMENT: 
             //   - For DRIVERS: Offsets Cash Held liability (Credit) - Driver pays company
             //   - For CUSTOMERS: Money OUT (Debit) - Company pays customer payout
-            if (t.type === 'DEPOSIT' || t.type === 'EARNING' || t.type === 'REFUND') {
+            if (t.type === 'DEPOSIT' || t.type === 'EARNING' || t.type === 'REFUND' || t.type === 'TAXI_FEE') {
                 isCredit = true;
             }
 
@@ -147,6 +148,12 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
             // WITHDRAWAL: Money OUT of Wallet (Debit)
             if (t.type === 'WITHDRAWAL') {
                 isCredit = false;
+            }
+
+            // For drivers: Skip SETTLEMENT transactions - they're tracked in Settlement flow, not Wallet
+            const isDriver = user.role === 'driver' || user.role === 'warehouse';
+            if (isDriver && t.type === 'SETTLEMENT') {
+                return; // Settlements are handled in DriverDashboard → Wallet tab
             }
 
             ledger.push({
@@ -297,40 +304,12 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                 // Cash is collected by the DELIVERER, not the collector (picker)
 
                 bItems.forEach(item => {
-                    // Only show COD in deliverer's wallet (the person who collected cash from customer)
-                    const isDeliveredByMe = item.delivererId === user.uid ||
-                        (!item.delivererId && item.driverId === user.uid);
-
-                    if (item.status === 'DELIVERED' && isDeliveredByMe) {
-                        // COD Cash Held - driver owes this money (show even for $0 to maintain audit trail)
-                        ledger.push({
-                            id: `held-${item.id}`,
-                            date: b.bookingDate,
-                            description: `Cash Collected: ${item.receiverName}`,
-                            type: 'COD',
-                            amount: item.productPrice || 0,
-                            currency: item.codCurrency || 'USD',
-                            status: item.settlementStatus || 'HELD',
-                            reference: item.trackingCode || 'N/A',
-                            isCredit: false // Driver OWES this (Negative balance impact)
-                        });
-
-                        // Taxi Fee Reimbursement - driver gets credited
-                        if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
-                            ledger.push({
-                                id: `taxi-reimburse-${item.id}`,
-                                date: b.bookingDate,
-                                timestamp: b.createdAt || new Date(b.bookingDate).getTime(),
-                                description: `🚕 Taxi Reimbursement: ${item.receiverName}`,
-                                type: 'TAXI_FEE',
-                                amount: item.taxiFee,
-                                currency: item.taxiFeeCurrency || 'USD',
-                                status: 'EARNED',
-                                reference: item.trackingCode || 'N/A',
-                                isCredit: true // Driver gets reimbursed (Positive balance impact)
-                            });
-                        }
-                    }
+                    // Driver wallet entries are now handled via real wallet transactions:
+                    // - Commissions: Posted as EARNING in logisticsService when delivered
+                    // - Taxi Fee: Posted as EARNING in logisticsService when delivered
+                    // - COD: Tracked separately in Settlement flow (DriverDashboard)
+                    // 
+                    // No virtual ledger entries needed for drivers
                 });
             }
 

@@ -152,6 +152,16 @@ export const WalletBalanceReport: React.FC = () => {
                     const amount = item.productPrice || 0;
                     if (item.codCurrency === 'KHR') balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr - amount);
                     else balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd - amount);
+
+                    // Taxi Fee Reimbursement (Credit to Delivery Driver) - Company owes driver
+                    if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0) {
+                        const isTaxiKHR = item.taxiFeeCurrency === 'KHR';
+                        if (isTaxiKHR) {
+                            balanceMap[dlvUid].khr = round2(balanceMap[dlvUid].khr + item.taxiFee);
+                        } else {
+                            balanceMap[dlvUid].usd = round2(balanceMap[dlvUid].usd + item.taxiFee);
+                        }
+                    }
                 }
             });
 

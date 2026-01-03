@@ -34,6 +34,8 @@ interface ReportLineItem {
     };
     commission?: number; // Estimated commission for display
     commissionCurrency?: string;
+    originalCommission?: number;
+    originalCommissionCurrency?: string;
 }
 
 interface PreviewLine {
@@ -151,23 +153,6 @@ export const SettlementReportModal: React.FC<Props> = ({
                                     return amount;
                                 };
 
-                                // 1. Pickup Commission
-                                const pRule = getApplicableCommissionRule(driverEmp, 'PICKUP', commissionRules);
-                                let finalPickupComm = calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules, itemFee, targetCurrency, RATE);
-
-                                // Conversion logic mismatch fix: Percentage returns in Source Currency, Fixed returns in Target
-                                if (pRule?.type === 'PERCENTAGE') {
-                                    finalPickupComm = convertToTarget(finalPickupComm, itemFeeCurrency);
-                                }
-
-                                // 2. Delivery Commission
-                                const dRule = getApplicableCommissionRule(driverEmp, 'DELIVERY', commissionRules);
-                                let finalDeliveryComm = calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules, itemFee, targetCurrency, RATE);
-
-                                if (dRule?.type === 'PERCENTAGE') {
-                                    finalDeliveryComm = convertToTarget(finalDeliveryComm, itemFeeCurrency);
-                                }
-
                                 // Split attribution for preview (Who did what?)
                                 const mods = parcelItem.modifications || [];
                                 const pickupMod = mods.find(m => m.newValue === 'PICKED_UP');
@@ -176,22 +161,40 @@ export const SettlementReportModal: React.FC<Props> = ({
                                 const dlvMod = mods.find(m => m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER');
                                 const dlvDriverName = dlvMod?.userName || (parcelItem.status !== 'PENDING' ? parcelItem.driverName : 'Unknown');
 
+                                // 1. Pickup Commission
+                                const pRule = getApplicableCommissionRule(driverEmp, 'PICKUP', commissionRules);
+                                // Calculate in Original Currency (itemFee is in itemFeeCurrency)
+                                let pCommOriginal = calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules, itemFee, itemFeeCurrency, RATE);
+                                // Convert to Target
+                                let finalPickupComm = convertToTarget(pCommOriginal, itemFeeCurrency);
+
+                                // 2. Delivery Commission
+                                const dRule = getApplicableCommissionRule(driverEmp, 'DELIVERY', commissionRules);
+                                // Calculate in Original Currency
+                                let dCommOriginal = calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules, itemFee, itemFeeCurrency, RATE);
+                                // Convert to Target
+                                let finalDeliveryComm = convertToTarget(dCommOriginal, itemFeeCurrency);
+
+
                                 finalPickupComm = Math.round((finalPickupComm + Number.EPSILON) * 100) / 100;
                                 finalDeliveryComm = Math.round((finalDeliveryComm + Number.EPSILON) * 100) / 100;
+                                pCommOriginal = Math.round((pCommOriginal + Number.EPSILON) * 100) / 100;
+                                dCommOriginal = Math.round((dCommOriginal + Number.EPSILON) * 100) / 100;
 
                                 // Add PICKUP commission line item (if > 0)
-                                // Amount is 0 because picker doesn't collect cash - only deliverer does
-                                if (finalPickupComm > 0) {
+                                if (finalPickupComm > 0 && itemFeeCurrency === targetCurrency) {
                                     reportItems.push({
                                         id: `${parcelItem.id}-pickup`,
                                         date: booking.bookingDate,
                                         reference: parcelItem.trackingCode || 'N/A',
                                         description: `Pickup (by ${pickupDriverName})`,
-                                        amount: 0, // Pickup doesn't collect cash
+                                        amount: 0,
                                         currency: parcelItem.codCurrency || 'USD',
                                         status: parcelItem.settlementStatus || 'UNSETTLED',
                                         commission: finalPickupComm,
                                         commissionCurrency: targetCurrency,
+                                        originalCommission: pCommOriginal,
+                                        originalCommissionCurrency: itemFeeCurrency,
                                         details: {
                                             sender: booking.senderName || 'Unknown Sender',
                                             receiver: parcelItem.receiverName || 'Unknown Receiver',
@@ -201,7 +204,7 @@ export const SettlementReportModal: React.FC<Props> = ({
                                 }
 
                                 // Add DELIVERY commission line item (if > 0)
-                                if (finalDeliveryComm > 0) {
+                                if (finalDeliveryComm > 0 && itemFeeCurrency === targetCurrency) {
                                     reportItems.push({
                                         id: `${parcelItem.id}-delivery`,
                                         date: booking.bookingDate,
@@ -212,6 +215,8 @@ export const SettlementReportModal: React.FC<Props> = ({
                                         status: parcelItem.settlementStatus || 'UNSETTLED',
                                         commission: finalDeliveryComm,
                                         commissionCurrency: targetCurrency,
+                                        originalCommission: dCommOriginal,
+                                        originalCommissionCurrency: itemFeeCurrency,
                                         details: {
                                             sender: booking.senderName || 'Unknown Sender',
                                             receiver: parcelItem.receiverName || 'Unknown Receiver',
@@ -220,60 +225,151 @@ export const SettlementReportModal: React.FC<Props> = ({
                                     });
                                 }
 
-                                // 3. Taxi Fee (Cost Reimbursed/Paid)
-                                // If driver paid taxi fee, it appears here vs his COD collection
-                                // Logic: Driver Collected COD. Driver Paid Taxi Fee.
-                                // Net = COD - Comm - Taxi Fee.
-                                // This breakdown shows "Amount" (Transaction Value) and "Est Comm" (Deduction/Earning).
-                                // Usually Taxi Fee is an expense for the Driver? 
-                                // Actually, if Driver PAID the taxi fee, he needs CREDIT. 
-                                // If Customer PAID via COD including taxi fee, it's revenue.
-                                // Let's follow WalletReport logic: "Taxi Fee paid by Driver".
-                                // In WalletReport: Debit Customer. Credit Driver?
-                                // If Taxi Fee > 0, we show it as a negative amount? Or positive expense?
-                                // The table columns are "Amount" and "Est Comm". 
-                                // "Amount" usually means COD Collected.
-                                // "Est Comm" means what company takes? Or what driver gets?
-                                // In the Screenshot: Amount 10,000 KHR. Est Comm 2750 KHR.
-                                // 10,000 is COD. 2750 is Comm. Net to Driver = 10,000 - 2750 = 7250.
-                                // If Driver Paid Taxi Fee of 5000:
-                                // He should get 5000 BACK.
-                                // So we should show Taxi Fee as a CREDIT to Driver.
-                                // In this table, maybe show as separate line item?
-                                if (parcelItem.isTaxiDelivery && parcelItem.taxiFee && parcelItem.taxiFee > 0) {
-                                    // Taxi Fee is usually reimbursed to driver if he paid it
-                                    // So it reduces the "Shortage" (Amount he owes company)
-                                    // OR it increases "Commission" (Earning)
-                                    // Let's put it in Est Comm column? Or Amount?
-                                    // Logic: Item Breakdown sums to "Total Amount" (COD).
-                                    // Est Comm sums to total deduction.
-                                    // If we add Taxi Fee to Est Comm, it increases deduction? No.
-                                    // Driver KEEPS Taxi Fee.
-                                    // If Driver Paid it, he needs to KEEP that amount from COD.
-                                    // So it's similar to Commission (Driver Retention).
-                                    // Let's add it as a line item with "Amount: 0" (unless specific collection) and "Est Comm: <TaxiFee>"
-                                    // This way it adds to Total Commission (Driver Retention).
+                                // 3. Taxi Fee (Expense/Deduction)
+                                // If this report is for CUSTOMER settlement, Taxi Fee is a deduction (negative).
+                                // If this report is for DRIVER settlement (reimbursement), it's a CREDIT to driver (negative in shortage or positive in payout).
+                                // This modal is generic. 
+                                // Standard Logic: "Amount" column sums to the Transaction Total.
+                                // If Transaction is Payout to Customer -> Amount is positive. Deduction is negative.
+                                // If Transaction is Payout to Driver -> Amount is positive. Reimbursement adds to it.
 
+                                // However, current usage seems to be consistent: 
+                                // Taxi Fee reduces the Net Payable for Customer.
+                                // Taxi Fee increases the Net Payable for Driver (if he paid it).
+                                // Let's stick to the convention used in Customer Report: Reduction.
+                                // And visually indicate it.
+
+                                // DEBUG TAXI FEE
+                                console.log('DEBUG TXN CURRENCY', transaction.currency);
+                                console.log('DEBUG TAXI', {
+                                    id: parcelItem.id,
+                                    fee: parcelItem.taxiFee,
+                                    feeCurr: parcelItem.taxiFeeCurrency,
+                                    targetCurr: targetCurrency
+                                });
+
+                                // Fixed Taxi Fee Logic for Driver & Mixed Currency
+                                if ((parcelItem.taxiFee || 0) > 0) {
+                                    const taxiFeeRaw = Number(parcelItem.taxiFee);
+                                    // Default to target currency if not specified (legacy fix)
+                                    const taxiFeeCurrency = parcelItem.taxiFeeCurrency || targetCurrency;
+                                    const isFeeIncluded = taxiFeeCurrency === targetCurrency;
+
+                                    if (isFeeIncluded) {
+                                        const taxiFeeConverted = convertToTarget(taxiFeeRaw, taxiFeeCurrency);
+                                        reportItems.push({
+                                            id: `${parcelItem.id}-taxi`,
+                                            date: booking.bookingDate,
+                                            reference: parcelItem.trackingCode || 'N/A',
+                                            description: `Taxi Fee (Paid by Driver)`,
+                                            amount: -taxiFeeConverted,
+                                            currency: targetCurrency,
+                                            status: 'SETTLED',
+                                            commission: 0,
+                                            details: {
+                                                sender: booking.senderName || 'Unknown Sender',
+                                                receiver: parcelItem.receiverName || 'Unknown Receiver',
+                                                type: 'PARCEL'
+                                            }
+                                        });
+                                    } else {
+                                        reportItems.push({
+                                            id: `${parcelItem.id}-taxi-pending`,
+                                            date: booking.bookingDate,
+                                            reference: parcelItem.trackingCode || 'N/A',
+                                            description: `Taxi Fee (Pending ${taxiFeeCurrency})`,
+                                            amount: 0,
+                                            currency: targetCurrency,
+                                            status: 'PENDING',
+                                            commission: 0,
+                                            originalCommission: -taxiFeeRaw,
+                                            originalCommissionCurrency: taxiFeeCurrency,
+                                            details: {
+                                                sender: booking.senderName || 'Unknown Sender',
+                                                receiver: parcelItem.receiverName || 'Unknown Receiver',
+                                                type: 'PARCEL'
+                                            }
+                                        });
+                                    }
+                                }
+                                // Old Logic Disabled (wrapped in unreachable block to consume original braces)
+                                if (false) {
                                     const taxiFeeRaw = parcelItem.taxiFee;
-                                    const taxiFeeCurrency = parcelItem.taxiFeeCurrency || 'USD';
-                                    const taxiFeeConverted = convertToTarget(taxiFeeRaw, taxiFeeCurrency);
+                                    const taxiFeeCurrency = parcelItem.taxiFeeCurrency || 'KHR';
 
-                                    reportItems.push({
-                                        id: `${parcelItem.id}-taxi`,
-                                        date: booking.bookingDate,
-                                        reference: parcelItem.trackingCode || 'N/A',
-                                        description: `Taxi Fee (Paid by Driver)`,
-                                        amount: 0,
-                                        currency: taxiFeeCurrency,
-                                        status: 'REIMBURSED',
-                                        commission: taxiFeeConverted, // Driver keeps this
-                                        commissionCurrency: targetCurrency,
-                                        details: {
-                                            sender: booking.senderName || 'Unknown Sender',
-                                            receiver: parcelItem.receiverName || 'Unknown Receiver',
-                                            type: 'PARCEL'
-                                        }
-                                    });
+                                    // For display in the main column, we might convert or show original.
+                                    // If we are showing strict separation, we shouldn't convert value into the 'Amount' column if currencies differ.
+                                    // BUT, this 'Amount' column sums up to the total transaction currency.
+                                    // So we MUST convert to show the impact on THIS transaction.
+                                    // UNLESS the transaction didn't include it (Strict Separation).
+                                    // If Transaction didn't include it, we shouldn't list it here?
+                                    // Actually, this modal shows details of a SPECIFIC transaction.
+                                    // If we excluded Taxi Fee from the transaction (Scenario B), then it shouldn't be here!
+                                    // Wait, if we show a transaction for $10 USD, and we excluded KHR, then this item should NOT appear in the USD Transaction detail.
+
+                                    // Logic Check:
+                                    // The 'transaction' object comes from the database.
+                                    // If we saved the transaction without the fee, this loop (based on booking items) might erroneously re-add it visually?
+                                    // No, 'transaction.relatedItems' drives the loop.
+                                    // If we excluded the KHR fee from the 'itemsToSettle' list during creation, it won't be in 'relatedItems'??
+                                    // 'relatedItems' usually lists the PARCEL IDs. It doesn't list components (Fee vs COD).
+                                    // So if parcel X is in the list, the Modal tries to show breakdown of Parcel X.
+
+                                    // CRITICAL FIX:
+                                    // If 'Strict Separation' was used, the Calculation of 'transaction.amount' ignored the KHR fee.
+                                    // So if we display the KHR fee converted here and subtract it, the 'Total' at the bottom won't match 'transaction.amount'.
+                                    // We must detect if the fee was included.
+                                    // How?
+                                    // The 'transaction.currency' is the determining factor.
+                                    // If txn.currency != taxiFee.currency, and we follow strict separation, then the fee was NOT included.
+
+                                    const isFeeIncluded = taxiFeeCurrency === targetCurrency;
+
+                                    if (isFeeIncluded) {
+                                        const taxiFeeConverted = convertToTarget(taxiFeeRaw, taxiFeeCurrency);
+
+                                        // Description
+                                        let description = `Taxi Fee (Deduction)`;
+
+                                        reportItems.push({
+                                            id: `${parcelItem.id}-taxi`,
+                                            date: booking.bookingDate,
+                                            reference: parcelItem.trackingCode || 'N/A',
+                                            description,
+                                            amount: -taxiFeeConverted, // Negative logic (Deduction from payout)
+                                            currency: targetCurrency,
+                                            status: 'SETTLED',
+                                            commission: 0,
+                                            details: {
+                                                sender: booking.senderName || 'Unknown Sender',
+                                                receiver: parcelItem.receiverName || 'Unknown Receiver',
+                                                type: 'PARCEL'
+                                            }
+                                        });
+                                    } else {
+                                        // Fee exists but was excluded due to currency mismatch (Strict Mode).
+                                        // Optionally show it as a note or 0-amount item? 
+                                        // User request: "Breakdown". 
+                                        // If we show it effectively "Pending", it clarifies why it's not paid.
+
+                                        reportItems.push({
+                                            id: `${parcelItem.id}-taxi-pending`,
+                                            date: booking.bookingDate,
+                                            reference: parcelItem.trackingCode || 'N/A',
+                                            description: `Taxi Fee (Pending ${taxiFeeCurrency})`,
+                                            amount: 0, // Zero impact on THIS transaction
+                                            currency: targetCurrency,
+                                            status: 'PENDING',
+                                            commission: 0,
+                                            originalCommission: -taxiFeeRaw, // Hack to show value in breakdown
+                                            originalCommissionCurrency: taxiFeeCurrency,
+                                            details: {
+                                                sender: booking.senderName || 'Unknown Sender',
+                                                receiver: parcelItem.receiverName || 'Unknown Receiver',
+                                                type: 'PARCEL'
+                                            }
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -517,7 +613,15 @@ export const SettlementReportModal: React.FC<Props> = ({
                                                 </td>
                                                 {transaction.type === 'SETTLEMENT' && item.commission !== undefined && (
                                                     <td className="px-3 py-2 text-right text-xs text-green-600 font-medium">
-                                                        {item.commission.toFixed(2)} {item.commissionCurrency || 'USD'}
+                                                        {item.originalCommissionCurrency && item.originalCommissionCurrency !== (item.commissionCurrency || 'USD') ? (
+                                                            <div>
+                                                                {item.originalCommission?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {item.originalCommissionCurrency}
+                                                            </div>
+                                                        ) : (
+                                                            <div>
+                                                                {item.commission?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {item.commissionCurrency || 'USD'}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                 )}
                                             </tr>

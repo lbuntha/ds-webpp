@@ -242,6 +242,19 @@ export class LogisticsService extends BaseService {
                                 );
                             }
                         }
+
+                        // 3. Taxi Fee Reimbursement (to deliverer who paid taxi out of pocket)
+                        if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0 && !item.taxiFeePosted) {
+                            const taxiDriverId = item.delivererId || item.driverId;
+                            if (taxiDriverId) {
+                                await walletService.processWalletTransaction(
+                                    taxiDriverId, item.taxiFee, item.taxiFeeCurrency || 'USD', 'TAXI_FEE', '',
+                                    `🚕 Taxi Reimbursement: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
+                                    [{ bookingId: bookingToSave.id, itemId: item.id }]
+                                );
+                                item.taxiFeePosted = true;
+                            }
+                        }
                     }
                 }
             } catch (e) {
