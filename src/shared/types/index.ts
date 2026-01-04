@@ -731,7 +731,7 @@ export interface WalletTransaction {
   userName?: string;
   amount: number;
   currency: 'USD' | 'KHR';
-  type: 'DEPOSIT' | 'WITHDRAWAL' | 'EARNING' | 'REFUND' | 'SETTLEMENT';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'EARNING' | 'REFUND' | 'SETTLEMENT' | 'TAXI_FEE';
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FAILED';
   date: string;
   description?: string;
@@ -740,6 +740,7 @@ export interface WalletTransaction {
   rejectionReason?: string;
   journalEntryId?: string;
   relatedItems?: { bookingId: string, itemId: string }[];
+  taxiFeeSettled?: boolean; // True when taxi fee has been reimbursed via settlement
 }
 
 export interface NavigationItem {

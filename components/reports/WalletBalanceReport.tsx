@@ -72,6 +72,8 @@ export const WalletBalanceReport: React.FC = () => {
                 // For DRIVERS: Only EARNING and TAXI_FEE (exclude SETTLEMENT)
                 if (isDriverUser) {
                     if (!['EARNING', 'TAXI_FEE'].includes(t.type)) return; // Skip non-earning transactions
+                    // Skip TAXI_FEE transactions that have been settled (already reimbursed)
+                    if (t.type === 'TAXI_FEE' && (t as any).taxiFeeSettled) return;
                 }
 
                 // Determine if credit or debit

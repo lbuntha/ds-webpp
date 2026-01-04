@@ -334,33 +334,37 @@ export class GLBookingService {
                         const { booking, item } = si;
 
                         // 1. Resolve Item Amounts to Settlement Currency
-                        // Fix: Determine currency from item first, fall back to booking
                         const bookingCurrency = booking.currency || 'USD';
-                        const itemFeeCurrency = item.deliveryFee !== undefined
-                            ? (item.codCurrency || bookingCurrency)
-                            : bookingCurrency;
+                        const itemCODCurrency = item.codCurrency || bookingCurrency;
+                        const isKHR = itemCODCurrency === 'KHR';
 
-                        // Robust Fee Logic
-                        let itemFeeRaw = Number(item.deliveryFee) || 0;
-                        const totalItems = booking.items?.length || 1;
-                        if (itemFeeRaw === 0 && (booking.totalDeliveryFee || 0) > 0) {
-                            // Fallback to pro-rated total if item fee is missing
-                            itemFeeRaw = (booking.totalDeliveryFee || 0) / totalItems;
-                            // Converting raw total (in booking curr) to item share implies booking currency
-                            // But we stick to detected itemFeeCurrency logic? 
-                            // If we fall back to booking total, we must use booking currency
-                            if (item.deliveryFee === undefined) {
-                                // Force booking currency if we used booking total
-                                // (Logic handled by itemFeeCurrency default above, but strictly:)
-                                // itemFeeCurrency = bookingCurrency; 
+                        // Robust Fee Logic - Check dual currency fields FIRST
+                        let itemFeeRaw = 0;
+                        let itemFeeCurrency = itemCODCurrency; // Default to COD currency
+
+                        if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                            // Use dual currency fields (matching COD currency)
+                            if (isKHR) {
+                                itemFeeRaw = item.deliveryFeeKHR || 0;
+                                itemFeeCurrency = 'KHR';
+                            } else {
+                                itemFeeRaw = item.deliveryFeeUSD || 0;
+                                itemFeeCurrency = 'USD';
                             }
+                        } else if (item.deliveryFee !== undefined && item.deliveryFee > 0) {
+                            // Fallback to legacy single field
+                            itemFeeRaw = Number(item.deliveryFee) || 0;
+                        } else if ((booking.totalDeliveryFee || 0) > 0) {
+                            // Fallback to pro-rated booking total
+                            const totalItems = booking.items?.length || 1;
+                            itemFeeRaw = (booking.totalDeliveryFee || 0) / totalItems;
+                            itemFeeCurrency = bookingCurrency;
                         }
 
                         // Convert to Settlement Currency
                         const itemFee = this.round2(convertToSettlementCurrency(itemFeeRaw, itemFeeCurrency));
 
                         const itemCODRaw = Number(item.productPrice) || 0;
-                        const itemCODCurrency = item.codCurrency || bookingCurrency;
                         const itemCOD = this.round2(convertToSettlementCurrency(itemCODRaw, itemCODCurrency));
 
                         // Commissions (Per Item Calculation)
@@ -395,34 +399,15 @@ export class GLBookingService {
                             commissionByDriver[dDriverId] = (commissionByDriver[dDriverId] || 0) + dCommItem;
                         }
 
-                        // 4. Taxi Fee Logic (Paid by Driver)
-                        // User Context: "taxiFee is not revenue to doorstep and driver. It is to third party. and the amount should deduct from customer."
-                        // Implementation:
-                        // 1. Deduct from Merchant/Customer Payout (customerNet)
-                        // 2. Credit Driver (Reimbursement for paying the 3rd party taxi)
-                        // 3. No impact on Company Revenue or Expense (Pass-through)
-
-                        let taxiFeeVal = 0;
-                        if ((item.taxiFee || 0) > 0) {
-                            const taxiFeeRaw = item.taxiFee;
-                            const taxiFeeCurrency = item.taxiFeeCurrency || 'USD';
-                            taxiFeeVal = this.round2(convertToSettlementCurrency(taxiFeeRaw, taxiFeeCurrency));
-
-
-                            // Credit Driver (Reimbursement)
-                            // User Request: "Do not book accounting entries for taxi fee".
-                            // Logic: 
-                            // 1. We Deduct from Customer Net (below).
-                            // 2. We DO NOT add a Credit Line here.
-                            // 3. This reduces Total Credits. 
-                            // 4. Driver pays less Cash (Debit Side).
-                            // 5. Result: Debits (Lower Cash) = Credits (Lower Payable). Balances perfectly without extra entries.
-                        }
-
+                        // 4. Taxi Fee Logic
+                        // IMPORTANT: Taxi Fee is handled via SEPARATE Taxi Reimbursement transaction.
+                        // That transaction debits Customer Wallet. We should NOT deduct taxi here again.
+                        // Settlement credits Customer GROSS (COD - Fee). Taxi Reimbursement debits 6k.
+                        // Net Customer Balance: 95,000 - 6,000 = 89,000 ✓
 
                         // 3. Gross Calculation
-                        // Net Payable to Customer = COD - Gross Fee - Taxi Fee (Merchant Pays)
-                        const customerNet = this.round2(itemCOD - itemFee - taxiFeeVal);
+                        // Net Payable to Customer = COD - Gross Fee (NO taxi deduction)
+                        const customerNet = this.round2(itemCOD - itemFee);
 
                         // Gross Revenue = Fee
                         const grossRev = itemFee;
@@ -439,7 +424,12 @@ export class GLBookingService {
 
                     });
 
-                    // B. Cr Customer Liability (COD - Fee)
+                    // POST-LOOP: Taxi Fee Note
+                    // Taxi fee is handled in SEPARATE Taxi Reimbursement transaction.
+                    // That transaction debits Customer Wallet. We credit Customer GROSS here.
+                    // No adjustment to totalCodLiability needed.
+
+                    // B. Cr Customer Liability (COD - Fee only, taxi handled separately)
                     if (custLiabAcc && totalCodLiability > 0) {
                         const baseVal = this.round2(totalCodLiability / rate);
                         lines.push({
@@ -495,14 +485,6 @@ export class GLBookingService {
                         }
                     });
 
-                    // Track Total Taxi Deduction for balancing context
-                    const totalTaxiFeeReduction = settleItems.reduce((sum, si) => {
-                        const feeRaw = Number(si.item.taxiFee) || 0;
-                        const feeCurr = si.item.taxiFeeCurrency || 'USD';
-                        const feeVal = this.round2(convertToSettlementCurrency(feeRaw, feeCurr));
-                        return sum + feeVal;
-                    }, 0);
-
                     // F. Balancing (Shortage/Overpayment)
                     // Calculate Total Credits so far
                     const currentDebits = lines.reduce((sum, l) => sum + (l.debit || 0), 0);
@@ -522,13 +504,7 @@ export class GLBookingService {
                         if (settlerWallet) {
                             if (diffBase > 0) {
                                 // Overpayment -> Credit Driver
-                                // If no items were settled, this is just a Wallet Deposit/Credit
-                                let desc = settleItems.length === 0 ? `Wallet Credit` : `Settlement Overpayment`;
-
-                                // Check if this Overpayment matches Taxi Feet Adjustment
-                                if (Math.abs(diffBase - totalTaxiFeeReduction) < 0.05) {
-                                    desc = `Taxi Fee Reimbursement (Adjusted)`;
-                                }
+                                const desc = settleItems.length === 0 ? `Wallet Credit` : `Settlement Overpayment`;
 
                                 lines.push({
                                     accountId: settlerWallet.id,
@@ -538,15 +514,31 @@ export class GLBookingService {
                                     description: desc
                                 });
                             } else {
-                                // Shortage -> Debit Driver
-                                const desc = settleItems.length === 0 ? `Wallet Debit` : `Settlement Shortage`;
-                                lines.push({
-                                    accountId: settlerWallet.id,
-                                    debit: Math.abs(diffBase), credit: 0,
-                                    originalCurrency: params.currency, originalExchangeRate: rate,
-                                    originalDebit: Math.abs(diffOrig), originalCredit: 0,
-                                    description: desc
-                                });
+                                // Credits > Debits (likely taxi was already paid separately)
+                                // Instead of "Shortage" to driver wallet, debit the Bank/Settlement Account.
+                                // This clears against the Taxi Reimbursement's Cr to the same account.
+                                // Net effect: Settlement Account shows only actual cash received (94k).
+
+                                const bankAcc = getAccount(params.bankAccountId);
+                                if (bankAcc) {
+                                    lines.push({
+                                        accountId: bankAcc.id,
+                                        debit: Math.abs(diffBase), credit: 0,
+                                        originalCurrency: params.currency, originalExchangeRate: rate,
+                                        originalDebit: Math.abs(diffOrig), originalCredit: 0,
+                                        description: `Taxi Fee Clearing (Reimbursed Separately)`
+                                    });
+                                } else {
+                                    // Fallback to driver wallet if bank not found
+                                    const desc = settleItems.length === 0 ? `Wallet Debit` : `Settlement Shortage`;
+                                    lines.push({
+                                        accountId: settlerWallet.id,
+                                        debit: Math.abs(diffBase), credit: 0,
+                                        originalCurrency: params.currency, originalExchangeRate: rate,
+                                        originalDebit: Math.abs(diffOrig), originalCredit: 0,
+                                        description: desc
+                                    });
+                                }
                             }
                         } else {
                             errors.push("Settlement Driver Wallet Account not found");

@@ -174,6 +174,9 @@ export const WalletRequests: React.FC = () => {
                 if (isTaxiReimbursement) {
                     // Mark taxi fee as reimbursed on the parcel items
                     await firebaseService.markTaxiFeesAsReimbursed(txn.relatedItems);
+                    // Also mark the TAXI_FEE wallet transaction as settled
+                    // Pass userId for fallback matching on old transactions without relatedItems
+                    await firebaseService.markTaxiFeeTransactionsAsSettled(txn.relatedItems, txn.userId);
                 } else {
                     // Regular driver/customer settlement
                     await firebaseService.settleParcelItems(

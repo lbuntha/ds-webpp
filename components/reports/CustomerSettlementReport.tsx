@@ -159,6 +159,15 @@ export const CustomerSettlementReport: React.FC = () => {
                         }
                     }
 
+                    // Taxi Fee (Deduction)
+                    if (item.taxiFee && item.taxiFee > 0) {
+                        if (item.taxiFeeCurrency === 'KHR') {
+                            summary.totalFeeKHR += item.taxiFee;
+                        } else {
+                            summary.totalFeeUSD += item.taxiFee;
+                        }
+                    }
+
                     summary.unsettledCount++;
                 }
             });
@@ -230,8 +239,10 @@ export const CustomerSettlementReport: React.FC = () => {
                         });
 
                         // 2. Implicit Booking Data (COD & Fees)
+                        // 2. Implicit Booking Data (COD & Fees) - Logic aligned with WalletDashboard
                         userBookings.forEach(b => {
                             const bItems = b.items || [];
+                            const itemsDelivered = bItems.filter(i => i.status === 'DELIVERED').length;
 
                             // A. COD Collection (Credit)
                             bItems.forEach(item => {
@@ -244,35 +255,54 @@ export const CustomerSettlementReport: React.FC = () => {
                                 }
                             });
 
-                            // B. Service Fee Deduction (Debit) - Use dual currency fees
+                            // B. Service Fee Deduction (Debit)
                             if (b.status !== 'CANCELLED') {
-                                bItems.forEach(item => {
-                                    if (item.status === 'DELIVERED') {
-                                        // 1. Delivery Fee
-                                        if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
-                                            usd -= item.deliveryFeeUSD || 0;
-                                            khr -= item.deliveryFeeKHR || 0;
-                                        } else {
-                                            // Fallback for legacy items
-                                            const itemFee = Number(item.deliveryFee) || 0;
-                                            if (item.codCurrency === 'KHR') {
-                                                khr -= itemFee;
-                                            } else {
-                                                usd -= itemFee;
-                                            }
-                                        }
+                                // Deduct fee if items are delivered or booking is completed
+                                if (itemsDelivered > 0 || b.status === 'COMPLETED' || b.status === 'CONFIRMED') {
+                                    // Sum fees by currency from delivered items
+                                    // Each item's fee is in ONE currency matching its codCurrency
+                                    let khrFeeTotal = 0;
+                                    let usdFeeTotal = 0;
 
-                                        // 2. Taxi Fee (Deduction - Strict Currency Separation)
-                                        // If Taxi Fee is KHR, it reduces KHR balance.
-                                        if (item.taxiFee && item.taxiFee > 0) {
-                                            if (item.taxiFeeCurrency === 'KHR') {
-                                                khr -= item.taxiFee;
+                                    bItems.forEach(item => {
+                                        if (item.status === 'DELIVERED') {
+                                            const isKHR = item.codCurrency === 'KHR';
+
+                                            // Use dual currency fields if available, but only the one matching codCurrency
+                                            if (item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined) {
+                                                if (isKHR) {
+                                                    khrFeeTotal += item.deliveryFeeKHR || 0;
+                                                } else {
+                                                    usdFeeTotal += item.deliveryFeeUSD || 0;
+                                                }
                                             } else {
-                                                usd -= item.taxiFee; // Assuming USD if not KHR, though predominantly KHR
+                                                // Fallback for legacy items
+                                                const itemFee = Number(item.deliveryFee) || 0;
+                                                if (isKHR) {
+                                                    khrFeeTotal += itemFee;
+                                                } else {
+                                                    usdFeeTotal += itemFee;
+                                                }
+                                            }
+
+                                            // Taxi Fee (Deduction - Strict Currency Separation)
+                                            // WalletDashboard checks Transaction for 'TAXI_FEE' credit, but here we are checking Payout. 
+                                            // Wait, taxi fee is credited to driver, but deducted from customer? 
+                                            // Yes, customer pays taxi.
+                                            if (item.taxiFee && item.taxiFee > 0) {
+                                                if (item.taxiFeeCurrency === 'KHR') {
+                                                    khr -= item.taxiFee;
+                                                } else {
+                                                    usd -= item.taxiFee;
+                                                }
                                             }
                                         }
-                                    }
-                                });
+                                    });
+
+                                    // Deduct consolidated fees
+                                    usd -= usdFeeTotal;
+                                    khr -= khrFeeTotal;
+                                }
                             }
                         });
 
@@ -355,6 +385,28 @@ export const CustomerSettlementReport: React.FC = () => {
         return details;
     }, [bookings, selectedCustomerId]);
 
+    // --- Gross Payment Adjustments ---
+    // Calculates what needs to be added back to Net Balance to get Gross Payout
+    const grossAdjustments = useMemo(() => {
+        let adjUSD = 0;
+        let adjKHR = 0;
+        if (excludeFees) {
+            selectedCustomerDetails.forEach(d => {
+                // Add back Delivery Fees
+                if (d.fee > 0) {
+                    if (d.feeCurrency === 'KHR') adjKHR += d.fee;
+                    else adjUSD += d.fee;
+                }
+                // Add back Taxi Fees
+                if (d.taxiFee > 0) {
+                    if (d.taxiFeeCurrency === 'USD') adjUSD += d.taxiFee;
+                    else adjKHR += d.taxiFee; // Default to KHR
+                }
+            });
+        }
+        return { usd: adjUSD, khr: adjKHR };
+    }, [excludeFees, selectedCustomerDetails]);
+
     // --- Confirmation Modal State ---
     const [confirmation, setConfirmation] = useState<{
         summary: CustomerSummary;
@@ -368,30 +420,26 @@ export const CustomerSettlementReport: React.FC = () => {
         let netUSD = liveBalance ? liveBalance.usd : summary.netUSD;
         let netKHR = liveBalance ? liveBalance.khr : summary.netKHR;
 
+        // Apply Add-Backs for Gross Payment
         if (excludeFees) {
-            let feesUSD = 0;
-            let feesKHR = 0;
-            selectedCustomerDetails.forEach(d => {
-                if (d.feeCurrency === 'USD') feesUSD += d.fee;
-                if (d.feeCurrency === 'KHR') feesKHR += d.fee;
-
-                // Add back Taxi Fee if excluded? Generally 'Exclude Fees' means pay Gross COD.
-                // So yes, add back the deduction.
-                if (d.taxiFee > 0) {
-                    if (d.taxiFeeCurrency === 'USD') feesUSD += d.taxiFee;
-                    if (d.taxiFeeCurrency === 'KHR') feesKHR += d.taxiFee;
-                }
-            });
-            netUSD += feesUSD;
-            netKHR += feesKHR;
+            netUSD += grossAdjustments.usd;
+            netKHR += grossAdjustments.khr;
         }
 
         const netAmount = targetCurrency === 'USD' ? netUSD : netKHR;
 
-        // CRITICAL: Only include items matching the target currency's COD
-        // This ensures settling USD doesn't mark KHR items as settled (and vice versa)
+        // Include items where COD OR Taxi Fee matches the target currency
         const itemsToSettle = selectedCustomerDetails
-            .filter(d => d.codCurrency === targetCurrency)
+            .filter(d => {
+                // Primary check: COD currency matches
+                if (d.codCurrency === targetCurrency) return true;
+
+                // Secondary check: Taxi Fee matches (and is non-zero)
+                // This covers mixed currency items (e.g. USD COD but KHR Taxi Fee)
+                if (d.taxiFee > 0 && d.taxiFeeCurrency === targetCurrency) return true;
+
+                return false;
+            })
             .map(d => ({
                 bookingId: d.bookingId,
                 itemId: d.itemId
@@ -648,7 +696,7 @@ export const CustomerSettlementReport: React.FC = () => {
                                 <div>
                                     <div className="text-xs font-bold text-green-800 uppercase">Wait to Pay (USD)</div>
                                     <div className="text-3xl font-bold text-green-900 mt-1">
-                                        ${(liveBalance ? (liveBalance.usd || 0) + (excludeFees ? selectedCustomerDetails.reduce((sum, d) => sum + (d.feeCurrency === 'USD' ? d.fee : 0), 0) : 0) : summary?.netUSD || 0).toFixed(2)}
+                                        ${(liveBalance ? ((liveBalance.usd || 0) + grossAdjustments.usd) : summary?.netUSD || 0).toFixed(2)}
                                     </div>
                                     <div className="text-[10px] text-green-600 mt-1">Based on {liveBalance ? 'Verified Wallet Balance' : 'Pending Bookings'}</div>
                                 </div>
@@ -656,7 +704,7 @@ export const CustomerSettlementReport: React.FC = () => {
                                     className="bg-green-600 hover:bg-green-700 text-white font-bold"
                                     onClick={() => summary && initiateSettle(summary, 'USD')}
                                     isLoading={processing}
-                                    disabled={Math.abs((liveBalance ? (liveBalance.usd || 0) + (excludeFees ? selectedCustomerDetails.reduce((sum, d) => sum + (d.feeCurrency === 'USD' ? d.fee : 0), 0) : 0) : summary?.netUSD || 0)) < 0.01}
+                                    disabled={Math.abs((liveBalance ? ((liveBalance.usd || 0) + grossAdjustments.usd) : summary?.netUSD || 0)) < 0.01}
                                 >
                                     Pay USD
                                 </Button>
@@ -667,7 +715,7 @@ export const CustomerSettlementReport: React.FC = () => {
                                 <div>
                                     <div className="text-xs font-bold text-blue-800 uppercase">Wait to Pay (KHR)</div>
                                     <div className="text-3xl font-bold text-blue-900 mt-1">
-                                        {(liveBalance ? (liveBalance.khr || 0) + (excludeFees ? selectedCustomerDetails.reduce((sum, d) => sum + (d.feeCurrency === 'KHR' ? d.fee : 0), 0) : 0) : summary?.netKHR || 0).toLocaleString()} ៛
+                                        {(liveBalance ? ((liveBalance.khr || 0) + grossAdjustments.khr) : summary?.netKHR || 0).toLocaleString()} ៛
                                     </div>
                                     <div className="text-[10px] text-blue-600 mt-1">Based on {liveBalance ? 'Verified Wallet Balance' : 'Pending Bookings'}</div>
                                 </div>
@@ -675,7 +723,7 @@ export const CustomerSettlementReport: React.FC = () => {
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
                                     onClick={() => summary && initiateSettle(summary, 'KHR')}
                                     isLoading={processing}
-                                    disabled={Math.abs((liveBalance ? (liveBalance.khr || 0) + (excludeFees ? selectedCustomerDetails.reduce((sum, d) => sum + (d.feeCurrency === 'KHR' ? d.fee : 0), 0) : 0) : summary?.netKHR || 0)) < 1}
+                                    disabled={Math.abs((liveBalance ? ((liveBalance.khr || 0) + grossAdjustments.khr) : summary?.netKHR || 0)) < 1}
                                 >
                                     Pay KHR
                                 </Button>

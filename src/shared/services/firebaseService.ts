@@ -213,6 +213,7 @@ export class FirebaseService {
     saveReferralRule(rule: any) { return this.logisticsService.saveReferralRule(rule); }
     deleteReferralRule(id: string) { return this.logisticsService.deleteReferralRule(id); }
     markTaxiFeesAsReimbursed(items: { bookingId: string, itemId: string }[]) { return this.logisticsService.markTaxiFeesAsReimbursed(items); }
+    markTaxiFeeTransactionsAsSettled(items: { bookingId: string, itemId: string }[], userId?: string) { return this.walletService.markTaxiFeeTransactionsAsSettled(items, userId); }
 
     // Wallet
     getWalletTransactions(uid: string) { return this.walletService.getWalletTransactions(uid); }
@@ -221,7 +222,7 @@ export class FirebaseService {
     requestWalletTopUp(uid: string, amt: number, curr: string, bid: string, att: string, desc: string) { return this.walletService.requestWalletTopUp(uid, amt, curr, bid, att, desc); }
     requestSettlement(uid: string, name: string, amt: number, curr: string, bid: string, att: string, desc: string, items?: any[]) { return this.walletService.requestSettlement(uid, name, amt, curr, bid, att, desc, items); }
     requestWithdrawal(uid: string, name: string, amt: number, curr: string, bid: string, desc: string, items?: any[]) { return this.walletService.requestWithdrawal(uid, name, amt, curr, bid, desc, items); }
-    processWalletTransaction(uid: string, amt: number, curr: string, type: string, bid: string, desc: string) { return this.walletService.processWalletTransaction(uid, amt, curr, type, bid, desc); }
+    processWalletTransaction(uid: string, amt: number, curr: string, type: string, bid: string, desc: string, items?: { bookingId: string, itemId: string }[]) { return this.walletService.processWalletTransaction(uid, amt, curr, type, bid, desc, items); }
     getPendingWalletTransactions() { return this.walletService.getPendingWalletTransactions(); }
     approveWalletTransaction(id: string, uid: string, journalEntryId?: string) { return this.walletService.approveWalletTransaction(id, uid, journalEntryId); }
     rejectWalletTransaction(id: string, reason: string) { return this.walletService.rejectWalletTransaction(id, reason); }

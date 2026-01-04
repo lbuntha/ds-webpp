@@ -156,6 +156,11 @@ export const WalletDashboard: React.FC<Props> = ({ user }) => {
                 return; // Settlements are handled in DriverDashboard → Wallet tab
             }
 
+            // Skip TAXI_FEE transactions that have been settled (already reimbursed)
+            if (t.type === 'TAXI_FEE' && (t as any).taxiFeeSettled) {
+                return; // Taxi fee was already paid via Taxi Reimbursement settlement
+            }
+
             ledger.push({
                 id: t.id,
                 date: t.date,

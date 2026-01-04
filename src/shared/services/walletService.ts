@@ -76,7 +76,7 @@ export class WalletService extends BaseService {
         await this.saveDocument('wallet_transactions', txn);
     }
 
-    async processWalletTransaction(uid: string, amount: number, currency: string, type: string, bankId: string, desc: string) {
+    async processWalletTransaction(uid: string, amount: number, currency: string, type: string, bankId: string, desc: string, relatedItems?: { bookingId: string, itemId: string }[]) {
         const txn: WalletTransaction = {
             id: `wtxn-${Date.now()}`,
             userId: uid,
@@ -86,7 +86,8 @@ export class WalletService extends BaseService {
             status: 'APPROVED',
             date: new Date().toISOString().split('T')[0],
             description: desc,
-            bankAccountId: bankId
+            bankAccountId: bankId,
+            relatedItems
         };
         await this.saveDocument('wallet_transactions', txn);
     }
@@ -101,6 +102,42 @@ export class WalletService extends BaseService {
         const updates: any = { status: 'APPROVED' };
         if (journalEntryId) updates.journalEntryId = journalEntryId;
         await updateDoc(doc(this.db, 'wallet_transactions', id), updates);
+    }
+
+    // Mark TAXI_FEE wallet transactions as settled (to exclude from balance)
+    async markTaxiFeeTransactionsAsSettled(items: { bookingId: string, itemId: string }[], userId?: string) {
+        // Find TAXI_FEE transactions that reference these items and mark them as settled
+        const q = query(collection(this.db, 'wallet_transactions'), where('type', '==', 'TAXI_FEE'));
+        const snap = await getDocs(q);
+
+        const itemKeys = new Set(items.map(i => `${i.bookingId}|${i.itemId}`));
+
+        for (const txnDoc of snap.docs) {
+            const txn = txnDoc.data() as WalletTransaction;
+
+            // Skip if already settled
+            if (txn.taxiFeeSettled) continue;
+
+            let shouldMark = false;
+
+            // Method 1: Match by relatedItems (for new transactions)
+            if (txn.relatedItems && txn.relatedItems.length > 0) {
+                shouldMark = txn.relatedItems.some(ri =>
+                    itemKeys.has(`${ri.bookingId}|${ri.itemId}`)
+                );
+            }
+
+            // Method 2: Fallback - Match by userId (for old transactions without relatedItems)
+            if (!shouldMark && userId && txn.userId === userId && (!txn.relatedItems || txn.relatedItems.length === 0)) {
+                shouldMark = true;
+            }
+
+            if (shouldMark) {
+                await updateDoc(doc(this.db, 'wallet_transactions', txnDoc.id), {
+                    taxiFeeSettled: true
+                });
+            }
+        }
     }
 
     async rejectWalletTransaction(id: string, reason: string) { await updateDoc(doc(this.db, 'wallet_transactions', id), { status: 'REJECTED', rejectionReason: reason }); }
