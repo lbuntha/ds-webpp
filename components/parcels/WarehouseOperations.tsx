@@ -40,6 +40,11 @@ export const WarehouseOperations: React.FC = () => {
     const [delayReason, setDelayReason] = useState(DELAY_REASONS[0]);
     const [customDelayReason, setCustomDelayReason] = useState('');
 
+    // Quick Scan State (for barcode reader to instantly confirm receipt)
+    const [quickScanBarcode, setQuickScanBarcode] = useState('');
+    const [scanResult, setScanResult] = useState<{ type: 'success' | 'error' | 'not_found', message: string } | null>(null);
+    const quickScanInputRef = useRef<HTMLInputElement>(null);
+
     const loadData = async () => {
         setLoading(true);
         try {
@@ -105,6 +110,50 @@ export const WarehouseOperations: React.FC = () => {
             toast.success("Item received at warehouse.");
         } catch (e) {
             toast.error("Failed to receive item.");
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    // --- QUICK SCAN: Barcode reader for instant receipt confirmation ---
+    const handleQuickScan = async (barcode: string) => {
+        if (!barcode.trim()) return;
+
+        setProcessing(true);
+        setScanResult(null);
+
+        try {
+            // Find the item with matching barcode in inbound items
+            const matchedEntry = inboundItems.find(entry => entry.item.barcode === barcode.trim());
+
+            if (!matchedEntry) {
+                setScanResult({ type: 'not_found', message: `No incoming parcel found with barcode: ${barcode}` });
+                setQuickScanBarcode('');
+                setTimeout(() => setScanResult(null), 4000);
+                quickScanInputRef.current?.focus();
+                return;
+            }
+
+            // Confirm receipt for the matched item
+            const userName = currentUser?.name || 'Warehouse Staff';
+            await firebaseService.receiveItemAtWarehouse(matchedEntry.bookingId, matchedEntry.item.id, userName);
+
+            setScanResult({
+                type: 'success',
+                message: `✓ Received: ${matchedEntry.item.receiverName} (${barcode})`
+            });
+            setQuickScanBarcode('');
+            await loadData();
+
+            // Clear success message after delay and refocus for next scan
+            setTimeout(() => {
+                setScanResult(null);
+                quickScanInputRef.current?.focus();
+            }, 2500);
+
+        } catch (e) {
+            setScanResult({ type: 'error', message: 'Failed to confirm receipt. Please try again.' });
+            setTimeout(() => setScanResult(null), 4000);
         } finally {
             setProcessing(false);
         }
@@ -360,59 +409,136 @@ export const WarehouseOperations: React.FC = () => {
 
             {
                 activeTab === 'INBOUND' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {inboundItems.map((entry, idx) => (
-                            <Card key={idx} className="border border-blue-100 hover:shadow-md transition-all">
-                                <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                        <span className="text-[10px] uppercase font-bold text-gray-400">Incoming From</span>
-                                        <div className="font-bold text-gray-900">{entry.item.driverName || 'Drop-off / Transit'}</div>
-                                    </div>
-                                    <span className="bg-yellow-100 text-yellow-800 text-[10px] px-2 py-1 rounded font-bold">
-                                        {entry.item.status === 'PICKED_UP' ? 'Picked Up' : 'In Transit'}
-                                    </span>
+                    <div className="space-y-4">
+                        {/* Quick Scan Card - Barcode Reader */}
+                        <Card className="border-2 border-dashed border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50">
+                            <div className="flex items-center gap-4">
+                                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                    <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                    </svg>
                                 </div>
-
-                                <div className="flex gap-3 mb-4">
-                                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
-                                        <img src={entry.item.image} className="w-full h-full object-cover" alt="parcel" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate">{entry.item.receiverName}</p>
-                                        <p className="text-xs text-gray-500 truncate">{entry.item.destinationAddress}</p>
-                                        <p className="text-[10px] text-gray-400 mt-1">Ref: {entry.bookingRef}</p>
-                                        {entry.item.barcode && (
-                                            <div className="mt-1 flex items-center text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded w-fit">
-                                                <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                                                {entry.item.barcode}
+                                <div className="flex-1">
+                                    <label className="block text-sm font-bold text-gray-800 mb-1">
+                                        Quick Scan to Confirm Receipt
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            ref={quickScanInputRef}
+                                            type="text"
+                                            className="w-full px-4 py-3 text-lg font-mono tracking-wider border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white placeholder-gray-400"
+                                            placeholder="Scan barcode here..."
+                                            value={quickScanBarcode}
+                                            onChange={(e) => setQuickScanBarcode(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    handleQuickScan(quickScanBarcode);
+                                                }
+                                            }}
+                                            disabled={processing}
+                                            autoFocus
+                                        />
+                                        {processing && (
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
                                             </div>
                                         )}
                                     </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Use barcode scanner or type manually. Press Enter to confirm.
+                                    </p>
                                 </div>
-
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => openBarcodeScanner(entry.bookingId, entry.item)}
-                                        className="flex-shrink-0 bg-gray-100 hover:bg-gray-200 text-gray-600 p-2 rounded-lg transition-colors border border-gray-200"
-                                        title="Scan/Edit Barcode"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                                    </button>
-                                    <Button
-                                        className="flex-1 justify-center bg-blue-600 hover:bg-blue-700"
-                                        onClick={() => handleConfirmReceipt(entry.bookingId, entry.item)}
-                                        disabled={processing}
-                                    >
-                                        Confirm Receipt
-                                    </Button>
-                                </div>
-                            </Card>
-                        ))}
-                        {inboundItems.length === 0 && (
-                            <div className="col-span-full text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">
-                                No incoming parcels found for your branch.
                             </div>
-                        )}
+
+                            {/* Scan Result Feedback */}
+                            {scanResult && (
+                                <div className={`mt-3 p-3 rounded-lg flex items-center gap-2 ${scanResult.type === 'success' ? 'bg-green-100 text-green-800' :
+                                    scanResult.type === 'error' ? 'bg-red-100 text-red-800' :
+                                        'bg-orange-100 text-orange-800'
+                                    }`}>
+                                    {scanResult.type === 'success' ? (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    ) : scanResult.type === 'error' ? (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    )}
+                                    <span className="font-medium">{scanResult.message}</span>
+                                </div>
+                            )}
+                        </Card>
+
+                        {/* Parcel Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {inboundItems.map((entry, idx) => (
+                                <Card key={idx} className="border border-blue-100 hover:shadow-md transition-all">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <span className="text-[10px] uppercase font-bold text-gray-400">Incoming From</span>
+                                            <div className="font-bold text-gray-900">{entry.item.driverName || 'Drop-off / Transit'}</div>
+                                        </div>
+                                        <span className="bg-yellow-100 text-yellow-800 text-[10px] px-2 py-1 rounded font-bold">
+                                            {entry.item.status === 'PICKED_UP' ? 'Picked Up' : 'In Transit'}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex gap-3 mb-4">
+                                        <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
+                                            <img src={entry.item.image} className="w-full h-full object-cover" alt="parcel" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate">{entry.item.receiverName}</p>
+                                            <p className="text-xs text-gray-500 truncate">{entry.item.destinationAddress}</p>
+                                            <p className="text-[10px] text-gray-400 mt-1">Ref: {entry.bookingRef}</p>
+                                            {entry.item.barcode ? (
+                                                <div className="mt-1 flex items-center text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded w-fit">
+                                                    <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                                                    {entry.item.barcode}
+                                                </div>
+                                            ) : (
+                                                <div className="mt-1 flex items-center text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded w-fit animate-pulse">
+                                                    <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                    No barcode - scan first
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => openBarcodeScanner(entry.bookingId, entry.item)}
+                                            className="flex-shrink-0 bg-gray-100 hover:bg-gray-200 text-gray-600 p-2 rounded-lg transition-colors border border-gray-200"
+                                            title="Scan/Edit Barcode"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                                        </button>
+                                        <Button
+                                            className={`flex-1 justify-center ${entry.item.barcode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 cursor-not-allowed'}`}
+                                            onClick={() => handleConfirmReceipt(entry.bookingId, entry.item)}
+                                            disabled={processing || !entry.item.barcode}
+                                            title={!entry.item.barcode ? 'Scan barcode first to confirm receipt' : ''}
+                                        >
+                                            Confirm Receipt
+                                        </Button>
+                                    </div>
+                                </Card>
+                            ))}
+                            {inboundItems.length === 0 && (
+                                <div className="col-span-full text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">
+                                    No incoming parcels found for your branch.
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )
             }

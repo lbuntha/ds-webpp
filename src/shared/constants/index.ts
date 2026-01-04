@@ -102,6 +102,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-parcels-fleet', label: 'Fleet Management', viewId: 'PARCELS_FLEET', iconKey: 'fleet', order: 15, allowedRoles: ['system-admin', 'warehouse'] },
   { id: 'nav-parcels-places', label: 'Places', viewId: 'PARCELS_PLACES', iconKey: 'places', order: 16, allowedRoles: ['system-admin'] },
   { id: 'nav-parcels-products', label: 'Products/Services', viewId: 'PARCELS_PRODUCTS', iconKey: 'products', order: 17, allowedRoles: ['system-admin'] },
+  { id: 'nav-promotions', label: 'Promotions', viewId: 'PROMOTIONS', iconKey: 'gift', order: 18, allowedRoles: ['system-admin'] },
 
   // ==============================
   // ACCOUNTANT / FINANCE MENUS

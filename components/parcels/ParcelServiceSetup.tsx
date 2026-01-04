@@ -19,6 +19,7 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
     const [editingId, setEditingId] = useState<string | null>(null);
 
     const [name, setName] = useState('');
+    const [nameKH, setNameKH] = useState('');
     const [defaultPrice, setDefaultPrice] = useState(0);
     const [pricePerKm, setPricePerKm] = useState(0);
     const [defaultPriceKHR, setDefaultPriceKHR] = useState(0);
@@ -45,6 +46,7 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
     const resetForm = () => {
         setEditingId(null);
         setName('');
+        setNameKH('');
         setDefaultPrice(0);
         setPricePerKm(0);
         setDefaultPriceKHR(0);
@@ -57,6 +59,7 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
     const handleEdit = (s: ParcelServiceType) => {
         setEditingId(s.id);
         setName(s.name);
+        setNameKH(s.nameKH || '');
         setDefaultPrice(s.defaultPrice);
         setPricePerKm(s.pricePerKm || 0);
         setDefaultPriceKHR(s.defaultPriceKHR || 0);
@@ -80,6 +83,7 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
             const newService: ParcelServiceType = {
                 id: editingId || `ps-${Date.now()}`,
                 name,
+                nameKH: nameKH || undefined,
                 defaultPrice,
                 pricePerKm,
                 defaultPriceKHR,
@@ -139,6 +143,12 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
                                 value={name}
                                 onChange={e => setName(e.target.value)}
                                 required
+                            />
+                            <Input
+                                label="ឈ្មោះសេវាកម្ម (Khmer)"
+                                placeholder="ឧ. ដឹកជញ្ជូនរហ័ស"
+                                value={nameKH}
+                                onChange={e => setNameKH(e.target.value)}
                             />
                             <div className="grid grid-cols-2 gap-4">
                                 <Input
@@ -221,6 +231,9 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
                                 )}
                                 <div>
                                     <h4 className="font-bold text-gray-900 text-sm">{s.name}</h4>
+                                    {s.nameKH && (
+                                        <p className="text-xs text-gray-500">{s.nameKH}</p>
+                                    )}
                                     <div className="flex gap-2 mt-1">
                                         <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-medium">
                                             Base: ${s.defaultPrice}

@@ -101,17 +101,79 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
         !a.isHeader
     );
 
-    // Load Promotions
+    // Load Promotions (filtered by selected customer eligibility)
     useEffect(() => {
         const fetchPromos = async () => {
             const data = await firebaseService.getParcelPromotions();
             const today = new Date().toISOString().split('T')[0];
-            // Ensure we only show ACTIVE promotions within date range
-            const valid = data.filter(p => p.isActive && p.startDate <= today && p.endDate >= today);
+            const now = Date.now();
+
+            // Get customer registration date if a customer is selected
+            let customerRegisteredAt: number | undefined;
+            if (senderId) {
+                const customer = customers.find(c => c.id === senderId);
+                customerRegisteredAt = customer?.createdAt;
+            }
+
+            // Helper to check eligibility
+            const isCustomerEligible = (promo: ParcelPromotion): boolean => {
+                if (!promo.eligibility || promo.eligibility === 'ALL') return true;
+
+                // Handle SPECIFIC_USERS eligibility
+                if (promo.eligibility === 'SPECIFIC_USERS') {
+                    return senderId ? (promo.allowedUserIds?.includes(senderId) || false) : false;
+                }
+
+                if (!customerRegisteredAt) return true; // No customer selected or no date
+
+                const daysSinceRegistration = Math.floor((now - customerRegisteredAt) / (1000 * 60 * 60 * 24));
+
+                switch (promo.eligibility) {
+                    case 'REGISTERED_LAST_7_DAYS':
+                        return daysSinceRegistration <= 7;
+                    case 'REGISTERED_LAST_MONTH':
+                        return daysSinceRegistration <= 30;
+                    case 'REGISTERED_LAST_YEAR':
+                        return daysSinceRegistration <= 365;
+                    default:
+                        return true;
+                }
+            };
+
+            const valid = data.filter(p =>
+                p.isActive &&
+                p.startDate <= today &&
+                p.endDate >= today &&
+                isCustomerEligible(p)
+            );
             setPromotions(valid);
         };
         fetchPromos();
-    }, []);
+    }, [senderId, customers]);
+
+    // Filter promotions by selected service's product scope
+    const filteredPromotions = useMemo(() => {
+        if (!serviceTypeId) return promotions; // Show all if no service selected
+
+        return promotions.filter(p => {
+            // If no product scope defined or ALL_PRODUCTS, it applies to all
+            if (!p.productScope || p.productScope === 'ALL_PRODUCTS') return true;
+
+            // If SPECIFIC_PRODUCTS, check if service is in the allowed list
+            if (p.productScope === 'SPECIFIC_PRODUCTS') {
+                return p.allowedProductIds?.includes(serviceTypeId) || false;
+            }
+
+            return true;
+        });
+    }, [promotions, serviceTypeId]);
+
+    // Clear selected promo if it's no longer valid for the selected service
+    useEffect(() => {
+        if (selectedPromoId && !filteredPromotions.find(p => p.id === selectedPromoId)) {
+            setSelectedPromoId('');
+        }
+    }, [filteredPromotions, selectedPromoId]);
 
     const handleLocationPicked = (lat: number, lng: number, address: string) => {
         if (mapPickerTarget?.type === 'PICKUP') {
@@ -591,7 +653,7 @@ export const ParcelBookingForm: React.FC<Props> = ({ services, branches, account
                                     onChange={e => setSelectedPromoId(e.target.value)}
                                 >
                                     <option value="">No Promotion</option>
-                                    {promotions.map(p => (
+                                    {filteredPromotions.map(p => (
                                         <option key={p.id} value={p.id}>{p.code} - {p.name} ({p.type === 'PERCENTAGE' ? `${p.value}% Off` : `$${p.value} Off`})</option>
                                     ))}
                                 </select>

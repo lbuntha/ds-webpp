@@ -12,7 +12,8 @@ const ICON_OPTIONS = [
     'staff', 'assets', 'parcels', 'reports', 'closing', 'settings', 'users',
     'manual', 'truck', 'fleet', 'dollar', 'plus', 'box', 'map', 'user',
     'list', 'operations', 'dispatch', 'warehouse', 'places', 'config',
-    'aging', 'retention', 'wallet'
+    'aging', 'retention', 'wallet', 'money', 'checkCircle', 'products',
+    'gift', 'promo', 'jobs', 'booking', 'percent'
 ];
 
 interface Props {

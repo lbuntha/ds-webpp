@@ -44,6 +44,7 @@ const ParcelsRetentionView = lazy(() => import('./views/ParcelsRetentionView'));
 const ParcelsServiceSetupView = lazy(() => import('./views/ParcelsServiceSetupView'));
 const DriverCommissionSetupView = lazy(() => import('./views/DriverCommissionSetupView'));
 const ParcelsAgingView = lazy(() => import('./views/ParcelsAgingView'));
+const PromotionsPage = lazy(() => import('./views/PromotionsPage'));
 
 // Reports & Settings
 const ReportsView = lazy(() => import('./views/ReportsView'));
@@ -264,6 +265,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_PARCEL_PRODUCTS">
                         {withSuspense(ParcelsProductsView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'promotions',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_PARCEL_PRODUCTS">
+                        {withSuspense(PromotionsPage)}
                     </PermissionRoute>
                 ),
             },

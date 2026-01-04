@@ -627,6 +627,7 @@ export interface SystemSettings {
 export interface ParcelServiceType {
   id: string;
   name: string;
+  nameKH?: string; // Khmer language name
   defaultPrice: number;
   defaultPriceKHR?: number;
   pricePerKm?: number;
@@ -659,6 +660,12 @@ export interface ParcelPromotion {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  // Eligibility Rules (User)
+  eligibility?: 'ALL' | 'REGISTERED_LAST_7_DAYS' | 'REGISTERED_LAST_MONTH' | 'REGISTERED_LAST_YEAR' | 'SPECIFIC_USERS';
+  allowedUserIds?: string[]; // For SPECIFIC_USERS eligibility (max 10)
+  // Product Targeting
+  productScope?: 'ALL_PRODUCTS' | 'SPECIFIC_PRODUCTS';
+  allowedProductIds?: string[]; // Service type IDs for SPECIFIC_PRODUCTS
 }
 
 export interface ParcelBooking {

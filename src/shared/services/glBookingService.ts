@@ -486,11 +486,14 @@ export class GLBookingService {
                     });
 
                     // F. Balancing (Shortage/Overpayment)
-                    // Calculate Total Credits so far
+                    // Calculate Total Credits so far - both base and original currency
                     const currentDebits = lines.reduce((sum, l) => sum + (l.debit || 0), 0);
                     const currentCredits = lines.reduce((sum, l) => sum + (l.credit || 0), 0);
+                    const currentOrigDebits = lines.reduce((sum, l) => sum + (l.originalDebit || 0), 0);
+                    const currentOrigCredits = lines.reduce((sum, l) => sum + (l.originalCredit || 0), 0);
                     const diffBase = this.round2(currentDebits - currentCredits);
-                    const diffOrig = this.round2(diffBase * rate);
+                    // Use original currency difference directly to avoid rounding errors
+                    const diffOrig = this.round2(currentOrigDebits - currentOrigCredits);
 
                     if (Math.abs(diffBase) > 0.01) {
                         // If Debits > Credits -> Surplus of Debit (Overpayment?) -> Credit Driver

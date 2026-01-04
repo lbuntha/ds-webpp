@@ -68,7 +68,42 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
             try {
                 const data = await firebaseService.getParcelPromotions();
                 const today = new Date().toISOString().split('T')[0];
-                const valid = data.filter(p => p.startDate <= today && p.endDate >= today && p.isActive);
+                const now = Date.now();
+
+                // Helper to check if user is eligible for a promotion
+                const isUserEligible = (promo: ParcelPromotion): boolean => {
+                    if (!promo.eligibility || promo.eligibility === 'ALL') return true;
+
+                    // Handle SPECIFIC_USERS eligibility
+                    if (promo.eligibility === 'SPECIFIC_USERS') {
+                        return promo.allowedUserIds?.includes(user.linkedCustomerId || '') || false;
+                    }
+
+                    // Get user registration date
+                    const userRegisteredAt = user.joinedAt || user.createdAt;
+                    if (!userRegisteredAt) return true; // If no date, allow access
+
+                    const registeredDate = new Date(userRegisteredAt);
+                    const daysSinceRegistration = Math.floor((now - registeredDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                    switch (promo.eligibility) {
+                        case 'REGISTERED_LAST_7_DAYS':
+                            return daysSinceRegistration <= 7;
+                        case 'REGISTERED_LAST_MONTH':
+                            return daysSinceRegistration <= 30;
+                        case 'REGISTERED_LAST_YEAR':
+                            return daysSinceRegistration <= 365;
+                        default:
+                            return true;
+                    }
+                };
+
+                const valid = data.filter(p =>
+                    p.startDate <= today &&
+                    p.endDate >= today &&
+                    p.isActive &&
+                    isUserEligible(p)
+                );
                 setPromotions(valid);
 
                 // Fetch Special Rates & Profile config if linked
@@ -111,6 +146,30 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
             setPickupLocationId('custom');
         }
     }, [user, currencies]);
+
+    // Filter promotions by selected service's product scope
+    const filteredPromotions = useMemo(() => {
+        if (!serviceTypeId) return promotions; // Show all if no service selected
+
+        return promotions.filter(p => {
+            // If no product scope defined or ALL_PRODUCTS, it applies to all
+            if (!p.productScope || p.productScope === 'ALL_PRODUCTS') return true;
+
+            // If SPECIFIC_PRODUCTS, check if service is in the allowed list
+            if (p.productScope === 'SPECIFIC_PRODUCTS') {
+                return p.allowedProductIds?.includes(serviceTypeId) || false;
+            }
+
+            return true;
+        });
+    }, [promotions, serviceTypeId]);
+
+    // Clear selected promo if it's no longer valid for the selected service
+    useEffect(() => {
+        if (selectedPromoId && !filteredPromotions.find(p => p.id === selectedPromoId)) {
+            setSelectedPromoId('');
+        }
+    }, [filteredPromotions, selectedPromoId]);
 
     const handleLocationPicked = (lat: number, lng: number, address: string) => {
         if (mapPickerTarget?.type === 'PICKUP') {
@@ -716,7 +775,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                             onChange={e => setSelectedPromoId(e.target.value)}
                                         >
                                             <option value="">-- Select Promotion --</option>
-                                            {promotions.map(p => (
+                                            {filteredPromotions.map(p => (
                                                 <option key={p.id} value={p.id}>
                                                     {p.code} - {p.name} ({p.type === 'PERCENTAGE' ? `${p.value}% Off` : `$${p.value} Off`})
                                                 </option>
@@ -864,7 +923,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                             onChange={e => setSelectedPromoId(e.target.value)}
                                         >
                                             <option value="">-- Select Promotion --</option>
-                                            {promotions.map(p => (
+                                            {filteredPromotions.map(p => (
                                                 <option key={p.id} value={p.id}>
                                                     {p.code} - {p.name} ({p.type === 'PERCENTAGE' ? `${p.value}% Off` : `$${p.value} Off`})
                                                 </option>
@@ -951,7 +1010,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                         onChange={e => setSelectedPromoId(e.target.value)}
                                     >
                                         <option value="">No Promotion</option>
-                                        {promotions.map(p => (
+                                        {filteredPromotions.map(p => (
                                             <option key={p.id} value={p.id}>
                                                 {p.code} - {p.name} ({p.type === 'PERCENTAGE' ? `${p.value}% Off` : `$${p.value} Off`})
                                             </option>
