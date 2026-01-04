@@ -116,6 +116,20 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         }
     };
 
+    // Lightweight refresh - only reload jobs and wallet transactions (for after actions)
+    const refreshJobs = async () => {
+        try {
+            const [myJobs, walletTxns] = await Promise.all([
+                firebaseService.getDriverJobs(user.uid),
+                firebaseService.getWalletTransactions(user.uid)
+            ]);
+            setBookings(myJobs);
+            setSettlementHistory(walletTxns.filter(t => t.type === 'SETTLEMENT').sort((a, b) => b.id.localeCompare(a.id)));
+        } catch (e) {
+            console.error('Error refreshing jobs:', e);
+        }
+    };
+
     useEffect(() => {
         loadJobs();
     }, [user]);
@@ -301,47 +315,57 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         }
         // FEE RECALCULATION END
 
-        try {
-            await firebaseService.saveParcelBooking(finalBooking);
-        } catch (e) {
-            toast.error("Failed to update status. Please try again.");
-        }
+        // OPTIMISTIC UPDATE: Update local state IMMEDIATELY for instant UI response
+        setBookings(prev => prev.map(b => b.id === bookingId ? finalBooking : b));
 
-        // NOTIFICATION TRIGGER: If action is DELIVER, notify Customer (Bilingual)
-        if (action === 'DELIVER' && booking.senderId) {
-            const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
-            if (custUid) {
-                const receiverName = booking.items.find(i => i.id === itemId)?.receiverName || '';
-                const notif = createBilingualNotification(
-                    'PARCEL_DELIVERED',
-                    custUid,
-                    formatDeliveredMessage(receiverName),
-                    { type: 'BOOKING', bookingId: booking.id }
-                );
-                notif.type = 'SUCCESS';
-                await firebaseService.sendNotification(notif);
+        // Show success feedback based on action
+        if (action === 'DELIVER') toast.success("Marked as delivered!");
+        else if (action === 'RETURN') toast.success("Marked as returned!");
+        else if (action === 'TRANSIT') toast.success("Status updated!");
+        else if (action === 'OUT_FOR_DELIVERY') toast.success("Out for delivery!");
+
+        // BACKGROUND: Save to server and send notifications (non-blocking)
+        (async () => {
+            try {
+                await firebaseService.saveParcelBooking(finalBooking);
+
+                // Send notification for DELIVER
+                if (action === 'DELIVER' && booking.senderId) {
+                    const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
+                    if (custUid) {
+                        const receiverName = booking.items.find(i => i.id === itemId)?.receiverName || '';
+                        const notif = createBilingualNotification(
+                            'PARCEL_DELIVERED',
+                            custUid,
+                            formatDeliveredMessage(receiverName),
+                            { type: 'BOOKING', bookingId: booking.id }
+                        );
+                        notif.type = 'SUCCESS';
+                        await firebaseService.sendNotification(notif);
+                    }
+                }
+
+                // Send notification for RETURN
+                if (action === 'RETURN' && booking.senderId) {
+                    const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
+                    if (custUid) {
+                        const receiverName = booking.items.find(i => i.id === itemId)?.receiverName || '';
+                        const notif = createBilingualNotification(
+                            'PARCEL_RETURNED',
+                            custUid,
+                            formatReturnedMessage(receiverName),
+                            { type: 'BOOKING', bookingId: booking.id }
+                        );
+                        notif.type = 'WARNING';
+                        await firebaseService.sendNotification(notif);
+                    }
+                }
+            } catch (e) {
+                console.error('Background sync error:', e);
+                // Optionally revert or refresh on error
+                refreshJobs();
             }
-        }
-
-        // NOTIFICATION TRIGGER: If action is RETURN, notify Customer (Bilingual)
-        if (action === 'RETURN' && booking.senderId) {
-            const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
-            if (custUid) {
-                const receiverName = booking.items.find(i => i.id === itemId)?.receiverName || '';
-                const notif = createBilingualNotification(
-                    'PARCEL_RETURNED',
-                    custUid,
-                    formatReturnedMessage(receiverName),
-                    { type: 'BOOKING', bookingId: booking.id }
-                );
-                notif.type = 'WARNING';
-                await firebaseService.sendNotification(notif);
-            }
-        }
-
-
-
-        loadJobs();
+        })();
     };
 
 
@@ -368,30 +392,36 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
         // Aggregate total fee from all items
         const totalFee = updatedItems.reduce((sum, item) => sum + (item.deliveryFee || 0), 0);
+        const updatedBooking = { ...booking, items: updatedItems, totalDeliveryFee: totalFee };
 
-        await firebaseService.saveParcelBooking({
-            ...booking,
-            items: updatedItems,
-            totalDeliveryFee: totalFee
-        });
+        // OPTIMISTIC UPDATE: Update local state immediately
+        setBookings(prev => prev.map(b => b.id === bookingId ? updatedBooking : b));
+        toast.success("COD updated!");
 
-        // NOTIFICATION: Notify customer when driver updates COD amount (Bilingual)
-        if (booking.senderId) {
-            const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
-            if (custUid) {
-                const item = updatedItems.find(i => i.id === itemId);
-                const formattedAmount = currency === 'KHR' ? `${amount.toLocaleString()}៛` : `$${amount.toFixed(2)}`;
-                const notif = createBilingualNotification(
-                    'COD_UPDATED_BY_DRIVER',
-                    custUid,
-                    formatCodUpdatedByDriverMessage(item?.receiverName || '', formattedAmount),
-                    { type: 'BOOKING', bookingId: booking.id }
-                );
-                await firebaseService.sendNotification(notif);
+        // BACKGROUND: Save to server and send notification
+        (async () => {
+            try {
+                await firebaseService.saveParcelBooking(updatedBooking);
+
+                if (booking.senderId) {
+                    const custUid = await firebaseService.getUserUidByCustomerId(booking.senderId);
+                    if (custUid) {
+                        const item = updatedItems.find(i => i.id === itemId);
+                        const formattedAmount = currency === 'KHR' ? `${amount.toLocaleString()}៛` : `$${amount.toFixed(2)}`;
+                        const notif = createBilingualNotification(
+                            'COD_UPDATED_BY_DRIVER',
+                            custUid,
+                            formatCodUpdatedByDriverMessage(item?.receiverName || '', formattedAmount),
+                            { type: 'BOOKING', bookingId: booking.id }
+                        );
+                        await firebaseService.sendNotification(notif);
+                    }
+                }
+            } catch (e) {
+                console.error('Background sync error:', e);
+                refreshJobs();
             }
-        }
-
-        loadJobs();
+        })();
     };
 
     const handleSettlement = async () => {
@@ -531,12 +561,12 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 setPayAmountCashUSD('');
                 setPayAmountCashKHR('');
                 setSettlementReason('');
-                loadJobs();
+                refreshJobs();
             } else {
                 // Edge case: No COD payment and no taxi - nothing to do
                 toast.info("No amounts to settle.");
                 setIsSettling(false);
-                loadJobs();
+                refreshJobs();
             }
 
         } catch (e) { toast.error("Failed to submit settlement request."); } finally { setIsSaving(false); }
@@ -549,12 +579,12 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         if (confirmJob.lockedByDriverId && confirmJob.lockedByDriverId !== user.uid) {
             toast.error(`This job is already taken by ${confirmJob.lockedByDriverName || 'another driver'}.`);
             setConfirmJob(null);
-            await loadJobs();
+            await refreshJobs();
             return;
         }
 
         try {
-            // Lock and accept the job
+            // Build accepted job
             const acceptedJob: ParcelBooking = {
                 ...confirmJob,
                 driverId: user.uid,
@@ -565,13 +595,19 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 lockedByDriverName: user.name,
                 lockedAt: Date.now()
             };
-            await firebaseService.saveParcelBooking(acceptedJob);
-            await loadJobs();
+
+            // Optimistic UI update - update local state immediately
+            setBookings(prev => prev.map(b => b.id === confirmJob.id ? acceptedJob : b));
             setConfirmJob(null);
             setActiveTab('MY_PICKUPS');
             toast.success("Job accepted!");
+
+            // Then sync with server in background
+            await firebaseService.saveParcelBooking(acceptedJob);
         } catch (e) {
             console.error(e);
+            // Revert optimistic update on error
+            await refreshJobs();
             toast.error("Failed to accept job. Please try again.");
         }
     };
@@ -584,6 +620,11 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         }
 
         try {
+            // Optimistic UI update - remove from local state immediately
+            setBookings(prev => prev.filter(b => b.id !== job.id));
+            toast.success("Job released. Other drivers can now accept it.");
+
+            // Then sync with server in background
             const unlockedJob: ParcelBooking = {
                 ...job,
                 driverId: undefined,
@@ -595,10 +636,11 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 lockedAt: undefined
             };
             await firebaseService.saveParcelBooking(unlockedJob);
-            await loadJobs();
-            toast.success("Job released. Other drivers can now accept it.");
+            // No need to refresh since we already updated locally
         } catch (e) {
             console.error(e);
+            // Revert optimistic update on error
+            setBookings(prev => [...prev, job]);
             toast.error("Failed to release job.");
         }
     };
@@ -669,19 +711,26 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                 user={user}
                 services={services}
                 onSave={async (updatedJob) => {
-                    // Background save, update local state only
-                    await firebaseService.saveParcelBooking(updatedJob);
+                    // OPTIMISTIC: Update local state immediately
                     setProcessingJob(updatedJob);
+                    setBookings(prev => prev.map(b => b.id === updatedJob.id ? updatedJob : b));
+
+                    // BACKGROUND: Save to Firebase (non-blocking)
+                    firebaseService.saveParcelBooking(updatedJob).catch(e => {
+                        console.error('Background save error:', e);
+                    });
                 }}
                 onFinish={async () => {
-                    // Done with batch, close and reload dashboard
+                    // Done with batch, close processor immediately
                     setProcessingJob(null);
-                    await loadJobs();
+                    toast.success("Pickup complete!");
+                    // Background refresh
+                    refreshJobs();
                 }}
                 onCancel={() => {
-                    // Cancel without reload if nothing changed, or reload if safer
+                    // Cancel without reload if nothing changed
                     setProcessingJob(null);
-                    loadJobs();
+                    refreshJobs();
                 }}
             />
         );

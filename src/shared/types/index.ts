@@ -175,6 +175,7 @@ export interface UserProfile {
   address?: string;
   referralCode?: string;
   linkedCustomerId?: string;
+  linkedEmployeeId?: string;              // For drivers/warehouse staff
   savedLocations?: SavedLocation[];
   walletBalance?: { usd: number, khr: number };
   isDriver?: boolean; // For legacy support

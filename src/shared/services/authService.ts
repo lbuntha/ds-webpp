@@ -90,14 +90,15 @@ export class AuthService {
     }
 
     /**
-     * Shared logic to create user profile and customer record
+     * Shared logic to create user profile and customer/employee record
      */
     private async createProfile(user: any, name: string, extraData: any) {
         let linkedCustomerId = null;
+        let linkedEmployeeId = null;
         const role = extraData?.role || 'customer';
         const now = Date.now();
 
-        // 1. Prepare Customer Data (if role is customer)
+        // 1. Create Customer Data (if role is customer)
         if (role === 'customer') {
             const newCustomerRef = doc(collection(this.db, 'customers'));
             linkedCustomerId = newCustomerRef.id;
@@ -112,7 +113,6 @@ export class AuthService {
                 createdAt: now,
                 bankAccounts: [],
                 address: extraData.address || '',
-                // Move customer-specific fields here
                 referralCode: extraData.referralCode || this.generateReferralCode(name),
                 savedLocations: extraData.savedLocations || [],
                 isTaxable: extraData.isTaxable || false,
@@ -122,8 +122,30 @@ export class AuthService {
             await setDoc(newCustomerRef, customerData);
         }
 
-        // 2. Prepare User Profile (saved to 'users' collection)
-        // Note: Password is handled by Firebase Auth, not stored in Firestore
+        // 2. Create Employee Data (if role is driver or warehouse)
+        if (role === 'driver' || role === 'warehouse') {
+            const newEmployeeRef = doc(collection(this.db, 'employees'));
+            linkedEmployeeId = newEmployeeRef.id;
+
+            const employeeData: any = {
+                id: linkedEmployeeId,
+                name: name,
+                email: user.email || '',
+                phone: extraData.phone || '',
+                address: extraData.address || '',
+                linkedUserId: user.uid,
+                status: 'ACTIVE',
+                hireDate: new Date().toISOString().split('T')[0],
+                isDriver: role === 'driver',
+                position: role === 'driver' ? 'Driver' : 'Warehouse Staff',
+                department: 'Operations',
+                employmentType: 'FULL_TIME',
+            };
+
+            await setDoc(newEmployeeRef, employeeData);
+        }
+
+        // 3. Prepare User Profile (saved to 'users' collection)
         const userProfile: UserProfile = {
             uid: user.uid,
             email: user.email!,
@@ -131,12 +153,13 @@ export class AuthService {
             role: role,
             status: role === 'customer' ? 'APPROVED' : 'PENDING',
             linkedCustomerId: linkedCustomerId,
+            linkedEmployeeId: linkedEmployeeId,
             lastLogin: now,
             authMethod: extraData.authMethod || 'email',
             joinedAt: now,
             phone: extraData.phone ? normalizePhone(extraData.phone) : '',
             address: extraData.address || '',
-            referralCode: extraData.referralCode || (role === 'customer' ? this.generateReferralCode(name) : null),
+            referralCode: role === 'customer' ? (extraData.referralCode || this.generateReferralCode(name)) : null,
             referredBy: extraData.referredBy || null,
         };
 

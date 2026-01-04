@@ -1027,8 +1027,10 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                                             </div>
                                         )}
                                     </>
-                                ) : (
-                                    /* Customer Data Tab */
+                                ) : null}
+
+                                {/* Customer Data Tab */}
+                                {activeModalTab === 'CUSTOMER' && (
                                     <div className="space-y-6">
                                         {!customerData ? (
                                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -1481,9 +1483,10 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
                                 </div>
                                 <div className="flex space-x-3">
                                     <Button variant="outline" onClick={handleCancelUserEdit} disabled={isUpdating || savingBilling}>Cancel</Button>
-                                    {activeModalTab === 'USER' ? (
+                                    {activeModalTab === 'USER' && (
                                         <Button onClick={handleUserSave} isLoading={isUpdating} disabled={isUpdating}>Save Changes</Button>
-                                    ) : (
+                                    )}
+                                    {activeModalTab === 'CUSTOMER' && (
                                         <Button onClick={handleSaveCustomerDetails} isLoading={savingBilling} disabled={!customerData || savingBilling}>Save Customer Data</Button>
                                     )}
                                 </div>

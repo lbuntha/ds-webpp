@@ -152,12 +152,13 @@ export const SettlementReportModal: React.FC<Props> = ({
                                 const targetCurrency = transaction.currency || 'USD';
                                 const RATE = 4000;
 
-                                // Determine Item Fee & Currency
+                                // Determine Item Fee in TARGET currency directly
+                                // Use the pre-stored fee for the target currency to avoid conversion issues
                                 const totalItems = bItems.length > 0 ? bItems.length : 1;
-                                const itemFee = parcelItem.deliveryFee ?? ((booking.totalDeliveryFee || 0) / totalItems);
-                                const itemFeeCurrency = parcelItem.deliveryFee !== undefined
-                                    ? (parcelItem.codCurrency || booking.currency || 'USD')
-                                    : (booking.currency || 'USD');
+                                const itemFee = targetCurrency === 'KHR'
+                                    ? (parcelItem.deliveryFeeKHR ?? parcelItem.deliveryFee ?? ((booking.totalDeliveryFee || 0) / totalItems))
+                                    : (parcelItem.deliveryFeeUSD ?? parcelItem.deliveryFee ?? ((booking.totalDeliveryFee || 0) / totalItems));
+                                const itemFeeCurrency = targetCurrency; // Fee is now in target currency
 
                                 // Helper for conversion
                                 const convertToTarget = (amount: number, fromCurr: string) => {
@@ -175,19 +176,15 @@ export const SettlementReportModal: React.FC<Props> = ({
                                 const dlvMod = mods.find(m => m.newValue === 'DELIVERED' || m.newValue === 'RETURN_TO_SENDER');
                                 const dlvDriverName = dlvMod?.userName || (parcelItem.status !== 'PENDING' ? parcelItem.driverName : 'Unknown');
 
-                                // 1. Pickup Commission
+                                // 1. Pickup Commission - itemFee is already in targetCurrency
                                 const pRule = getApplicableCommissionRule(driverEmp, 'PICKUP', commissionRules);
-                                // Calculate in Original Currency (itemFee is in itemFeeCurrency)
-                                let pCommOriginal = calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules, itemFee, itemFeeCurrency, RATE);
-                                // Convert to Target
-                                let finalPickupComm = convertToTarget(pCommOriginal, itemFeeCurrency);
+                                let finalPickupComm = calculateDriverCommission(driverEmp, booking, 'PICKUP', commissionRules, itemFee, targetCurrency as 'USD' | 'KHR', RATE);
+                                let pCommOriginal = finalPickupComm; // Same since fee is in target currency
 
-                                // 2. Delivery Commission
+                                // 2. Delivery Commission - itemFee is already in targetCurrency
                                 const dRule = getApplicableCommissionRule(driverEmp, 'DELIVERY', commissionRules);
-                                // Calculate in Original Currency
-                                let dCommOriginal = calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules, itemFee, itemFeeCurrency, RATE);
-                                // Convert to Target
-                                let finalDeliveryComm = convertToTarget(dCommOriginal, itemFeeCurrency);
+                                let finalDeliveryComm = calculateDriverCommission(driverEmp, booking, 'DELIVERY', commissionRules, itemFee, targetCurrency as 'USD' | 'KHR', RATE);
+                                let dCommOriginal = finalDeliveryComm; // Same since fee is in target currency
 
 
                                 finalPickupComm = Math.round((finalPickupComm + Number.EPSILON) * 100) / 100;
@@ -509,6 +506,11 @@ export const SettlementReportModal: React.FC<Props> = ({
     const totalAmount = useMemo(() => items.reduce((sum, i) => sum + i.amount, 0), [items]);
     const totalCommission = useMemo(() => items.reduce((sum, i) => sum + (i.commission || 0), 0), [items]);
 
+    // Look up driver's zone from employees for commission rule display
+    const driverEmployee = useMemo(() => {
+        return employees.find(e => e.linkedUserId === transaction.userId);
+    }, [employees, transaction.userId]);
+
     const handlePrint = () => {
         const printContent = document.getElementById('settlement-report-content');
         if (printContent) {
@@ -550,6 +552,11 @@ export const SettlementReportModal: React.FC<Props> = ({
                             <p className="text-xs text-gray-500 uppercase font-bold">User</p>
                             <p className="text-lg font-bold text-gray-900">{transaction.userName}</p>
                             <p className="text-sm text-gray-600">ID: {transaction.userId}</p>
+                            {driverEmployee?.zone && (
+                                <p className="text-xs text-purple-600 font-medium mt-1">
+                                    <span className="bg-purple-100 px-2 py-0.5 rounded">Zone: {driverEmployee.zone}</span>
+                                </p>
+                            )}
                         </div>
                         <div className="text-right">
                             <p className="text-xs text-gray-500 uppercase font-bold">Total {transaction.type}</p>
