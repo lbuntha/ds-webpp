@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { WalletTransaction, ParcelBooking, Invoice, DriverCommissionRule, Employee, Account, JournalEntry, SystemSettings, CurrencyConfig, TaxRate } from '../../src/shared/types';
+import { WalletTransaction, ParcelBooking, Invoice, DriverCommissionRule, Employee, Account, JournalEntry, SystemSettings, CurrencyConfig, TaxRate, Customer, BankAccountDetails } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { calculateDriverCommission, getApplicableCommissionRule } from '../../src/shared/utils/commissionCalculator';
 import { Button } from './Button';
@@ -55,6 +55,7 @@ export const SettlementReportModal: React.FC<Props> = ({
     const [items, setItems] = useState<ReportLineItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [journalEntry, setJournalEntry] = useState<JournalEntry | null>(null);
+    const [customerBankAccount, setCustomerBankAccount] = useState<BankAccountDetails | null>(null);
 
     // Find the target bank account if available
     const bankAccount = useMemo(() => {
@@ -75,6 +76,19 @@ export const SettlementReportModal: React.FC<Props> = ({
                 if (transaction.journalEntryId) {
                     const je = await firebaseService.getDocument('transactions', transaction.journalEntryId) as JournalEntry;
                     setJournalEntry(je);
+                }
+
+                // Fetch Customer Bank Account by userId
+                if (transaction.userId) {
+                    try {
+                        const customers = await firebaseService.getCustomers() as Customer[];
+                        const customer = customers.find(c => c.linkedUserId === transaction.userId);
+                        if (customer && customer.bankAccounts && customer.bankAccounts.length > 0) {
+                            setCustomerBankAccount(customer.bankAccounts[0]); // Use first bank account
+                        }
+                    } catch (e) {
+                        console.warn('Could not fetch customer bank account:', e);
+                    }
                 }
 
                 if (!transaction.relatedItems || transaction.relatedItems.length === 0) {
@@ -559,14 +573,70 @@ export const SettlementReportModal: React.FC<Props> = ({
                     )}
 
                     {bankAccount && (
-                        <div className="mb-6 bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center gap-3">
-                            <div className="p-2 bg-white rounded-full text-blue-600">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
+                        <div className="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                            <div className="flex items-start gap-4">
+                                {/* QR Code */}
+                                {bankAccount.qrCode && (
+                                    <div className="flex-shrink-0">
+                                        <img
+                                            src={bankAccount.qrCode}
+                                            alt="Payment QR Code"
+                                            className="w-24 h-24 object-contain bg-white p-1 rounded-lg border border-gray-200"
+                                        />
+                                    </div>
+                                )}
+                                {/* Bank Details */}
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="p-2 bg-white rounded-full text-blue-600">
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
+                                        </div>
+                                        <p className="text-xs text-blue-800 font-bold uppercase">Settlement Account</p>
+                                    </div>
+                                    <p className="text-lg font-semibold text-gray-900">{bankAccount.name}</p>
+                                    <p className="text-sm text-gray-600 font-mono">{bankAccount.code}</p>
+                                    {bankAccount.bankAccountNumber && (
+                                        <div className="mt-2 pt-2 border-t border-blue-200">
+                                            <p className="text-xs text-gray-500">Account Number</p>
+                                            <p className="text-base font-mono font-bold text-gray-900 tracking-wider">{bankAccount.bankAccountNumber}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-xs text-blue-800 font-bold uppercase">Settlement Account</p>
-                                <p className="text-sm text-gray-900">{bankAccount.name}</p>
-                                <p className="text-xs text-gray-600 font-mono">{bankAccount.code}</p>
+                        </div>
+                    )}
+
+                    {/* Customer Bank Account (from customers collection) */}
+                    {customerBankAccount && (
+                        <div className="mb-6 bg-green-50 p-4 rounded-lg border border-green-200">
+                            <div className="flex items-start gap-4">
+                                {/* QR Code */}
+                                {customerBankAccount.qrCode && (
+                                    <div className="flex-shrink-0">
+                                        <img
+                                            src={customerBankAccount.qrCode}
+                                            alt="Customer QR Code"
+                                            className="w-24 h-24 object-contain bg-white p-1 rounded-lg border border-gray-200"
+                                        />
+                                    </div>
+                                )}
+                                {/* Bank Details */}
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="p-2 bg-white rounded-full text-green-600">
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                        </div>
+                                        <p className="text-xs text-green-800 font-bold uppercase">Pay To Customer Bank</p>
+                                    </div>
+                                    <p className="text-lg font-semibold text-gray-900">{customerBankAccount.bankName}</p>
+                                    {customerBankAccount.accountName && (
+                                        <p className="text-sm text-gray-600">{customerBankAccount.accountName}</p>
+                                    )}
+                                    <div className="mt-2 pt-2 border-t border-green-200">
+                                        <p className="text-xs text-gray-500">Account Number</p>
+                                        <p className="text-base font-mono font-bold text-gray-900 tracking-wider">{customerBankAccount.accountNumber}</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

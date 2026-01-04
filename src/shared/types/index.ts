@@ -98,6 +98,7 @@ export interface Account {
   isHeader?: boolean;
   parentAccountId?: string;
   qrCode?: string;
+  bankAccountNumber?: string;
 }
 
 export interface Branch {

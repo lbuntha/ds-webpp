@@ -136,7 +136,7 @@ export class AuthService {
             joinedAt: now,
             phone: extraData.phone ? normalizePhone(extraData.phone) : '',
             address: extraData.address || '',
-            referralCode: extraData.referralCode || (role === 'customer' ? this.generateReferralCode(name) : undefined),
+            referralCode: extraData.referralCode || (role === 'customer' ? this.generateReferralCode(name) : null),
             referredBy: extraData.referredBy || null,
         };
 

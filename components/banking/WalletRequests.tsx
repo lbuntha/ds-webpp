@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { WalletTransaction, Account, JournalEntry, Invoice, ParcelBooking, ParcelServiceType, DriverCommissionRule, Employee, AccountType, AccountSubType, AppNotification, CurrencyConfig, TaxRate, Branch } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
@@ -68,6 +68,23 @@ export const WalletRequests: React.FC = () => {
     useEffect(() => {
         loadRequests();
     }, []);
+
+    // Summary: Total amounts to be settled, breakdown by currency
+    const summary = useMemo(() => {
+        const totals = {
+            usd: { settlement: 0, withdrawal: 0, deposit: 0, total: 0 },
+            khr: { settlement: 0, withdrawal: 0, deposit: 0, total: 0 }
+        };
+        requests.forEach(r => {
+            const curr = r.currency === 'KHR' ? 'khr' : 'usd';
+            const type = r.type?.toLowerCase() || 'settlement';
+            if (type === 'settlement') totals[curr].settlement += r.amount;
+            else if (type === 'withdrawal') totals[curr].withdrawal += r.amount;
+            else if (type === 'deposit') totals[curr].deposit += r.amount;
+            totals[curr].total += r.amount;
+        });
+        return totals;
+    }, [requests]);
 
     const initiateApprove = (txn: WalletTransaction) => {
         // Show preview for Settlements, Withdrawals, AND Deposits to verify accounting
@@ -256,6 +273,30 @@ export const WalletRequests: React.FC = () => {
             <div className="flex justify-between items-center">
                 <h3 className="text-lg font-bold text-gray-900">Pending Wallet Requests</h3>
                 <Button variant="outline" onClick={loadRequests} isLoading={loading} className="text-xs">Refresh</Button>
+            </div>
+
+            {/* Summary Cards - Total by Currency */}
+            <div className="grid grid-cols-2 gap-4">
+                {/* USD Summary */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                    <div className="text-xs uppercase text-green-600 font-medium mb-1">Total USD Pending</div>
+                    <div className="text-2xl font-bold text-green-800">${summary.usd.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    <div className="mt-2 text-xs text-green-600 space-x-4">
+                        {summary.usd.settlement > 0 && <span>Settlements: ${summary.usd.settlement.toFixed(2)}</span>}
+                        {summary.usd.withdrawal > 0 && <span>Withdrawals: ${summary.usd.withdrawal.toFixed(2)}</span>}
+                        {summary.usd.deposit > 0 && <span>Deposits: ${summary.usd.deposit.toFixed(2)}</span>}
+                    </div>
+                </div>
+                {/* KHR Summary */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+                    <div className="text-xs uppercase text-blue-600 font-medium mb-1">Total KHR Pending</div>
+                    <div className="text-2xl font-bold text-blue-800">{summary.khr.total.toLocaleString()} ៛</div>
+                    <div className="mt-2 text-xs text-blue-600 space-x-4">
+                        {summary.khr.settlement > 0 && <span>Settlements: {summary.khr.settlement.toLocaleString()} ៛</span>}
+                        {summary.khr.withdrawal > 0 && <span>Withdrawals: {summary.khr.withdrawal.toLocaleString()} ៛</span>}
+                        {summary.khr.deposit > 0 && <span>Deposits: {summary.khr.deposit.toLocaleString()} ៛</span>}
+                    </div>
+                </div>
             </div>
 
             <Card>
