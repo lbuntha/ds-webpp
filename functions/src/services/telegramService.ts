@@ -19,6 +19,12 @@ interface LocalWalletTransaction {
     relatedItems?: { bookingId: string, itemId: string }[];
 }
 
+export interface SettlementBreakdown {
+    totalCOD: number;
+    totalDeliveryFee: number;
+    netPayout: number;
+}
+
 import FormData from 'form-data';
 import fetch from 'node-fetch';
 
@@ -96,17 +102,31 @@ export class TelegramService {
         }
     }
 
-    async sendSettlementReport(chatId: string, txn: LocalWalletTransaction, customerName: string, statusOverride?: string, excelBuffer?: Buffer): Promise<boolean> {
+
+
+    async sendSettlementReport(chatId: string, txn: LocalWalletTransaction, customerName: string, statusOverride?: string, excelBuffer?: Buffer, breakdown?: SettlementBreakdown): Promise<boolean> {
         const isUSD = txn.currency === 'USD';
         const symbol = isUSD ? '$' : '៛';
-        const amountStr = isUSD
-            ? `${symbol}${txn.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-            : `${txn.amount.toLocaleString()} ${symbol}`;
+        const fmt = (val: number) => isUSD
+            ? `${symbol}${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+            : `${val.toLocaleString()} ${symbol}`;
+
+        const amountStr = fmt(txn.amount);
 
         const title = statusOverride === 'APPROVED' ? '*Settlement Payout Approved & Sent*' : '*Settlement Payout Initiated*';
         const bodyText = statusOverride === 'APPROVED'
             ? `Your settlement payout has been approved and transferred. Reference: \`${txn.id}\``
             : `A settlement payout has been initiated for your account.`;
+
+        let summaryLines: string[] = [];
+        if (breakdown) {
+            summaryLines = [
+                `*Summary Breakdown:*`,
+                `• Total COD: ${fmt(breakdown.totalCOD)}`,
+                `• Total Delivery Fees: -${fmt(breakdown.totalDeliveryFee)}`,
+                `• *Net Payout: ${fmt(breakdown.netPayout)}*`
+            ];
+        }
 
         const lines = [
             title,
@@ -115,12 +135,14 @@ export class TelegramService {
             ``,
             bodyText,
             ``,
-            `*Amount:* ${amountStr}`,
+            ...summaryLines,
+            // Fallback if breakdown not provided, though we should aim to provide it
+            !breakdown ? `*Total Amount:* ${amountStr}` : '',
+
             `*Date:* ${txn.date}`,
-            `*Reference:* \`${txn.id}\``,
-            `*Description:* ${txn.description || 'N/A'}`,
+            `*Parcels Included:* ${txn.relatedItems?.length || 0}`,
             ``,
-            txn.relatedItems && txn.relatedItems.length > 0 ? `*Parcels Included:* ${txn.relatedItems.length}` : '',
+            statusOverride === 'APPROVED' ? `_See attached Excel file for detailed breakdown._` : '',
             ``,
             `This amount will be transferred to your registered bank account shortly.`,
             `Please check your banking app for receipt.`

@@ -106,6 +106,7 @@ exports.onWalletTransactionWritten = functions.firestore
         }
         // 3. Prepare Excel Report if APPROVED
         let excelBuffer = undefined;
+        let breakdown = undefined;
         if (eventType === 'APPROVED' && newData.relatedItems && newData.relatedItems.length > 0) {
             console.log(`Generating Excel report for ${newData.relatedItems.length} items...`);
             const workbook = new ExcelJS.Workbook();
@@ -121,18 +122,9 @@ exports.onWalletTransactionWritten = functions.firestore
                 { header: 'Taxi Fee', key: 'taxiFee', width: 15 },
                 { header: 'Net Payout', key: 'netPayout', width: 15 },
             ];
-            // Fetch data for each item
-            // This might be heavy if many items, but usually settlement batches are reasonable.
-            // We need to fetch 'parcel_bookings' to get details.
             const items = newData.relatedItems;
             const rows = [];
-            // Optimize: Group by bookingId to minimize reads if multiple items from same booking
-            // But structure is {bookingId, itemId}.
-            // Let's iterate and fetch. 
-            // Alternatively, simpler read: fetch all bookings involved.
             const uniqueBookingIds = [...new Set(items.map((i) => i.bookingId))];
-            // Fetch all bookings in parallel (chunks of 10 to avoid limits?)
-            // For now, simple loop
             const bookingsMap = {};
             for (const bid of uniqueBookingIds) {
                 const bSnap = await db.collection('parcel_bookings').doc(bid).get();
@@ -140,6 +132,9 @@ exports.onWalletTransactionWritten = functions.firestore
                     bookingsMap[bid] = bSnap.data();
                 }
             }
+            let totalCOD = 0;
+            let totalDeliveryFee = 0;
+            let totalNet = 0;
             for (const item of items) {
                 const booking = bookingsMap[item.bookingId];
                 if (!booking)
@@ -147,51 +142,34 @@ exports.onWalletTransactionWritten = functions.firestore
                 const parcelItem = booking.items.find((pi) => pi.id === item.itemId);
                 if (!parcelItem)
                     continue;
-                // Calculate amounts
-                // Assuming transaction currency matters.
-                // If txn is USD, we convert/use USD values.
-                // But usually settlement is single currency.
-                // Let's use the raw values stored in item/booking.
-                const cod = parcelItem.codAmount || 0;
+                const cod = parcelItem.productPrice || 0;
                 const delFee = parcelItem.deliveryFee || 0;
-                // Taxi fee logic is complex, usually stored if reimbursed?
-                // Or is it on the booking? Taxi fee is usually booking-level but split?
-                // Based on previous context, taxi fee is reimbursed.
-                // Let's check if 'taxiFee' exists on booking or item.
-                // Usually booking.taxiFee.
-                // If multiple items, how is taxi fee split?
-                // Typically taxi fee is per booking (delivery trip).
-                // If we settle item by item, we might need to know if taxi fee is included.
-                // For simplicity, we'll list 0 or check if previously logic split it.
-                // Actually, let's look at `parcelItem.taxiFeeShare` or similar if it exists.
-                // If not, put 0 for now to avoid blocking, or check booking total.
-                // const taxiFee = booking.taxiFee || 0; 
-                // Simple logic: Net = COD - Delivery Fee (if paid by sender, fetch logic?)
-                // Assuming standard: COD collected - Delivery Fee = Net.
-                // Plus Taxi Fee reimbursement if applicable.
-                const net = cod - delFee; // Very simplified.
+                const net = cod - delFee;
+                totalCOD += cod;
+                totalDeliveryFee += delFee;
+                totalNet += net;
                 rows.push({
                     date: booking.droppedOffAt ? new Date(booking.droppedOffAt).toISOString().split('T')[0] : (booking.createdAt ? new Date(booking.createdAt).toISOString().split('T')[0] : 'N/A'),
-                    bookingCode: booking.bookingId,
-                    trackingCode: parcelItem.trackingId,
+                    bookingCode: item.bookingId,
+                    trackingCode: parcelItem.trackingCode || parcelItem.trackingId || '',
                     receiver: parcelItem.receiverName,
                     cod: cod,
                     deliveryFee: delFee,
-                    taxiFee: 0, // Placeholder as distribution logic is complex
+                    taxiFee: 0,
                     netPayout: net
                 });
             }
             worksheet.addRows(rows);
-            // Buffer
-            // writeBuffer returns Promise<Buffer>
             excelBuffer = await workbook.xlsx.writeBuffer();
+            breakdown = {
+                totalCOD,
+                totalDeliveryFee,
+                netPayout: totalNet
+            };
         }
         // 4. Send Notification
-        if (eventType === 'REQUESTED') {
-            await telegramService.sendSettlementReport(telegramChatId, newData, (userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer');
-        }
-        else if (eventType === 'APPROVED') {
-            await telegramService.sendSettlementReport(telegramChatId, newData, (userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer', 'APPROVED', excelBuffer);
+        if (eventType === 'APPROVED') {
+            await telegramService.sendSettlementReport(telegramChatId, newData, (userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer', 'APPROVED', excelBuffer, breakdown);
         }
     }
     catch (error) {

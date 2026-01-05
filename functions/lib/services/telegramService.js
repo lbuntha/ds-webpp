@@ -76,16 +76,27 @@ class TelegramService {
             return false;
         }
     }
-    async sendSettlementReport(chatId, txn, customerName, statusOverride, excelBuffer) {
+    async sendSettlementReport(chatId, txn, customerName, statusOverride, excelBuffer, breakdown) {
+        var _a;
         const isUSD = txn.currency === 'USD';
         const symbol = isUSD ? '$' : '៛';
-        const amountStr = isUSD
-            ? `${symbol}${txn.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-            : `${txn.amount.toLocaleString()} ${symbol}`;
+        const fmt = (val) => isUSD
+            ? `${symbol}${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+            : `${val.toLocaleString()} ${symbol}`;
+        const amountStr = fmt(txn.amount);
         const title = statusOverride === 'APPROVED' ? '*Settlement Payout Approved & Sent*' : '*Settlement Payout Initiated*';
         const bodyText = statusOverride === 'APPROVED'
             ? `Your settlement payout has been approved and transferred. Reference: \`${txn.id}\``
             : `A settlement payout has been initiated for your account.`;
+        let summaryLines = [];
+        if (breakdown) {
+            summaryLines = [
+                `*Summary Breakdown:*`,
+                `• Total COD: ${fmt(breakdown.totalCOD)}`,
+                `• Total Delivery Fees: -${fmt(breakdown.totalDeliveryFee)}`,
+                `• *Net Payout: ${fmt(breakdown.netPayout)}*`
+            ];
+        }
         const lines = [
             title,
             `--------------------------------`,
@@ -93,12 +104,13 @@ class TelegramService {
             ``,
             bodyText,
             ``,
-            `*Amount:* ${amountStr}`,
+            ...summaryLines,
+            // Fallback if breakdown not provided, though we should aim to provide it
+            !breakdown ? `*Total Amount:* ${amountStr}` : '',
             `*Date:* ${txn.date}`,
-            `*Reference:* \`${txn.id}\``,
-            `*Description:* ${txn.description || 'N/A'}`,
+            `*Parcels Included:* ${((_a = txn.relatedItems) === null || _a === void 0 ? void 0 : _a.length) || 0}`,
             ``,
-            txn.relatedItems && txn.relatedItems.length > 0 ? `*Parcels Included:* ${txn.relatedItems.length}` : '',
+            statusOverride === 'APPROVED' ? `_See attached Excel file for detailed breakdown._` : '',
             ``,
             `This amount will be transferred to your registered bank account shortly.`,
             `Please check your banking app for receipt.`
