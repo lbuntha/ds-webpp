@@ -70,8 +70,25 @@ const verifyTelegramRequest = (req) => {
  * - Validates secret token (if configured)
  * - Deduplicates messages by update_id
  */
+/**
+ * Helper to send a text message using raw fetch
+ */
+const sendMessage = async (chatId, text) => {
+    if (!TELEGRAM_BOT_TOKEN)
+        return;
+    try {
+        await (0, node_fetch_1.default)(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
+        });
+    }
+    catch (err) {
+        console.error('Failed to send reply:', err);
+    }
+};
 exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     // Only allow POST requests
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
@@ -90,7 +107,51 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
         return;
     }
     const message = update.message || update.channel_post;
+    // Process Message
     if (message) {
+        const chatId = (_b = (_a = message.chat) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString();
+        const text = message.text || '';
+        // --- 1. HANDLE COMMANDS (e.g. /start <UID>) ---
+        if (chatId && text.startsWith('/start')) {
+            const parts = text.split(' ');
+            if (parts.length === 2) {
+                const uid = parts[1].trim();
+                console.log(`🔗 Linking Request: UID=${uid}, ChatID=${chatId}`);
+                try {
+                    // Find User
+                    const userDoc = await db.collection('users').doc(uid).get();
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        const customerId = userData === null || userData === void 0 ? void 0 : userData.linkedCustomerId;
+                        if (customerId) {
+                            // Update Customer with Telegram Chat ID
+                            await db.collection('customers').doc(customerId).update({
+                                telegramChatId: chatId,
+                                telegramUsername: ((_c = message.from) === null || _c === void 0 ? void 0 : _c.username) || '',
+                                telegramLinkedAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+                            await sendMessage(chatId, `✅ *Account Linked Successfully!*\n\nHello ${(userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer'},\nYou will now receive settlement reports in this chat.`);
+                            console.log(`✅ Linked User ${uid} (Customer ${customerId}) to Chat ${chatId}`);
+                        }
+                        else {
+                            await sendMessage(chatId, `⚠️ *Account Found, but not linked to a Customer Profile.*\nPlease contact support.`);
+                        }
+                    }
+                    else {
+                        await sendMessage(chatId, `❌ *User Not Found.*\nPlease try clicking the "Connect Telegram" button in your app again.`);
+                    }
+                }
+                catch (error) {
+                    console.error('Link Error:', error);
+                    await sendMessage(chatId, `❌ *Error Linking Account.*\nPlease try again later.`);
+                }
+            }
+            else {
+                // Just /start without param
+                await sendMessage(chatId, `👋 *Welcome to DoorStep delivery bot!*\n\nTo link your account, please use the "Connect Telegram" button in your DoorStep web app.`);
+            }
+        }
+        // --- 2. LOG MESSAGE TO FIRESTORE ---
         try {
             // Check for duplicate (idempotency)
             const existingDoc = await db.collection('telegram_messages')
@@ -106,12 +167,12 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
             const docData = {
                 updateId: update.update_id,
                 messageId: message.message_id,
-                chatId: ((_b = (_a = message.chat) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString()) || '',
-                chatTitle: ((_c = message.chat) === null || _c === void 0 ? void 0 : _c.title) || 'Private',
-                chatType: ((_d = message.chat) === null || _d === void 0 ? void 0 : _d.type) || 'unknown',
-                from: ((_e = message.from) === null || _e === void 0 ? void 0 : _e.first_name) || ((_f = message.sender_chat) === null || _f === void 0 ? void 0 : _f.title) || 'Unknown',
-                fromId: ((_j = (((_g = message.from) === null || _g === void 0 ? void 0 : _g.id) || ((_h = message.sender_chat) === null || _h === void 0 ? void 0 : _h.id))) === null || _j === void 0 ? void 0 : _j.toString()) || '',
-                fromUsername: ((_k = message.from) === null || _k === void 0 ? void 0 : _k.username) || ((_l = message.sender_chat) === null || _l === void 0 ? void 0 : _l.username) || '',
+                chatId: ((_e = (_d = message.chat) === null || _d === void 0 ? void 0 : _d.id) === null || _e === void 0 ? void 0 : _e.toString()) || '',
+                chatTitle: ((_f = message.chat) === null || _f === void 0 ? void 0 : _f.title) || 'Private',
+                chatType: ((_g = message.chat) === null || _g === void 0 ? void 0 : _g.type) || 'unknown',
+                from: ((_h = message.from) === null || _h === void 0 ? void 0 : _h.first_name) || ((_j = message.sender_chat) === null || _j === void 0 ? void 0 : _j.title) || 'Unknown',
+                fromId: ((_m = (((_k = message.from) === null || _k === void 0 ? void 0 : _k.id) || ((_l = message.sender_chat) === null || _l === void 0 ? void 0 : _l.id))) === null || _m === void 0 ? void 0 : _m.toString()) || '',
+                fromUsername: ((_o = message.from) === null || _o === void 0 ? void 0 : _o.username) || ((_p = message.sender_chat) === null || _p === void 0 ? void 0 : _p.username) || '',
                 text: message.text || '',
                 date: admin.firestore.Timestamp.fromDate(new Date(message.date * 1000)),
                 processed: false,
@@ -119,7 +180,7 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
             };
             // Save to Firestore
             const docRef = await db.collection('telegram_messages').add(docData);
-            console.log('✅ Message saved:', docRef.id, '| From:', docData.from, '| Text:', (_m = docData.text) === null || _m === void 0 ? void 0 : _m.substring(0, 50));
+            console.log('✅ Message saved:', docRef.id, '| From:', docData.from, '| Text:', (_q = docData.text) === null || _q === void 0 ? void 0 : _q.substring(0, 50));
         }
         catch (error) {
             console.error('❌ Error processing message:', error.message);

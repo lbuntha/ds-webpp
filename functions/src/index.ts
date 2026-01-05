@@ -114,3 +114,8 @@ import { testTelegramMessages, telegramWebhook, setupTelegramWebhook } from './a
 export { testTelegramMessages, telegramWebhook, setupTelegramWebhook };
 
 
+
+/**
+ * Telegram Userbot Scheduled Task
+ */
+export { checkPayWayUpdates } from './triggers/cron/checkPayWayUpdates';

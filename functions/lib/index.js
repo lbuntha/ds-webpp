@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setupTelegramWebhook = exports.telegramWebhook = exports.testTelegramMessages = exports.onWalletTransactionWritten = exports.resetPasswordOTP = exports.verifyOTP = exports.requestOTP = exports.api = void 0;
+exports.checkPayWayUpdates = exports.setupTelegramWebhook = exports.telegramWebhook = exports.testTelegramMessages = exports.onWalletTransactionWritten = exports.resetPasswordOTP = exports.verifyOTP = exports.requestOTP = exports.api = void 0;
 const functions = __importStar(require("firebase-functions"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
@@ -142,4 +142,9 @@ const telegramWebhook_1 = require("./api/telegramWebhook");
 Object.defineProperty(exports, "testTelegramMessages", { enumerable: true, get: function () { return telegramWebhook_1.testTelegramMessages; } });
 Object.defineProperty(exports, "telegramWebhook", { enumerable: true, get: function () { return telegramWebhook_1.telegramWebhook; } });
 Object.defineProperty(exports, "setupTelegramWebhook", { enumerable: true, get: function () { return telegramWebhook_1.setupTelegramWebhook; } });
+/**
+ * Telegram Userbot Scheduled Task
+ */
+var checkPayWayUpdates_1 = require("./triggers/cron/checkPayWayUpdates");
+Object.defineProperty(exports, "checkPayWayUpdates", { enumerable: true, get: function () { return checkPayWayUpdates_1.checkPayWayUpdates; } });
 //# sourceMappingURL=index.js.map
