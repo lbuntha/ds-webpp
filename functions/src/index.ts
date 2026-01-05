@@ -106,3 +106,11 @@ export const resetPasswordOTP = functions.https.onCall(async (data, context) => 
  * Firestore Triggers
  */
 export const onWalletTransactionWritten = notificationTriggers.onWalletTransactionWritten;
+
+/**
+ * Telegram Bot Webhook & Test Endpoints
+ */
+import { testTelegramMessages, telegramWebhook, setupTelegramWebhook } from './api/telegramWebhook';
+export { testTelegramMessages, telegramWebhook, setupTelegramWebhook };
+
+

@@ -327,6 +327,37 @@ export const DispatchConsole: React.FC = () => {
                                         </div>
                                     )}
 
+                                    {/* Assigned Items List (Visible only in Warehouse mode when driver selected) */}
+                                    {activeTab === 'WAREHOUSE' && selectedDriver && (
+                                        <div className="mb-4">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <p className="text-xs font-bold text-gray-500 uppercase">
+                                                    Assigned to {drivers.find(d => d.id === selectedDriver)?.name.split(' ')[0]}
+                                                    ({bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'IN_TRANSIT')).length})
+                                                </p>
+                                            </div>
+                                            <div className="bg-gray-50 rounded-lg border border-gray-200 max-h-[200px] overflow-y-auto divide-y divide-gray-100">
+                                                {bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'IN_TRANSIT').map(i => ({ ...i, bookingRef: b.id })))
+                                                    .map(item => (
+                                                        <div key={item.id} className="p-2 flex justify-between items-center text-sm">
+                                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                                <div className="w-1 h-8 bg-green-500 rounded-full flex-shrink-0"></div>
+                                                                <div className="truncate">
+                                                                    <p className="font-medium text-gray-800 truncate">{item.receiverName}</p>
+                                                                    <p className="text-xs text-gray-400">{item.trackingCode || item.id.slice(-6)}</p>
+                                                                </div>
+                                                            </div>
+                                                            <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">Out</span>
+                                                        </div>
+                                                    ))
+                                                }
+                                                {bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'IN_TRANSIT')).length === 0 && (
+                                                    <p className="text-xs text-gray-400 text-center py-4">No parcels assigned yet.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Task Info */}
                                     {(selectedBooking || selectedWarehouseItem) && (
                                         <div className="bg-indigo-50 p-3 rounded-lg text-sm text-indigo-800 border border-indigo-100 mb-2">
@@ -339,7 +370,7 @@ export const DispatchConsole: React.FC = () => {
                                     )}
 
                                     {/* Driver List */}
-                                    <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[400px]">
+                                    <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
                                         <p className="text-xs font-bold text-gray-500 uppercase sticky top-0 bg-white pb-2">Available Drivers ({drivers.length})</p>
                                         {drivers.map(driver => (
                                             <div
@@ -368,14 +399,16 @@ export const DispatchConsole: React.FC = () => {
                                         {drivers.length === 0 && <p className="text-xs text-red-500 text-center py-4">No active drivers found.</p>}
                                     </div>
 
-                                    <Button
-                                        className="w-full mt-4"
-                                        disabled={!selectedDriver || (!selectedBooking && !selectedWarehouseItem && !barcode)} // Enable if barcode scan or manual selection
-                                        // But if scanning, we don't need this button.
-                                        onClick={activeTab === 'NEW_JOBS' ? handleAssignBooking : handleAssignWarehouseItem}
-                                    >
-                                        Confirm Assignment
-                                    </Button>
+                                    {/* Confirmation Button - Only show for manual selection flows (New Jobs OR Warehouse Item Clicked) */}
+                                    {(activeTab === 'NEW_JOBS' || selectedWarehouseItem) && (
+                                        <Button
+                                            className="w-full mt-4"
+                                            disabled={!selectedDriver || (!selectedBooking && !selectedWarehouseItem)}
+                                            onClick={activeTab === 'NEW_JOBS' ? handleAssignBooking : handleAssignWarehouseItem}
+                                        >
+                                            Confirm Assignment
+                                        </Button>
+                                    )}
                                 </>
                             )}
                         </div>
