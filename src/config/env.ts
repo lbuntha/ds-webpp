@@ -26,14 +26,14 @@ class Environment {
 
     private loadConfig(): EnvConfig {
         return {
-            // Firebase
-            FIREBASE_API_KEY: import.meta.env.FIREBASE_API_KEY || '',
-            FIREBASE_AUTH_DOMAIN: import.meta.env.FIREBASE_AUTH_DOMAIN || '',
-            FIREBASE_PROJECT_ID: import.meta.env.FIREBASE_PROJECT_ID || '',
-            FIREBASE_STORAGE_BUCKET: import.meta.env.FIREBASE_STORAGE_BUCKET || '',
-            FIREBASE_MESSAGING_SENDER_ID: import.meta.env.FIREBASE_MESSAGING_SENDER_ID || '',
-            FIREBASE_APP_ID: import.meta.env.FIREBASE_APP_ID || '',
-            FIREBASE_MEASUREMENT_ID: import.meta.env.FIREBASE_MEASUREMENT_ID,
+            // Firebase - Check both VITE_ prefixed (for Cloud Build compatibility) and standard keys
+            FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.FIREBASE_API_KEY || '',
+            FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || import.meta.env.FIREBASE_AUTH_DOMAIN || '',
+            FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID || import.meta.env.FIREBASE_PROJECT_ID || '',
+            FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || import.meta.env.FIREBASE_STORAGE_BUCKET || '',
+            FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || import.meta.env.FIREBASE_MESSAGING_SENDER_ID || '',
+            FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID || import.meta.env.FIREBASE_APP_ID || '',
+            FIREBASE_MEASUREMENT_ID: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || import.meta.env.FIREBASE_MEASUREMENT_ID,
 
             // App Config
             VITE_APP_NAME: import.meta.env.VITE_APP_NAME || 'Doorstep',
