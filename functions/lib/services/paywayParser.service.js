@@ -12,31 +12,54 @@ class PayWayParser {
     static parse(text) {
         if (!text)
             return null;
-        // 1. Check for PayWay signature (add more flexible checks if needed)
-        // Usually PayWay messages start with "Received" or contain "PayWay"
-        // But for now we just try to match the pattern.
-        // Pattern: Received [Currency] [Amount] from [Name]
-        // Supports: $1.50, USD 1.50, KHR 5000, ៛5000
-        const receivedRegex = /Received\s*(\$|USD|KHR|៛)\s*([\d,.]+)\s*from\s*(.+)/i;
-        const trxRegex = /Trx ID:\s*(\d+)/i;
-        const receivedMatch = text.match(receivedRegex);
-        const trxMatch = text.match(trxRegex);
-        if (receivedMatch && trxMatch) {
-            let currencyStr = receivedMatch[1].toUpperCase();
-            let amountStr = receivedMatch[2].replace(/,/g, ''); // Remove commas
-            const payer = receivedMatch[3].trim().split('\n')[0]; // Take first line only if multiline
-            const trxId = trxMatch[1];
+        // Pattern 1: Standard "Received" (Keep for compatibility if needed)
+        // Pattern 2: "Paid by ... at DS by ... DSxxx" (From Screenshot)
+        // Ex: "$35.00 paid by MIN KIMNAT ... at DS by S.ORN DS004. Trx. ID: ..."
+        const format1 = /Received\s*(\$|USD|KHR|៛)\s*([\d,.]+)\s*from\s*(.+)/i;
+        // Regex Explanation:
+        // 1. Currency ($|USD...)
+        // 2. Amount ([\d,.]+)
+        // 3. Payer: "paid by (.+?) on" (lazy match until 'on')
+        // 4. Driver Info: "at DS by (.+?) Trx" -> This contains Name and Code.
+        // Let's be specific for Code: "DS\d+"
+        const format2 = /(\$|USD|KHR|៛)([\d,.]+)\s*paid by\s*(.+?)\s*(?:on|via).+?at DS by\s*(.+?)(DS\d{3,4})\.?\s*Trx/i;
+        let match = text.match(format2);
+        let type = 2;
+        if (!match) {
+            match = text.match(format1);
+            type = 1;
+        }
+        if (match) {
+            let amountStr, currencyStr, payer, driverCode;
+            let trxIdMatch = text.match(/Trx\.? ID:?\s*(\d+)/i); // Handle "Trx. ID" or "Trx ID"
+            if (type === 2) {
+                currencyStr = match[1];
+                amountStr = match[2];
+                payer = match[3].trim(); // "MIN KIMNAT (*356)"
+                // match[4] is Driver Name "S.ORN "
+                driverCode = match[5]; // "DS004"
+            }
+            else {
+                // Type 1
+                currencyStr = match[1];
+                amountStr = match[2];
+                payer = match[3].trim().split('\n')[0];
+                driverCode = undefined; // No driver code in this format
+            }
+            const trxId = trxIdMatch ? trxIdMatch[1] : `unknown_${Date.now()}`;
             // Normalize Currency
             let currency = 'USD';
+            currencyStr = currencyStr.toUpperCase();
             if (currencyStr === 'KHR' || currencyStr === '៛') {
                 currency = 'KHR';
             }
             return {
-                amount: parseFloat(amountStr),
+                amount: parseFloat(amountStr.replace(/,/g, '')),
                 currency,
                 trxId,
                 payer,
-                date: new Date(), // Caller should overwrite this with message date
+                driverCode, // New field, optional
+                date: new Date(),
                 originalText: text
             };
         }

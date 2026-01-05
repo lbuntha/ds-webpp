@@ -35,7 +35,7 @@ export const checkPayWayUpdates = functions.pubsub.schedule('every 1 minutes').o
         // Let's rely on an ENV or just a known dialog name.
 
         // TODO: Move to ENV. For now, we search.
-        const TARGET_GROUP_TITLE = 'DoorStep (Delivery)'; // Adjust if needed
+        const TARGET_GROUP_TITLE = 'DS004 - Sing Tola'; // Updated from screenshot
 
         const dialogs = await client.getDialogs({ limit: 20 });
         const group = dialogs.find((d: any) => d.title === TARGET_GROUP_TITLE || d.name === TARGET_GROUP_TITLE);
