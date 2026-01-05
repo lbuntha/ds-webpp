@@ -84,58 +84,7 @@ export const DispatchConsole: React.FC = () => {
         }
     };
 
-    const handleAssignWarehouseItem = async () => {
-        if (!selectedWarehouseItem || !selectedDriver) return;
-        const driver = drivers.find(d => d.id === selectedDriver);
-        const booking = bookings.find(b => b.id === selectedWarehouseItem.bookingId);
 
-        if (!booking || !driver) return;
-
-        const targetDriverId = driver.linkedUserId || driver.id;
-
-        const updatedItems = (booking.items || []).map(item => {
-            if (item.id === selectedWarehouseItem.item.id) {
-                return {
-                    ...item,
-                    status: 'IN_TRANSIT' as const, // Moving out of warehouse
-                    driverId: targetDriverId,
-                    driverName: driver.name,
-                    targetBranchId: null as any // Clear to indicate Out for Delivery
-                };
-            }
-            return item;
-        });
-
-        try {
-            const updatedBooking: ParcelBooking = {
-                ...booking,
-                items: updatedItems,
-                involvedDriverIds: Array.from(new Set([...(booking.involvedDriverIds || []), targetDriverId]))
-            };
-            await firebaseService.saveParcelBooking(updatedBooking);
-
-            // Notification for Warehouse Transfer
-            if (driver.linkedUserId) {
-                const notification: AppNotification = {
-                    id: `notif-wh-${Date.now()}`,
-                    targetAudience: driver.linkedUserId,
-                    title: 'Warehouse Pickup Assigned',
-                    message: `Collect item for ${selectedWarehouseItem.item.receiverName} from Warehouse for delivery.`,
-                    type: 'INFO',
-                    read: false,
-                    createdAt: Date.now()
-                };
-                await firebaseService.sendNotification(notification);
-            }
-
-            toast.success(`Assigned item to ${driver.name} for delivery.`);
-            setSelectedWarehouseItem(null);
-            setSelectedDriver(null);
-            loadData();
-        } catch (e) {
-            toast.error("Failed to assign.");
-        }
-    };
 
     // Filter Logic
     const unassignedBookings = bookings.filter(b => !b.driverId && b.status === 'PENDING');
@@ -146,6 +95,120 @@ export const DispatchConsole: React.FC = () => {
             .filter(i => i.status === 'AT_WAREHOUSE')
             .map(i => ({ bookingId: b.id, bookingRef: b.senderName, item: i }))
     );
+
+    // --- NEW SCANNING LOGIC ---
+    const [barcode, setBarcode] = useState('');
+    const inputRef = React.useRef<HTMLInputElement>(null);
+
+    // Focus input when driver matches in Warehouse mode
+    useEffect(() => {
+        if (activeTab === 'WAREHOUSE' && selectedDriver && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [selectedDriver, activeTab]);
+
+    const assignItemToDriver = async (itemEntry: { bookingId: string, item: ParcelItem }, driverId: string) => {
+        const driver = drivers.find(d => d.id === driverId);
+        const booking = bookings.find(b => b.id === itemEntry.bookingId);
+
+        if (!booking || !driver) return;
+
+        const targetDriverId = driver.linkedUserId || driver.id;
+
+        const updatedItems = (booking.items || []).map(i => {
+            if (i.id === itemEntry.item.id) {
+                return {
+                    ...i,
+                    status: 'IN_TRANSIT' as const,
+                    driverId: targetDriverId,
+                    driverName: driver.name,
+                    targetBranchId: null as any
+                };
+            }
+            return i;
+        });
+
+        try {
+            const updatedBooking: ParcelBooking = {
+                ...booking,
+                items: updatedItems,
+                involvedDriverIds: Array.from(new Set([...(booking.involvedDriverIds || []), targetDriverId]))
+            };
+            await firebaseService.saveParcelBooking(updatedBooking);
+
+            // Notification
+            if (driver.linkedUserId) {
+                const notification: AppNotification = {
+                    id: `notif-wh-${Date.now()}`,
+                    targetAudience: driver.linkedUserId,
+                    title: 'Warehouse Pickup Assigned',
+                    message: `Collect item for ${itemEntry.item.receiverName} from Warehouse for delivery.`,
+                    type: 'INFO',
+                    read: false,
+                    createdAt: Date.now()
+                };
+                await firebaseService.sendNotification(notification);
+            }
+
+            toast.success(`Assigned ${itemEntry.item.receiverName} (Scan) to ${driver.name}`);
+            loadData();
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to assign item.");
+        }
+    };
+
+    const handleAssignWarehouseItem = async () => {
+        if (!selectedWarehouseItem || !selectedDriver) return;
+        await assignItemToDriver(selectedWarehouseItem, selectedDriver);
+        setSelectedWarehouseItem(null);
+        setSelectedDriver(null);
+    };
+
+    const handleScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && selectedDriver) {
+            const code = barcode.trim();
+            if (!code) return;
+
+            // 1. Check if eligible (AT_WAREHOUSE)
+            const match = warehouseItems.find(entry =>
+                (entry.item.barcode === code) ||
+                (entry.item.trackingCode === code) ||
+                (entry.item.id === code)
+            );
+
+            if (match) {
+                await assignItemToDriver(match, selectedDriver);
+                setBarcode('');
+                // Don't deselect driver, allow rapid scanning
+            } else {
+                // 2. Global Search for better error message
+                let foundStatus: string | null = null;
+                let foundId: string | null = null;
+
+                for (const b of bookings) {
+                    const item = (b.items || []).find(i =>
+                        i.barcode === code || i.trackingCode === code || i.id === code
+                    );
+                    if (item) {
+                        foundStatus = item.status;
+                        foundId = item.id;
+                        break;
+                    }
+                }
+
+                if (foundStatus) {
+                    if (foundStatus === 'IN_TRANSIT') toast.error(`Parcel is already Out for Delivery.`);
+                    else if (foundStatus === 'DELIVERED') toast.error(`Parcel is already Delivered.`);
+                    else if (foundStatus === 'PENDING') toast.error(`Parcel is PENDING (Not picked up yet).`);
+                    else toast.error(`Parcel status is ${foundStatus}. Must be AT_WAREHOUSE.`);
+                } else {
+                    toast.error(`Parcel not found: ${code}`);
+                }
+                setBarcode('');
+            }
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -228,7 +291,7 @@ export const DispatchConsole: React.FC = () => {
                                     </div>
                                 </div>
                             ))}
-                            {warehouseItems.length === 0 && <div className="text-center py-12 text-gray-400">Warehouse is empty.</div>}
+                            {warehouseItems.length === 0 && <p className="text-center py-12 text-gray-400">Warehouse is empty.</p>}
                         </div>
                     )}
                 </div>
@@ -237,21 +300,45 @@ export const DispatchConsole: React.FC = () => {
                 <div className="space-y-6">
                     <Card title="Assign Driver" className="sticky top-6 h-fit max-h-[85vh] flex flex-col">
                         <div className="space-y-4 flex-1 flex flex-col">
-                            {(!selectedBooking && !selectedWarehouseItem) ? (
+                            {(activeTab === 'NEW_JOBS' && !selectedBooking) ? (
                                 <div className="text-center py-8 text-gray-400 flex flex-col items-center">
                                     <svg className="w-10 h-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
-                                    <p className="text-sm">Select a job from the list to begin assignment.</p>
+                                    <p className="text-sm">Select a job to assign.</p>
                                 </div>
                             ) : (
                                 <>
-                                    <div className="bg-indigo-50 p-3 rounded-lg text-sm text-indigo-800 border border-indigo-100 mb-2">
-                                        <span className="block text-xs font-bold uppercase text-indigo-400 mb-1">Selected Task</span>
-                                        {activeTab === 'NEW_JOBS'
-                                            ? `Pickup for ${bookings.find(b => b.id === selectedBooking)?.senderName}`
-                                            : `Deliver ${selectedWarehouseItem?.item.receiverName}'s parcel`
-                                        }
-                                    </div>
+                                    {/* Scan Input */}
+                                    {activeTab === 'WAREHOUSE' && selectedDriver && (
+                                        <div className="bg-indigo-50 p-4 rounded-lg border-2 border-indigo-200 mb-2">
+                                            <label className="block text-xs font-bold uppercase text-indigo-700 mb-1">
+                                                SCAN PARCEL FOR {drivers.find(d => d.id === selectedDriver)?.name}
+                                            </label>
+                                            <input
+                                                ref={inputRef}
+                                                type="text"
+                                                className="w-full px-3 py-2 border rounded shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                                placeholder="Scan Barcode / Tracking ID..."
+                                                value={barcode}
+                                                onChange={(e) => setBarcode(e.target.value)}
+                                                onKeyDown={handleScan}
+                                                autoFocus
+                                            />
+                                            <p className="text-[10px] text-indigo-400 mt-1">Press Enter to assign instantly.</p>
+                                        </div>
+                                    )}
 
+                                    {/* Task Info */}
+                                    {(selectedBooking || selectedWarehouseItem) && (
+                                        <div className="bg-indigo-50 p-3 rounded-lg text-sm text-indigo-800 border border-indigo-100 mb-2">
+                                            <span className="block text-xs font-bold uppercase text-indigo-400 mb-1">Selected Task</span>
+                                            {activeTab === 'NEW_JOBS'
+                                                ? `Pickup for ${bookings.find(b => b.id === selectedBooking)?.senderName}`
+                                                : `Deliver ${selectedWarehouseItem?.item.receiverName}'s parcel`
+                                            }
+                                        </div>
+                                    )}
+
+                                    {/* Driver List */}
                                     <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[400px]">
                                         <p className="text-xs font-bold text-gray-500 uppercase sticky top-0 bg-white pb-2">Available Drivers ({drivers.length})</p>
                                         {drivers.map(driver => (
@@ -283,7 +370,8 @@ export const DispatchConsole: React.FC = () => {
 
                                     <Button
                                         className="w-full mt-4"
-                                        disabled={!selectedDriver}
+                                        disabled={!selectedDriver || (!selectedBooking && !selectedWarehouseItem && !barcode)} // Enable if barcode scan or manual selection
+                                        // But if scanning, we don't need this button.
                                         onClick={activeTab === 'NEW_JOBS' ? handleAssignBooking : handleAssignWarehouseItem}
                                     >
                                         Confirm Assignment
