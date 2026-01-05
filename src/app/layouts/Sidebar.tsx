@@ -108,6 +108,10 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
 
         if (item.viewId.startsWith('CUSTOMER_')) return `/app/customer/${item.viewId.replace('CUSTOMER_', '').toLowerCase()}`;
         if (item.viewId.startsWith('DRIVER_')) return `/app/driver/${item.viewId.replace('DRIVER_', '').toLowerCase()}`;
+
+        // Staff overrides
+        if (item.viewId === 'STAFF_LOAN_ISSUE') return '/app/staff/issue-loan';
+
         return `/app/${item.viewId.toLowerCase().replace(/_/g, '/')}`;
     };
 
