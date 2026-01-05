@@ -119,6 +119,7 @@ export type Permission =
   | 'MANAGE_PAYABLES'
   | 'MANAGE_ASSETS'
   | 'MANAGE_STAFF_LOANS'
+  | 'MANAGE_PAYROLL'             // NEW: Payroll Management
   | 'MANAGE_BANKING'
   | 'MANAGE_CUSTOMER_SETTLEMENTS'
   | 'MANAGE_CUSTOMERS'
@@ -482,9 +483,18 @@ export interface Employee {
   hasBaseSalary?: boolean;
   baseSalaryAmount?: number;
   baseSalaryCurrency?: 'USD' | 'KHR';
+  paymentFrequency?: 'MONTHLY' | 'WEEKLY' | 'DAILY'; // Default MONTHLY
+
+  // Bank Details
   paymentMethod?: 'CASH' | 'BANK_TRANSFER';
   bankName?: string;
   bankAccountNumber?: string;
+  bankAccountName?: string;     // Name on the account
+
+  // Tax Info
+  taxId?: string;
+  taxStatus?: 'RESIDENT' | 'NON_RESIDENT';
+  numberOfDependents?: number;
 
   // Emergency Contact
   emergencyContactName?: string;
@@ -518,6 +528,62 @@ export interface StaffLoanRepayment {
   amount: number;
   depositAccountId: string;
   createdAt: number;
+  payrollRunId?: string; // If repaid via payroll deduction
+}
+
+export type PayrollRunStatus = 'DRAFT' | 'APPROVED' | 'PAID';
+
+export interface PayrollRun {
+  id: string;
+  period: string; // YYYY-MM
+  status: PayrollRunStatus;
+  totalAmount: number; // Total Net Pay
+  currency: 'USD' | 'KHR'; // Default USD
+  exchangeRate: number;
+
+  createdAt: number;
+  createdBy: string;
+  createdByName?: string;
+
+  approvedAt?: number;
+  approvedBy?: string;
+  approvedByName?: string;
+
+  paidAt?: number;
+  paymentBankAccountId?: string; // Source of funds
+  journalEntryId?: string;
+}
+
+export interface PayslipItem {
+  description: string;
+  amount: number;
+  type: 'EARNING' | 'DEDUCTION';
+  isTaxable?: boolean;
+}
+
+export interface Payslip {
+  id: string;
+  payrollRunId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeRole?: string;
+  department?: string;
+
+  // Base
+  baseSalary: number;
+  currency: 'USD' | 'KHR'; // Usually same as Run currency
+
+  // Components
+  earnings: PayslipItem[];
+  deductions: PayslipItem[];
+
+  // Totals
+  grossPay: number;
+  totalTax: number;
+  totalDeductions: number;
+  netPay: number;
+
+  status: 'PENDING' | 'PAID';
 }
 
 export interface FixedAssetCategory {

@@ -188,6 +188,46 @@ const routes: RouteObject[] = [
                 ),
             },
             {
+                path: 'staff/manage',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_STAFF_LOANS">
+                        {withSuspense(lazy(() => import('./views/EmployeeManagementView')))}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'staff/issue-loan',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_STAFF_LOANS">
+                        {withSuspense(lazy(() => import('./views/StaffLoanIssueView')))}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'staff/settlements',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_STAFF_LOANS">
+                        {withSuspense(lazy(() => import('./views/StaffSettlementView')))}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'staff/deposit',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_STAFF_LOANS">
+                        {withSuspense(lazy(() => import('./views/StaffDepositView')))}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'payroll',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_PAYROLL">
+                        {withSuspense(lazy(() => import('./views/PayrollView')))}
+                    </PermissionRoute>
+                ),
+            },
+            {
                 path: 'customer-settlements',
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_CUSTOMER_SETTLEMENTS">

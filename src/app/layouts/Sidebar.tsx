@@ -75,9 +75,14 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
         // SORTING LOGIC
         const getSectionPriority = (sec?: string) => {
             const s = (sec || '').toLowerCase();
-            if (!s) return 0; // Finance / Dashboard
-            if (s === 'logistics') return 10;
-            if (s === 'reports') return 20;
+            if (!s) return 0; // Dashboard / Analytics
+            if (s === 'warehouse') return 10;
+            if (s === 'logistics') return 10; // Fallback
+            if (s === 'driver') return 15;
+            if (s === 'customer') return 18;
+            if (s === 'finance') return 20;
+            if (s === 'employee') return 30;
+            if (s === 'reports') return 40;
             if (s === 'system') return 90;
             return 50;
         };

@@ -2,10 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { Account, Branch, StaffLoan, StaffLoanRepayment, AccountType, Employee, JournalEntry, CurrencyConfig } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { StaffLoanForm } from './StaffLoanForm';
-import { EmployeeList } from './EmployeeList';
-import { DriverSettlementForm } from './DriverSettlementForm';
-import { StaffDepositForm } from './StaffDepositForm';
 import { toast } from '../../src/shared/utils/toast';
 
 interface Props {
@@ -92,89 +88,10 @@ export const StaffLoansDashboard: React.FC<Props> = ({
         );
     }, [transactions]);
 
-    if (view === 'NEW') {
-        return <StaffLoanForm
-            accounts={accounts}
-            branches={branches}
-            employees={employees}
-            onSave={async (loan) => {
-                await onCreateLoan(loan);
-                setView('LIST');
-            }}
-            onCancel={() => setView('LIST')}
-        />;
-    }
-
-    if (view === 'EMPLOYEES') {
-        return (
-            <div>
-                <div className="mb-4">
-                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Loans
-                    </button>
-                </div>
-                <EmployeeList
-                    employees={employees}
-                    onAddEmployee={onAddEmployee}
-                    onUpdateEmployee={onUpdateEmployee}
-                />
-            </div>
-        );
-    }
-
-    if (view === 'SETTLEMENT') {
-        return (
-            <div>
-                <div className="mb-4">
-                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Loans
-                    </button>
-                </div>
-                <DriverSettlementForm
-                    accounts={accounts}
-                    branches={branches}
-                    employees={employees}
-                    currencies={currencies}
-                    onSave={async (entry: JournalEntry) => {
-                        await onSaveTransaction(entry);
-                        setView('LIST');
-                    }}
-                    onCancel={() => setView('LIST')}
-                />
-            </div>
-        );
-    }
-
-    if (view === 'DEPOSIT') {
-        return (
-            <div>
-                <div className="mb-4">
-                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Loans
-                    </button>
-                </div>
-                <StaffDepositForm
-                    accounts={accounts}
-                    branches={branches}
-                    employees={employees}
-                    currencies={currencies}
-                    onSave={async (entry: JournalEntry) => {
-                        await onSaveTransaction(entry);
-                        setView('LIST');
-                    }}
-                    onCancel={() => setView('LIST')}
-                />
-            </div>
-        );
-    }
-
     return (
         <div className="space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="bg-indigo-50 border-indigo-100">
                     <div className="text-indigo-800 text-sm font-medium">Total Outstanding</div>
                     <div className="text-2xl font-bold text-indigo-900 mt-1">
@@ -187,20 +104,6 @@ export const StaffLoansDashboard: React.FC<Props> = ({
                         {formatCurrency(stats.totalLent)}
                     </div>
                 </Card>
-                <div className="flex flex-col space-y-2 justify-center">
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button onClick={() => setView('NEW')} className="text-sm">Issue Loan</Button>
-                        <Button variant="secondary" onClick={() => setView('EMPLOYEES')} className="text-sm">Manage Staff</Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" onClick={() => setView('SETTLEMENT')} className="text-sm bg-indigo-50 border-indigo-200 text-indigo-700">
-                            Settlements
-                        </Button>
-                        <Button variant="outline" onClick={() => setView('DEPOSIT')} className="text-sm bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
-                            Accept Deposit
-                        </Button>
-                    </div>
-                </div>
             </div>
 
             <div className="flex justify-between items-center">

@@ -26,7 +26,18 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
   const [hasBaseSalary, setHasBaseSalary] = useState(false);
   const [baseSalaryAmount, setBaseSalaryAmount] = useState<number>(0);
   const [baseSalaryCurrency, setBaseSalaryCurrency] = useState<'USD' | 'KHR'>('USD');
-  const [bankAccount, setBankAccount] = useState('');
+  const [bankAccount, setBankAccount] = useState(''); // Legacy, keeping for compatibility or repurposing
+
+  // New Fields
+  const [paymentFrequency, setPaymentFrequency] = useState<'MONTHLY' | 'WEEKLY'>('MONTHLY');
+  const [paymentMethod, setPaymentMethod] = useState<'BANK_TRANSFER' | 'CASH'>('BANK_TRANSFER');
+  const [bankName, setBankName] = useState('');
+  const [bankAccountName, setBankAccountName] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+
+  const [taxId, setTaxId] = useState('');
+  const [taxStatus, setTaxStatus] = useState<'RESIDENT' | 'NON_RESIDENT'>('RESIDENT');
+  const [numberOfDependents, setNumberOfDependents] = useState(0);
 
   const [loading, setLoading] = useState(false);
 
@@ -42,6 +53,15 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setBaseSalaryAmount(0);
     setBaseSalaryCurrency('USD');
     setBankAccount('');
+    // Reset New
+    setPaymentFrequency('MONTHLY');
+    setPaymentMethod('BANK_TRANSFER');
+    setBankName('');
+    setBankAccountName('');
+    setBankAccountNumber('');
+    setTaxId('');
+    setTaxStatus('RESIDENT');
+    setNumberOfDependents(0);
   };
 
   const openAdd = () => {
@@ -61,6 +81,16 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setBaseSalaryAmount(e.baseSalaryAmount || 0);
     setBaseSalaryCurrency(e.baseSalaryCurrency || 'USD');
     setBankAccount(e.bankAccount || '');
+    // Edit New
+    setPaymentFrequency(e.paymentFrequency || 'MONTHLY');
+    setPaymentMethod(e.paymentMethod || 'BANK_TRANSFER');
+    setBankName(e.bankName || '');
+    setBankAccountName(e.bankAccountName || '');
+    setBankAccountNumber(e.bankAccountNumber || e.bankAccount || ''); // Fallback to old field
+    setTaxId(e.taxId || '');
+    setTaxStatus(e.taxStatus || 'RESIDENT');
+    setNumberOfDependents(e.numberOfDependents || 0);
+
     setIsFormOpen(true);
   };
 
@@ -77,10 +107,21 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
       position,
       department,
       isDriver,
-      hasBaseSalary: isDriver ? hasBaseSalary : undefined,
-      baseSalaryAmount: isDriver && hasBaseSalary ? baseSalaryAmount : undefined,
-      baseSalaryCurrency: isDriver && hasBaseSalary ? baseSalaryCurrency : undefined,
-      bankAccount,
+      hasBaseSalary, // Allow for non-drivers too now
+      baseSalaryAmount: hasBaseSalary ? baseSalaryAmount : undefined,
+      baseSalaryCurrency: hasBaseSalary ? baseSalaryCurrency : undefined,
+      bankAccount: bankAccountNumber, // Sync legacy field
+
+      // New
+      paymentFrequency,
+      paymentMethod,
+      bankName,
+      bankAccountName,
+      bankAccountNumber,
+      taxId,
+      taxStatus,
+      numberOfDependents,
+
       createdAt: editingId ? (employees.find(e => e.id === editingId)?.createdAt || Date.now()) : Date.now()
     };
 
@@ -169,87 +210,69 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
                 </div>
               </div>
 
-              {/* Advanced Config Section */}
-              <div className="mt-8 pt-8 border-t border-gray-100">
-                <div className="flex items-center gap-3 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 mb-6">
-                  <div className="flex items-center h-5">
-                    <input
-                      type="checkbox"
-                      id="isDriver"
-                      checked={isDriver}
-                      onChange={e => {
-                        setIsDriver(e.target.checked);
-                        if (!e.target.checked) {
-                          setHasBaseSalary(false);
-                          setBaseSalaryAmount(0);
-                        }
-                      }}
-                      className="w-5 h-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded-lg cursor-pointer transition-all"
-                    />
-                  </div>
-                  <label htmlFor="isDriver" className="font-bold text-indigo-900 cursor-pointer select-none">
-                    This staff member is a Driver
-                  </label>
-                  <span className="text-xs font-medium text-indigo-400 bg-white px-2 py-0.5 rounded-full border border-indigo-100">Enable specialized reporting</span>
-                </div>
+              {/* Payroll & Tax Configuration */}
+              {(isDriver || hasBaseSalary || true) && ( // Show for all, or just Drivers? Plan says 'Employee Management', implies all.
+                <div className="md:col-span-2 space-y-6 mt-6">
+                  <h4 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-2">Payroll & Tax Details</h4>
 
-                {isDriver && (
-                  <div className="ml-8 animate-in zoom-in-95 duration-200">
-                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          id="hasBaseSalary"
-                          checked={hasBaseSalary}
-                          onChange={e => {
-                            setHasBaseSalary(e.target.checked);
-                            if (!e.target.checked) {
-                              setBaseSalaryAmount(0);
-                            }
-                          }}
-                          className="w-5 h-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-lg cursor-pointer"
-                        />
-                        <label htmlFor="hasBaseSalary" className="font-bold text-gray-700 cursor-pointer select-none">
-                          Enable Base Salary Configuration
-                        </label>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Salary Config - Moved here/Refined */}
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-4">
+                      <label className="font-bold text-gray-700 flex items-center gap-2">
+                        <input type="checkbox" checked={hasBaseSalary} onChange={e => setHasBaseSalary(e.target.checked)} className="rounded text-indigo-600" />
+                        Enable Base Salary
+                      </label>
 
                       {hasBaseSalary && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                          <Input
-                            label="Monthly Base Salary"
-                            type="number"
-                            step="0.01"
-                            value={baseSalaryAmount}
-                            onChange={e => setBaseSalaryAmount(parseFloat(e.target.value) || 0)}
-                            placeholder="0.00"
-                            className="bg-white"
-                          />
+                        <div className="space-y-3 pl-6 border-l-2 border-indigo-100 ml-1">
+                          <Input label="Amount" type="number" step="0.01" value={baseSalaryAmount} onChange={e => setBaseSalaryAmount(parseFloat(e.target.value))} />
                           <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Salary Currency</label>
-                            <div className="flex p-1 bg-white border border-gray-200 rounded-2xl shadow-sm">
-                              <button
-                                type="button"
-                                onClick={() => setBaseSalaryCurrency('USD')}
-                                className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${baseSalaryCurrency === 'USD' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-500 hover:bg-gray-50'}`}
-                              >
-                                USD ($)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setBaseSalaryCurrency('KHR')}
-                                className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${baseSalaryCurrency === 'KHR' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-500 hover:bg-gray-50'}`}
-                              >
-                                KHR (៛)
-                              </button>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Currency</label>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => setBaseSalaryCurrency('USD')} className={`px-3 py-1 rounded-lg text-xs font-bold ${baseSalaryCurrency === 'USD' ? 'bg-indigo-600 text-white' : 'bg-white border'}`}>USD</button>
+                              <button type="button" onClick={() => setBaseSalaryCurrency('KHR')} className={`px-3 py-1 rounded-lg text-xs font-bold ${baseSalaryCurrency === 'KHR' ? 'bg-indigo-600 text-white' : 'bg-white border'}`}>KHR</button>
                             </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Payment Frequency</label>
+                            <select value={paymentFrequency} onChange={e => setPaymentFrequency(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
+                              <option value="MONTHLY">Monthly</option>
+                              <option value="WEEKLY">Weekly</option>
+                            </select>
                           </div>
                         </div>
                       )}
                     </div>
+
+                    {/* Bank Details */}
+                    <div className="space-y-4">
+                      <Input label="Bank Name" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. ABA Bank" />
+                      <Input label="Account Name" value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} placeholder="e.g. JOHN DOE" />
+                      <Input label="Account Number" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} placeholder="000 111 222" />
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Payment Method</label>
+                        <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
+                          <option value="BANK_TRANSFER">Bank Transfer</option>
+                          <option value="CASH">Cash</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Tax Info */}
+                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <Input label="Tax ID (TIN)" value={taxId} onChange={e => setTaxId(e.target.value)} placeholder="Likely N/A for most" />
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Tax Status</label>
+                        <select value={taxStatus} onChange={e => setTaxStatus(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
+                          <option value="RESIDENT">Resident</option>
+                          <option value="NON_RESIDENT">Non-Resident</option>
+                        </select>
+                      </div>
+                      <Input label="No. of Dependents" type="number" value={numberOfDependents} onChange={e => setNumberOfDependents(parseInt(e.target.value) || 0)} />
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="flex justify-end items-center gap-3 mt-10 pt-6 border-t border-gray-100">
                 <button
