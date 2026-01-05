@@ -340,6 +340,7 @@ export interface Customer {
   referralCode?: string;
   isTaxable?: boolean;               // Whether VAT/Tax applies to this customer
   excludeFeesInSettlement?: boolean; // Exclude fees from settlement (pay gross amount)
+  telegramChatId?: string;           // Telegram Chat ID for notifications
   createdAt: number;
   updatedAt?: number;
 

@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPasswordOTP = exports.verifyOTP = exports.requestOTP = exports.api = void 0;
+exports.onWalletTransactionWritten = exports.resetPasswordOTP = exports.verifyOTP = exports.requestOTP = exports.api = void 0;
 const functions = __importStar(require("firebase-functions"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
@@ -47,6 +47,8 @@ const user_routes_1 = __importDefault(require("./routes/user.routes"));
 const booking_routes_1 = __importDefault(require("./routes/booking.routes"));
 const driver_routes_1 = __importDefault(require("./routes/driver.routes"));
 const wallet_routes_1 = __importDefault(require("./routes/wallet.routes"));
+const telegram_routes_1 = require("./routes/telegram.routes");
+const notificationTriggers = __importStar(require("./triggers/notificationTriggers"));
 const app = (0, express_1.default)();
 // Middleware
 app.use((0, cors_1.default)({ origin: true }));
@@ -62,6 +64,7 @@ app.use('/user', user_routes_1.default);
 app.use('/bookings', booking_routes_1.default);
 app.use('/driver', driver_routes_1.default);
 app.use('/wallet', wallet_routes_1.default);
+app.use('/telegram', telegram_routes_1.telegramRoutes);
 // Error handling middleware (must be last)
 app.use(errorHandler_1.errorHandler);
 // Export the Express app as a Cloud Function (REST API)
@@ -128,4 +131,8 @@ exports.resetPasswordOTP = functions.https.onCall(async (data, context) => {
         return { success: false, message: error.message, httpStatus: 500 };
     }
 });
+/**
+ * Firestore Triggers
+ */
+exports.onWalletTransactionWritten = notificationTriggers.onWalletTransactionWritten;
 //# sourceMappingURL=index.js.map

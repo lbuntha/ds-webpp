@@ -9,6 +9,8 @@ import userRoutes from './routes/user.routes';
 import bookingRoutes from './routes/booking.routes';
 import driverRoutes from './routes/driver.routes';
 import walletRoutes from './routes/wallet.routes';
+import { telegramRoutes } from './routes/telegram.routes';
+import * as notificationTriggers from './triggers/notificationTriggers';
 
 const app = express();
 
@@ -28,6 +30,7 @@ app.use('/user', userRoutes);
 app.use('/bookings', bookingRoutes);
 app.use('/driver', driverRoutes);
 app.use('/wallet', walletRoutes);
+app.use('/telegram', telegramRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
@@ -97,3 +100,9 @@ export const resetPasswordOTP = functions.https.onCall(async (data, context) => 
         return { success: false, message: error.message, httpStatus: 500 };
     }
 });
+
+
+/**
+ * Firestore Triggers
+ */
+export const onWalletTransactionWritten = notificationTriggers.onWalletTransactionWritten;
