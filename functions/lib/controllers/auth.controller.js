@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetPasswordWithOTP = exports.verifyOTP = exports.requestOTP = exports.refreshToken = exports.logout = exports.login = exports.signup = void 0;
 const response_1 = require("../utils/response");
+const sms_service_1 = require("../services/sms.service");
 const constants_1 = require("../config/constants");
 const firebase_1 = require("../config/firebase");
 const generateReferralCode = (name) => {
@@ -227,8 +228,24 @@ const requestOTP = async (req, res) => {
         await otpRef.set(otpRecord);
         // DEBUG LOG
         console.log(`[AUTH-API] Generated OTP for ${phone}: ${code}`);
+        // Check OTP Options to see if we should send SMS
+        try {
+            const otpConfigDoc = await firebase_1.db.collection('otp_options').doc('config').get();
+            const config = otpConfigDoc.data();
+            if ((config === null || config === void 0 ? void 0 : config.enabled) && (config === null || config === void 0 ? void 0 : config.provider) === 'plasgate') {
+                const message = config.template
+                    ? config.template.replace('{{code}}', code)
+                    : `Your DoorStep verification code is: ${code}`;
+                await (0, sms_service_1.sendSMS)(phone, message);
+                console.log(`[AUTH-API] SMS sent to ${phone}`);
+            }
+        }
+        catch (smsError) {
+            console.error('[AUTH-API] Failed to send SMS:', smsError);
+            // Don't fail the request, just log it. The code is still valid.
+        }
         (0, response_1.sendSuccess)(res, 'OTP generated successfully', {
-            note: 'In development, check function logs for the code.'
+            note: 'OTP sent via configured method (or check logs in dev).'
         });
     }
     catch (error) {

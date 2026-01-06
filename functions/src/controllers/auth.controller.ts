@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../utils/response';
+import { sendSMS } from '../services/sms.service';
 import { HTTP_STATUS, ERROR_CODES } from '../config/constants';
 import { auth, db } from '../config/firebase';
 
@@ -259,8 +260,26 @@ export const requestOTP = async (req: Request, res: Response): Promise<void> => 
         // DEBUG LOG
         console.log(`[AUTH-API] Generated OTP for ${phone}: ${code}`);
 
+        // Check OTP Options to see if we should send SMS
+        try {
+            const otpConfigDoc = await db.collection('otp_options').doc('config').get();
+            const config = otpConfigDoc.data();
+
+            if (config?.enabled && config?.provider === 'plasgate') {
+                const message = config.template
+                    ? config.template.replace('{{code}}', code)
+                    : `Your DoorStep verification code is: ${code}`;
+
+                await sendSMS(phone, message);
+                console.log(`[AUTH-API] SMS sent to ${phone}`);
+            }
+        } catch (smsError) {
+            console.error('[AUTH-API] Failed to send SMS:', smsError);
+            // Don't fail the request, just log it. The code is still valid.
+        }
+
         sendSuccess(res, 'OTP generated successfully', {
-            note: 'In development, check function logs for the code.'
+            note: 'OTP sent via configured method (or check logs in dev).'
         });
     } catch (error: any) {
         console.error('Request OTP error:', error);
