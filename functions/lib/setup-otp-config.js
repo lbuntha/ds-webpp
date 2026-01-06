@@ -33,17 +33,20 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const authController = __importStar(require("../controllers/auth.controller"));
-const router = (0, express_1.Router)();
-// Authentication endpoints
-router.post('/request-otp', authController.requestOTP);
-router.post('/verify-otp', authController.verifyOTP);
-router.post('/signup', authController.signup);
-router.post('/login', authController.login);
-router.post('/logout', authController.logout);
-router.post('/refresh-token', authController.refreshToken);
-router.post('/reset-password-otp', authController.resetPasswordWithOTP);
-router.post('/test-sms', authController.testSMS);
-exports.default = router;
-//# sourceMappingURL=auth.routes.js.map
+const admin = __importStar(require("firebase-admin"));
+// Initialize Admin SDK (assumes this runs in Cloud Functions environment or with credentials)
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
+const db = admin.firestore();
+async function setup() {
+    console.log('Setting up OTP Config...');
+    await db.collection('otp_options').doc('config').set({
+        enabled: true,
+        provider: 'plasgate',
+        template: 'Your DoorStep verification code is: {{code}}'
+    }, { merge: true });
+    console.log('OTP Config enabled for Plasgate.');
+}
+setup().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
+//# sourceMappingURL=setup-otp-config.js.map

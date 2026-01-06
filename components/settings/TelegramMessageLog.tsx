@@ -98,6 +98,9 @@ export const TelegramMessageLog: React.FC = () => {
     const groups = useMemo(() => {
         const groupSet = new Set<string>();
         messages.forEach(m => {
+            if (m.transactionData?.driverCode) {
+                groupSet.add(m.transactionData.driverCode);
+            }
             groupSet.add(m.configGroupName || m.chatTitle || 'Unknown');
         });
         return Array.from(groupSet).sort();
@@ -107,12 +110,22 @@ export const TelegramMessageLog: React.FC = () => {
     const groupedMessages = useMemo(() => {
         const filtered = selectedGroup === 'ALL'
             ? messages
-            : messages.filter(m => (m.configGroupName || m.chatTitle) === selectedGroup);
+            : messages.filter(m => {
+                // Match Group Name OR Driver Code
+                return (m.configGroupName === selectedGroup) ||
+                    (m.chatTitle === selectedGroup) ||
+                    (m.transactionData?.driverCode === selectedGroup);
+            });
 
         const grouped: GroupedMessages = {};
 
         filtered.forEach(msg => {
-            const groupName = msg.configGroupName || msg.chatTitle || 'Unknown';
+            let groupName = msg.configGroupName || msg.chatTitle || 'Unknown';
+
+            // Should group by Driver Code if available (for PayWay shared groups)
+            if (msg.transactionData?.driverCode) {
+                groupName = msg.transactionData.driverCode;
+            }
             const msgDate = msg.date instanceof Timestamp
                 ? msg.date.toDate()
                 : new Date(msg.date);

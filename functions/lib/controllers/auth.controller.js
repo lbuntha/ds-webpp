@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPasswordWithOTP = exports.verifyOTP = exports.requestOTP = exports.refreshToken = exports.logout = exports.login = exports.signup = void 0;
+exports.testSMS = exports.resetPasswordWithOTP = exports.verifyOTP = exports.requestOTP = exports.refreshToken = exports.logout = exports.login = exports.signup = void 0;
 const response_1 = require("../utils/response");
 const sms_service_1 = require("../services/sms.service");
 const constants_1 = require("../config/constants");
@@ -229,23 +229,36 @@ const requestOTP = async (req, res) => {
         // DEBUG LOG
         console.log(`[AUTH-API] Generated OTP for ${phone}: ${code}`);
         // Check OTP Options to see if we should send SMS
+        let smsDebug = 'Not Attempted';
         try {
             const otpConfigDoc = await firebase_1.db.collection('otp_options').doc('config').get();
-            const config = otpConfigDoc.data();
+            let config = otpConfigDoc.data();
+            // Auto-initialize config if missing
+            if (!otpConfigDoc.exists) {
+                console.log('[AUTH-API] Initializing default OTP config (Enabled/Plasgate)');
+                config = {
+                    enabled: true,
+                    provider: 'plasgate',
+                    template: 'Your DoorStep verification code is: {{code}}'
+                };
+                await firebase_1.db.collection('otp_options').doc('config').set(config);
+            }
             if ((config === null || config === void 0 ? void 0 : config.enabled) && (config === null || config === void 0 ? void 0 : config.provider) === 'plasgate') {
                 const message = config.template
                     ? config.template.replace('{{code}}', code)
                     : `Your DoorStep verification code is: ${code}`;
-                await (0, sms_service_1.sendSMS)(phone, message);
+                const result = await (0, sms_service_1.sendSMS)(phone, message);
+                smsDebug = 'Sent: ' + JSON.stringify(result);
                 console.log(`[AUTH-API] SMS sent to ${phone}`);
             }
         }
         catch (smsError) {
             console.error('[AUTH-API] Failed to send SMS:', smsError);
-            // Don't fail the request, just log it. The code is still valid.
+            smsDebug = 'Error: ' + smsError.message;
         }
         (0, response_1.sendSuccess)(res, 'OTP generated successfully', {
-            note: 'OTP sent via configured method (or check logs in dev).'
+            note: 'OTP sent via configured method.',
+            smsDebug: smsDebug
         });
     }
     catch (error) {
@@ -370,4 +383,27 @@ const resetPasswordWithOTP = async (req, res) => {
     }
 };
 exports.resetPasswordWithOTP = resetPasswordWithOTP;
+/**
+ * Test SMS sending directly (Debug Endpoint)
+ * POST /auth/test-sms
+ * Body: { phone, message }
+ */
+const testSMS = async (req, res) => {
+    try {
+        const { phone, message } = req.body;
+        if (!phone || !message) {
+            (0, response_1.sendError)(res, 'Phone and message are required', constants_1.ERROR_CODES.VALIDATION_ERROR, constants_1.HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+        const result = await (0, sms_service_1.sendSMS)(phone, message);
+        (0, response_1.sendSuccess)(res, 'SMS Sent', {
+            providerResponse: result
+        });
+    }
+    catch (error) {
+        console.error('Test SMS error:', error);
+        (0, response_1.sendError)(res, error.message || 'Failed to send SMS', constants_1.ERROR_CODES.INTERNAL_ERROR, constants_1.HTTP_STATUS.INTERNAL_ERROR);
+    }
+};
+exports.testSMS = testSMS;
 //# sourceMappingURL=auth.controller.js.map

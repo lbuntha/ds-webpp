@@ -8,27 +8,49 @@ const httpsAgent = new https.Agent({
 });
 
 export const sendSMS = async (phone: string, content: string): Promise<any> => {
-    const API_KEY = process.env.PLASGATE_API_KEY || "Or_X_2up6I6rP1mj8fPHHufqr7MkyW";
+    const PRIVATE_KEY = process.env.PLASGATE_PRIVATE_KEY || "f-B0Om1QTE6va7VmjKey3b9jbu0T6mMCC91qfrlMg1wqHizmJFGSANFbdbd0X6p2-oumaLN-96IsTLI4hMRtbg";
+    const SECRET_KEY = process.env.PLASGATE_SECRET_KEY || "$5$rounds=535000$1wR3Be1HOkovm15M$FEH.SME6XeimaFi0qigSFdthpKdIRbtobo9z.r5Er37";
     const SENDER_ID = process.env.PLASGATE_SENDER_ID || "DoorStep";
-    const URL = "https://api.plasgate.com/send";
+    const URL = "https://cloudapi.plasgate.com/rest/send";
 
+    // Normalize phone number:
+    // 1. Remove non-digits
+    // 2. Remove leading 0 if present
+    // 3. Ensure 855 prefix for Cambodian numbers
+    let normalizedPhone = phone.replace(/\D/g, '');
+    if (normalizedPhone.startsWith('0')) {
+        normalizedPhone = normalizedPhone.substring(1);
+    }
+    if (!normalizedPhone.startsWith('855') && normalizedPhone.length <= 10) {
+        normalizedPhone = `855${normalizedPhone}`;
+    }
+
+    // Construct POST request
+    // Note: private_key goes in query params, secret in header, data in body
     const params = new URLSearchParams({
-        token: API_KEY,
-        phone: phone,
-        senderID: SENDER_ID,
-        text: content
+        private_key: PRIVATE_KEY
     });
 
+    const body = {
+        sender: SENDER_ID,
+        to: normalizedPhone,
+        content: content
+    };
+
     try {
-        console.log(`[SMS-SERVICE] Sending SMS to ${phone}: ${content}`);
+        console.log(`[SMS-SERVICE] Sending SMS to ${normalizedPhone} via POST`);
 
         const response = await fetch(`${URL}?${params.toString()}`, {
-            method: 'GET',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Secret': SECRET_KEY
+            },
+            body: JSON.stringify(body),
             agent: httpsAgent
         });
 
         const data = await response.json();
-
         console.log('[SMS-SERVICE] Response:', data);
         return data;
     } catch (error) {

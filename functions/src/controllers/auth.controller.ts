@@ -261,25 +261,39 @@ export const requestOTP = async (req: Request, res: Response): Promise<void> => 
         console.log(`[AUTH-API] Generated OTP for ${phone}: ${code}`);
 
         // Check OTP Options to see if we should send SMS
+        let smsDebug = 'Not Attempted';
         try {
             const otpConfigDoc = await db.collection('otp_options').doc('config').get();
-            const config = otpConfigDoc.data();
+            let config = otpConfigDoc.data();
+
+            // Auto-initialize config if missing
+            if (!otpConfigDoc.exists) {
+                console.log('[AUTH-API] Initializing default OTP config (Enabled/Plasgate)');
+                config = {
+                    enabled: true,
+                    provider: 'plasgate',
+                    template: 'Your DoorStep verification code is: {{code}}'
+                };
+                await db.collection('otp_options').doc('config').set(config);
+            }
 
             if (config?.enabled && config?.provider === 'plasgate') {
                 const message = config.template
                     ? config.template.replace('{{code}}', code)
                     : `Your DoorStep verification code is: ${code}`;
 
-                await sendSMS(phone, message);
+                const result = await sendSMS(phone, message);
+                smsDebug = 'Sent: ' + JSON.stringify(result);
                 console.log(`[AUTH-API] SMS sent to ${phone}`);
             }
-        } catch (smsError) {
+        } catch (smsError: any) {
             console.error('[AUTH-API] Failed to send SMS:', smsError);
-            // Don't fail the request, just log it. The code is still valid.
+            smsDebug = 'Error: ' + smsError.message;
         }
 
         sendSuccess(res, 'OTP generated successfully', {
-            note: 'OTP sent via configured method (or check logs in dev).'
+            note: 'OTP sent via configured method.',
+            smsDebug: smsDebug
         });
     } catch (error: any) {
         console.error('Request OTP error:', error);
@@ -424,3 +438,27 @@ export const resetPasswordWithOTP = async (req: Request, res: Response): Promise
 };
 
 
+/**
+ * Test SMS sending directly (Debug Endpoint)
+ * POST /auth/test-sms
+ * Body: { phone, message }
+ */
+export const testSMS = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { phone, message } = req.body;
+
+        if (!phone || !message) {
+            sendError(res, 'Phone and message are required', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        const result = await sendSMS(phone, message);
+
+        sendSuccess(res, 'SMS Sent', {
+            providerResponse: result
+        });
+    } catch (error: any) {
+        console.error('Test SMS error:', error);
+        sendError(res, error.message || 'Failed to send SMS', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_ERROR);
+    }
+};

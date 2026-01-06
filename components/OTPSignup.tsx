@@ -186,22 +186,15 @@ export const OTPSignup: React.FC<OTPSignupProps> = ({ onSuccess, onBackToLogin }
                 {/* Step 2: OTP Verification */}
                 {step === 'otp' && (
                     <form onSubmit={handleVerifyOTP} className="space-y-5">
-                        {otpInfo && (
-                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p className="text-sm text-blue-900 font-medium mb-2">
-                                    🔐 Your OTP Code (Development Mode):
-                                </p>
-                                <p className="text-2xl font-bold text-blue-700 text-center tracking-wider">
-                                    {otpInfo.code}
-                                </p>
-                                <p className="text-xs text-blue-600 mt-2 text-center">
-                                    Expires: {new Date(otpInfo.expiresAt).toLocaleTimeString()}
-                                </p>
-                                <p className="text-xs text-blue-600 mt-1 text-center">
-                                    (In production, this will be sent via SMS)
-                                </p>
-                            </div>
-                        )}
+                        {/* Dev OTP Display Removed - relying on real SMS */}
+                        <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                            <p className="text-sm text-gray-600">
+                                We've sent a code to <span className="font-bold text-gray-900">{phone}</span>
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Please check your messages.
+                            </p>
+                        </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Enter OTP Code</label>
