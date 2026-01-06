@@ -1,6 +1,5 @@
-
 import { BaseService } from './baseService';
-import { Employee, StaffLoan, StaffLoanRepayment } from '../types';
+import { Employee, StaffLoan, StaffLoanRepayment, StaffTransaction, DailyAttendance, AttendanceRecord } from '../types';
 
 export class HRService extends BaseService {
   // Employee CRUD
@@ -70,4 +69,17 @@ export class HRService extends BaseService {
       await this.saveDocument('payslips', slip);
     }
   }
+
+  // Staff Transactions (Allowances/Deductions)
+  async getStaffTransactions() { return this.getCollection<StaffTransaction>('staff_transactions'); }
+  async createStaffTransaction(t: StaffTransaction) { await this.saveDocument('staff_transactions', t); }
+  async updateStaffTransaction(t: StaffTransaction) { await this.saveDocument('staff_transactions', t, true); }
+  async deleteStaffTransaction(id: string) { await this.deleteDocument('staff_transactions', id); }
+
+  // Attendance
+  async getDailyAttendance() { return this.getCollection<DailyAttendance>('daily_attendance'); }
+  async saveDailyAttendance(a: DailyAttendance) { await this.saveDocument('daily_attendance', a, true); } // Upsert
+
+  async getAttendanceRecords() { return this.getCollection<AttendanceRecord>('attendance_records'); }
+  async saveAttendanceRecord(r: AttendanceRecord) { await this.saveDocument('attendance_records', r, true); }
 }

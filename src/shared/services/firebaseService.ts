@@ -161,7 +161,16 @@ export class FirebaseService {
     getStaffLoans() { return this.hrService.getStaffLoans(); }
     createStaffLoan(l: any) { return this.hrService.createStaffLoan(l); }
     recordStaffLoanRepayment(r: any) { return this.hrService.recordStaffLoanRepayment(r); }
+    // Staff Transactions & Attendance
+    getStaffTransactions() { return this.hrService.getStaffTransactions(); }
+    createStaffTransaction(t: any) { return this.hrService.createStaffTransaction(t); }
+    updateStaffTransaction(t: any) { return this.hrService.updateStaffTransaction(t); }
+    deleteStaffTransaction(id: string) { return this.hrService.deleteStaffTransaction(id); }
 
+    getDailyAttendance() { return this.hrService.getDailyAttendance(); }
+    saveDailyAttendance(a: any) { return this.hrService.saveDailyAttendance(a); }
+    getAttendanceRecords() { return this.hrService.getAttendanceRecords(); }
+    saveAttendanceRecord(r: any) { return this.hrService.saveAttendanceRecord(r); }
     // Logistics
     getParcelServices() { return this.logisticsService.getParcelServices(); }
     saveParcelService(s: any) { return this.logisticsService.saveParcelService(s); }
@@ -212,6 +221,12 @@ export class FirebaseService {
     getReferralRules() { return this.logisticsService.getReferralRules(); }
     saveReferralRule(rule: any) { return this.logisticsService.saveReferralRule(rule); }
     deleteReferralRule(id: string) { return this.logisticsService.deleteReferralRule(id); }
+
+    // Telegram Groups
+    getTelegramGroups() { return this.logisticsService.getTelegramGroups(); }
+    saveTelegramGroup(group: any) { return this.logisticsService.saveTelegramGroup(group); }
+    deleteTelegramGroup(id: string) { return this.logisticsService.deleteTelegramGroup(id); }
+
     markTaxiFeesAsReimbursed(items: { bookingId: string, itemId: string }[]) { return this.logisticsService.markTaxiFeesAsReimbursed(items); }
     markTaxiFeeTransactionsAsSettled(items: { bookingId: string, itemId: string }[], userId?: string) { return this.walletService.markTaxiFeeTransactionsAsSettled(items, userId); }
 

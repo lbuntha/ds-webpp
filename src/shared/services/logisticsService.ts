@@ -53,7 +53,13 @@ export class LogisticsService extends BaseService {
     async saveReferralRule(rule: ReferralRule) { await this.saveDocument('referral_rules', rule); }
     async deleteReferralRule(id: string) { await this.deleteDocument('referral_rules', id); }
 
+    // --- Telegram Groups (for PayWay monitoring) ---
+    async getTelegramGroups() { return this.getCollection<any>('telegram_groups'); }
+    async saveTelegramGroup(group: any) { await this.saveDocument('telegram_groups', group); }
+    async deleteTelegramGroup(id: string) { await this.deleteDocument('telegram_groups', id); }
+
     // Ops (Admin/General)
+
     async getParcelBookings() { return this.getCollection<ParcelBooking>('parcel_bookings'); }
 
     // --- Ops (Secure Fetch for Wallet/Profile) ---

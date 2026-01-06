@@ -102,6 +102,44 @@ export class TelegramService {
         }
     }
 
+    async sendPhoto(chatId: string, photo: Buffer | string, filename?: string, caption?: string): Promise<any> {
+        if (!this.botToken) return null;
+
+        try {
+            const form = new FormData();
+            form.append('chat_id', chatId);
+
+            if (Buffer.isBuffer(photo)) {
+                form.append('photo', photo, { filename: filename || 'image.jpg' });
+            } else {
+                form.append('photo', photo); // It's a file_id or URL
+            }
+
+            if (caption) {
+                form.append('caption', caption);
+                form.append('parse_mode', 'Markdown');
+            }
+
+            const url = `https://api.telegram.org/bot${this.botToken}/sendPhoto`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                body: form as any,
+                // @ts-ignore
+                headers: form.getHeaders ? form.getHeaders() : {}
+            });
+
+            const data = await response.json();
+            if (!data.ok) {
+                console.error('Telegram Photo API Error:', data);
+                return null;
+            }
+            return data;
+        } catch (error) {
+            console.error('Failed to send Telegram photo:', error);
+            return null;
+        }
+    }
 
 
     async sendSettlementReport(chatId: string, txn: LocalWalletTransaction, customerName: string, statusOverride?: string, excelBuffer?: Buffer, breakdown?: SettlementBreakdown): Promise<boolean> {

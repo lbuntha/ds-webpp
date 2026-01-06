@@ -204,6 +204,14 @@ const routes: RouteObject[] = [
                 ),
             },
             {
+                path: 'staff/allowances',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_STAFF_LOANS">
+                        {withSuspense(lazy(() => import('./views/StaffAllowanceView')))}
+                    </PermissionRoute>
+                ),
+            },
+            {
                 path: 'staff/settlements',
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_STAFF_LOANS">
@@ -394,6 +402,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_SETTINGS">
                         {withSuspense(SeedPermissionsView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'telegram',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_SETTINGS">
+                        {withSuspense(lazy(() => import('./views/TelegramView')))}
                     </PermissionRoute>
                 ),
             },

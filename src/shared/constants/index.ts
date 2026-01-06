@@ -139,6 +139,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   // EMPLOYEE / STAFF MENUS
   // ==============================
   { id: 'nav-staff-manage', label: 'Manage Staff', viewId: 'STAFF_MANAGE', iconKey: 'users', order: 30, allowedRoles: ['system-admin', 'accountant'], section: 'employee' },
+  { id: 'nav-staff-allowances', label: 'Allowances & Attendance', viewId: 'STAFF_ALLOWANCES', iconKey: 'calendar', order: 30.5, allowedRoles: ['system-admin', 'accountant'], section: 'employee' },
   { id: 'nav-staff', label: 'Loans Overview', viewId: 'STAFF', iconKey: 'staff', order: 31, allowedRoles: ['system-admin', 'accountant'], section: 'employee' },
   { id: 'nav-staff-loan-issue', label: 'Issue Loan', viewId: 'STAFF_LOAN_ISSUE', iconKey: 'plus', order: 32, allowedRoles: ['system-admin', 'accountant'], section: 'employee' },
   { id: 'nav-staff-settlements', label: 'Settlements', viewId: 'STAFF_SETTLEMENTS', iconKey: 'money', order: 33, allowedRoles: ['system-admin', 'accountant'], section: 'employee' },
@@ -156,7 +157,8 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   // SYSTEM / ADMIN ONLY
   // ==============================
   { id: 'nav-settings', label: 'Configuration', viewId: 'SETTINGS', iconKey: 'settings', order: 90, allowedRoles: ['system-admin'], section: 'system' },
-  { id: 'nav-users', label: 'Users', viewId: 'USERS', iconKey: 'users', order: 91, allowedRoles: ['system-admin'], section: 'system' },
+  { id: 'nav-telegram', label: 'Telegram', viewId: 'TELEGRAM', iconKey: 'telegram', order: 91, allowedRoles: ['system-admin'], section: 'system' },
+  { id: 'nav-users', label: 'Users', viewId: 'USERS', iconKey: 'users', order: 92, allowedRoles: ['system-admin'], section: 'system' },
   { id: 'nav-manual', label: 'Manual', viewId: 'MANUAL', iconKey: 'manual', order: 99, allowedRoles: ['system-admin', 'accountant', 'warehouse', 'driver', 'customer'] }
 ];
 

@@ -536,8 +536,17 @@ export type PayrollRunStatus = 'DRAFT' | 'APPROVED' | 'PAID';
 export interface PayrollRun {
   id: string;
   period: string; // YYYY-MM
+  startDate: string; // ISO Date YYYY-MM-DD
+  endDate: string; // ISO Date YYYY-MM-DD
+  stage: 'DRAFT' | 'REVIEW' | 'COMPLETED'; // Pipeline Stage
   status: PayrollRunStatus;
+
   totalAmount: number; // Total Net Pay
+  totalBaseSalary: number;
+  totalAllowances: number;
+  totalCommissions: number; // New field
+  totalDeductions: number;
+
   currency: 'USD' | 'KHR'; // Default USD
   exchangeRate: number;
 
@@ -571,6 +580,7 @@ export interface Payslip {
 
   // Base
   baseSalary: number;
+  proRatedSalary: number; // For semi-monthly
   currency: 'USD' | 'KHR'; // Usually same as Run currency
 
   // Components
@@ -580,10 +590,84 @@ export interface Payslip {
   // Totals
   grossPay: number;
   totalTax: number;
+  totalCommissions: number; // New field
+  totalAllowances: number;
   totalDeductions: number;
   netPay: number;
 
   status: 'PENDING' | 'PAID';
+}
+
+export type TransactionType = 'ALLOWANCE' | 'DEDUCTION';
+
+export type AllowanceCategory =
+  | 'GASOLINE'
+  | 'PHONE_CARD'
+  | 'MEAL'
+  | 'ACCOMMODATION'
+  | 'OVERTIME'
+  | 'BONUS'
+  | 'OTHER_ALLOWANCE';
+
+export type DeductionCategory =
+  | 'LATENESS'
+  | 'ABSENCE'
+  | 'DAMAGED_GOODS'
+  | 'LOAN_REPAYMENT'
+  | 'OTHER_DEDUCTION';
+
+export interface StaffTransaction {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  type: TransactionType;
+  category: string; // Open string or union
+  amount: number;
+  currency: 'USD' | 'KHR';
+  date: string; // YYYY-MM-DD
+  description?: string;
+
+  // Accounting
+  expenseAccountId?: string; // For Allowances
+  liabilityAccountId?: string; // For Deductions
+  paymentAccountId?: string; // If paid immediately
+
+  status: 'PENDING_PAYROLL' | 'PAID_IMMEDIATELY';
+  payrollRunId?: string;
+
+  branchId: string;
+  createdAt: number;
+  createdBy: string;
+}
+
+export interface DailyAttendance {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  date: string; // YYYY-MM-DD
+  clockIn: number; // Timestamp
+  clockOut?: number; // Timestamp
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'LEFT_EARLY' | 'MISSING_CLOCK_OUT';
+  isHoliday?: boolean;
+  notes?: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  month: string; // YYYY-MM
+  standardDays: number; // Default 26
+
+  daysWorked: number;
+  daysOff: number;
+
+  ratePerDay: number; // calculated from Base Salary / 26
+  adjustmentAmount: number; // (DaysWorked - 26) * Rate
+
+  status: 'DRAFT' | 'PROCESSED';
+  transactionId?: string; // Link to the computed StaffTransaction (Allowance/Deduction)
+  createdAt: number;
 }
 
 export interface FixedAssetCategory {
@@ -636,6 +720,24 @@ export interface TaxRate {
   name: string;
   code: string;
   rate: number;
+}
+
+export interface PayrollConfig {
+  standardWorkingDays: number; // Default 26
+  standardDayOffs: number;     // Default 4
+  paySchedule: 'MONTHLY' | 'SEMI_MONTHLY';
+  latenessDeductionAmount: number; // Default 1.00
+  attendanceAllowanceAmount?: number; // Optional, e.g. $10
+  excessLeavePenaltyAmount?: number; // Penalty for extra days off (default 10)
+
+  // Shift Schedule
+  workStartTime: string; // "08:00"
+  workEndTime: string;   // "17:00"
+  lateGracePeriodMinutes: number; // 15
+
+  // Specific Rule: Pro-rated Day Offs
+  minDaysForDayOff: number; // 15
+  dayOffsPerPeriod: number; // 2
 }
 
 export interface SystemSettings {
@@ -817,6 +919,10 @@ export interface WalletTransaction {
   journalEntryId?: string;
   relatedItems?: { bookingId: string, itemId: string }[];
   taxiFeeSettled?: boolean; // True when taxi fee has been reimbursed via settlement
+
+  // Payroll Settlement
+  isSettled?: boolean;
+  payrollRunId?: string;
 }
 
 export interface NavigationItem {
@@ -830,6 +936,17 @@ export interface NavigationItem {
   section?: string; // Optional grouping (e.g., 'system')
   parentId?: string; // For submenu items - references parent's id
   isParent?: boolean; // Indicates this item has children
+}
+
+
+export interface TelegramGroup {
+  id: string;
+  name: string;              // Display name
+  chatTitle: string;         // Exact Telegram group title to match
+  isActive: boolean;         // Enable/disable monitoring
+  monitorPayWay: boolean;    // Parse PayWay messages
+  createdAt: number;
+  updatedAt?: number;
 }
 
 export interface IDataService {

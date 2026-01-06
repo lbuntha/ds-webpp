@@ -76,6 +76,41 @@ class TelegramService {
             return false;
         }
     }
+    async sendPhoto(chatId, photo, filename, caption) {
+        if (!this.botToken)
+            return null;
+        try {
+            const form = new form_data_1.default();
+            form.append('chat_id', chatId);
+            if (Buffer.isBuffer(photo)) {
+                form.append('photo', photo, { filename: filename || 'image.jpg' });
+            }
+            else {
+                form.append('photo', photo); // It's a file_id or URL
+            }
+            if (caption) {
+                form.append('caption', caption);
+                form.append('parse_mode', 'Markdown');
+            }
+            const url = `https://api.telegram.org/bot${this.botToken}/sendPhoto`;
+            const response = await (0, node_fetch_1.default)(url, {
+                method: 'POST',
+                body: form,
+                // @ts-ignore
+                headers: form.getHeaders ? form.getHeaders() : {}
+            });
+            const data = await response.json();
+            if (!data.ok) {
+                console.error('Telegram Photo API Error:', data);
+                return null;
+            }
+            return data;
+        }
+        catch (error) {
+            console.error('Failed to send Telegram photo:', error);
+            return null;
+        }
+    }
     async sendSettlementReport(chatId, txn, customerName, statusOverride, excelBuffer, breakdown) {
         var _a;
         const isUSD = txn.currency === 'USD';

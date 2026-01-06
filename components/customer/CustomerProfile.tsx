@@ -55,35 +55,7 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
     const [rateLoading, setRateLoading] = useState(false);
     const [systemRate, setSystemRate] = useState(4100);
 
-    // Sync State
-    const [isSyncing, setIsSyncing] = useState(false);
 
-    const handleSyncData = async () => {
-        setIsSyncing(true);
-        try {
-            const result = await firebaseService.syncService.syncUserToCustomer(user);
-            if (result.success) {
-                toast.success('Data synced successfully!');
-                // Reload customer data
-                if (result.customerId) {
-                    const data = await firebaseService.getDocument('customers', result.customerId);
-                    if (data) {
-                        const cust = data as Customer;
-                        setCustomerData(cust);
-                        if (cust.savedLocations) setLocations(cust.savedLocations);
-                        if (cust.referralCode) setDisplayReferralCode(cust.referralCode);
-                    }
-                }
-            } else {
-                toast.error(result.error || 'Sync failed');
-            }
-        } catch (error) {
-            console.error('Sync error:', error);
-            toast.error('Failed to sync data');
-        } finally {
-            setIsSyncing(false);
-        }
-    };
 
     // Load Linked Customer Data & System Rates
     useEffect(() => {
@@ -452,21 +424,7 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
                 )}
             </Card>
 
-            {/* SYNC DATA SECTION */}
-            {customerData && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                        <h3 className="font-medium text-blue-900">Sync Data</h3>
-                        <p className="text-sm text-blue-700">Sync your profile data with your customer record.</p>
-                    </div>
-                    <Button onClick={handleSyncData} isLoading={isSyncing} variant="secondary">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Sync Now
-                    </Button>
-                </div>
-            )}
+
 
             {/* EXCHANGE RATE SETTING */}
             {!hideExchangeRate && (

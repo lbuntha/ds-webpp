@@ -33,10 +33,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleWebhook = void 0;
+exports.handleBroadcast = exports.handleWebhook = void 0;
 const admin = __importStar(require("firebase-admin"));
 const telegramService_1 = require("../services/telegramService");
 const telegramService = new telegramService_1.TelegramService();
+// Helper: delay function for rate limiting
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const handleWebhook = async (req, res) => {
     try {
         const update = req.body;
@@ -92,4 +94,106 @@ const handleWebhook = async (req, res) => {
     }
 };
 exports.handleWebhook = handleWebhook;
+/**
+ * Handle broadcast messages to multiple Telegram users
+ * POST /telegram/broadcast
+ * Body: { message: string, recipients: BroadcastRecipient[], image?: string, filename?: string }
+ */
+const handleBroadcast = async (req, res) => {
+    try {
+        const { message, recipients, image, filename } = req.body;
+        if (!message || !message.trim()) {
+            return res.status(400).json({ success: false, error: 'Message is required' });
+        }
+        if (!recipients || recipients.length === 0) {
+            return res.status(400).json({ success: false, error: 'At least one recipient is required' });
+        }
+        const batchSize = 25; // Telegram rate limit ~30/sec, use 25 to be safe
+        const delayBetweenBatches = 1000; // 1 second
+        let sent = 0;
+        let failed = 0;
+        let photoFileId = null;
+        let photoBuffer = null;
+        // Process image if provided
+        if (image) {
+            try {
+                // Remove data:image/jpeg;base64, prefix if present
+                const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+                photoBuffer = Buffer.from(base64Data, 'base64');
+            }
+            catch (e) {
+                console.error('[Broadcast] Invalid image data:', e);
+                return res.status(400).json({ success: false, error: 'Invalid image data' });
+            }
+        }
+        console.log(`[Broadcast] Starting broadcast to ${recipients.length} recipients. Has image: ${!!photoBuffer}`);
+        // Process in batches
+        for (let i = 0; i < recipients.length; i += batchSize) {
+            const batch = recipients.slice(i, i + batchSize);
+            // Process batch concurrently
+            const results = await Promise.allSettled(batch.map(async (recipient) => {
+                var _a;
+                try {
+                    let success;
+                    // Scenario 1: Sending Photo
+                    if (photoBuffer) {
+                        // First successful send gets the file_id to reuse
+                        if (photoFileId) {
+                            // Reuse file_id (FAST)
+                            success = await telegramService.sendPhoto(recipient.chatId, photoFileId, filename, message);
+                        }
+                        else {
+                            // Send actual buffer (SLOW - only once)
+                            const result = await telegramService.sendPhoto(recipient.chatId, photoBuffer, filename, message);
+                            if (result && result.ok) {
+                                success = result;
+                                // Capture file_id for next sends
+                                const photos = (_a = result.result) === null || _a === void 0 ? void 0 : _a.photo;
+                                if (photos && photos.length > 0) {
+                                    // Get distinct file_id from the largest photo
+                                    photoFileId = photos[photos.length - 1].file_id;
+                                    console.log(`[Broadcast] Captured file_id for reuse: ${photoFileId}`);
+                                }
+                            }
+                        }
+                    }
+                    // Scenario 2: Text Only
+                    else {
+                        success = await telegramService.sendMessage(recipient.chatId, message);
+                    }
+                    return { success: !!success, recipient };
+                }
+                catch (e) {
+                    console.error(`[Broadcast] Error sending to ${recipient.chatId}:`, e);
+                    return { success: false, recipient };
+                }
+            }));
+            // Count results
+            for (const result of results) {
+                if (result.status === 'fulfilled' && result.value.success) {
+                    sent++;
+                }
+                else {
+                    failed++;
+                }
+            }
+            // Rate limit delay between batches
+            if (i + batchSize < recipients.length) {
+                await delay(delayBetweenBatches);
+            }
+        }
+        console.log(`[Broadcast] Complete: ${sent} sent, ${failed} failed`);
+        return res.status(200).json({
+            success: true,
+            sent,
+            failed,
+            total: recipients.length
+        });
+    }
+    catch (error) {
+        console.error('Broadcast Error:', error);
+        return res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+};
+exports.handleBroadcast = handleBroadcast;
 //# sourceMappingURL=telegram.controller.js.map

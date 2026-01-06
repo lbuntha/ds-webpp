@@ -34,7 +34,7 @@ export class PayWayParser {
         // 4. Driver Info: "at DS by (.+?) Trx" -> This contains Name and Code.
         // Let's be specific for Code: "DS\d+"
 
-        const format2 = /(\$|USD|KHR|៛)([\d,.]+)\s*paid by\s*(.+?)\s*(?:on|via).+?at DS by\s*(.+?)(DS\d{3,4})\.?\s*Trx/i;
+        const format2 = /(\$|USD|KHR|៛)([\d,.]+)\s*paid by\s*(.+?)\s*(?:on|via).+?at DS by\s*(.+?)(DS\d{3,4})/i;
 
         let match = text.match(format2);
         let type = 2;

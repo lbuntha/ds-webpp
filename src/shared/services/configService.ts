@@ -1,5 +1,6 @@
 import { BaseService } from './baseService';
-import { SystemSettings, Branch, CurrencyConfig, TaxRate, UserProfile, UserRole, Permission, SavedLocation, AppNotification, NavigationItem } from '../types';
+import { db, storage } from '../../config/firebase';
+import { SystemSettings, Branch, CurrencyConfig, TaxRate, UserProfile, UserRole, Permission, SavedLocation, AppNotification, NavigationItem, PayrollConfig } from '../types';
 import { doc, getDoc, setDoc, updateDoc, query, collection, where, getDocs, onSnapshot, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../constants';
@@ -12,6 +13,27 @@ export class ConfigService extends BaseService {
     }
     async updateSettings(s: SystemSettings) { await setDoc(doc(this.db, 'settings', 'general'), s, { merge: true }); }
 
+    // Payroll Configuration
+    async getPayrollConfig(): Promise<PayrollConfig> {
+        const snap = await getDoc(doc(this.db, 'settings', 'payroll'));
+        if (snap.exists()) return snap.data() as PayrollConfig;
+        // Defaults
+        return {
+            standardWorkingDays: 26,
+            standardDayOffs: 4,
+            paySchedule: 'SEMI_MONTHLY',
+            latenessDeductionAmount: 1.00,
+            excessLeavePenaltyAmount: 10.00,
+            minDaysForDayOff: 15,
+            dayOffsPerPeriod: 2,
+            workStartTime: '08:00',
+            workEndTime: '17:00',
+            lateGracePeriodMinutes: 15
+        };
+    }
+    async updatePayrollConfig(c: PayrollConfig) { await setDoc(doc(this.db, 'settings', 'payroll'), c, { merge: true }); }
+
+    // Branches
     // Branches
     async getBranches() { return this.getCollection<Branch>('branches'); }
     async addBranch(b: Branch) { await this.saveDocument('branches', b); }
@@ -177,3 +199,6 @@ export class ConfigService extends BaseService {
         await batch.commit();
     }
 }
+
+
+export const configService = new ConfigService(db, storage);
