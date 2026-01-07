@@ -94,54 +94,88 @@ export const TelegramMessageLog: React.FC = () => {
         loadMessages();
     }, [daysBack]);
 
-    // Get unique groups for filter
+    const [configuredGroups, setConfiguredGroups] = useState<any[]>([]);
+
+    useEffect(() => {
+        const loadConfig = async () => {
+            const data = await firebaseService.getTelegramGroups();
+            setConfiguredGroups(data);
+        };
+        loadConfig();
+    }, []);
+
+    // Resolve a driver code or name to a nice Group Title if possible
+    const resolveGroupName = (codeOrName: string) => {
+        if (!codeOrName) return 'Unknown';
+        // Try exact match
+        const exact = configuredGroups.find(g => g.chatTitle === codeOrName || g.name === codeOrName);
+        if (exact) return exact.chatTitle;
+
+        // Try to match Driver Code at start of Configured Group (e.g. DS004 matches "DS004 - Sing Tola")
+        const partial = configuredGroups.find(g => g.chatTitle.startsWith(codeOrName + ' ') || g.chatTitle.startsWith(codeOrName + '-'));
+        if (partial) return partial.chatTitle;
+
+        return codeOrName;
+    };
+
+    // Get unique groups for filter (Drivers prioritized & Resolved)
     const groups = useMemo(() => {
         const groupSet = new Set<string>();
         messages.forEach(m => {
+            let key = m.configGroupName || m.chatTitle || 'Unknown';
             if (m.transactionData?.driverCode) {
-                groupSet.add(m.transactionData.driverCode);
+                key = m.transactionData.driverCode;
             }
-            groupSet.add(m.configGroupName || m.chatTitle || 'Unknown');
+            // Resolve to nice name
+            groupSet.add(resolveGroupName(key));
         });
         return Array.from(groupSet).sort();
-    }, [messages]);
+    }, [messages, configuredGroups]);
 
-    // Group messages by group name and then by date
+    // Group messages: prioritize Driver Code as the top-level group
     const groupedMessages = useMemo(() => {
         const filtered = selectedGroup === 'ALL'
             ? messages
             : messages.filter(m => {
-                // Match Group Name OR Driver Code
-                return (m.configGroupName === selectedGroup) ||
-                    (m.chatTitle === selectedGroup) ||
-                    (m.transactionData?.driverCode === selectedGroup);
+                let key = m.configGroupName || m.chatTitle || 'Unknown';
+                if (m.transactionData?.driverCode) {
+                    key = m.transactionData.driverCode;
+                }
+                const resolved = resolveGroupName(key);
+                return resolved === selectedGroup;
             });
 
         const grouped: GroupedMessages = {};
 
         filtered.forEach(msg => {
-            let groupName = msg.configGroupName || msg.chatTitle || 'Unknown';
+            // THE CHANGE: Use Driver Code as the primary group name if available
+            let primaryGroup = msg.transactionData?.driverCode;
 
-            // Should group by Driver Code if available (for PayWay shared groups)
-            if (msg.transactionData?.driverCode) {
-                groupName = msg.transactionData.driverCode;
+            if (!primaryGroup) {
+                // Fallback for unparsed messages or messages without driver info
+                primaryGroup = msg.configGroupName || msg.chatTitle || 'Unknown';
             }
+
+            // Resolve to nice name (e.g. DS004 -> DS004 - Sing Tola)
+            const displayName = resolveGroupName(primaryGroup);
+
             const msgDate = msg.date instanceof Timestamp
                 ? msg.date.toDate()
                 : new Date(msg.date);
             const dateKey = msgDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
-            if (!grouped[groupName]) {
-                grouped[groupName] = {};
+            // Initialize structure
+            if (!grouped[displayName]) {
+                grouped[displayName] = {};
             }
-            if (!grouped[groupName][dateKey]) {
-                grouped[groupName][dateKey] = [];
+            if (!grouped[displayName][dateKey]) {
+                grouped[displayName][dateKey] = [];
             }
-            grouped[groupName][dateKey].push(msg);
+            grouped[displayName][dateKey].push(msg);
         });
 
         return grouped;
-    }, [messages, selectedGroup]);
+    }, [messages, selectedGroup, configuredGroups]);
 
     const toggleDate = (key: string) => {
         setExpandedDates(prev => {
