@@ -45,6 +45,8 @@ const ParcelsServiceSetupView = lazy(() => import('./views/ParcelsServiceSetupVi
 const DriverCommissionSetupView = lazy(() => import('./views/DriverCommissionSetupView'));
 const ParcelsAgingView = lazy(() => import('./views/ParcelsAgingView'));
 const PromotionsPage = lazy(() => import('./views/PromotionsPage'));
+const CashbackPage = lazy(() => import('./views/CashbackPage'));
+const CashbackReportPage = lazy(() => import('./views/CashbackReportPage'));
 
 // Reports & Settings
 const ReportsView = lazy(() => import('./views/ReportsView'));
@@ -321,6 +323,22 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_PARCEL_PRODUCTS">
                         {withSuspense(PromotionsPage)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'cashback',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_CASHBACK">
+                        {withSuspense(CashbackPage)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'cashback-report',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_CASHBACK">
+                        {withSuspense(CashbackReportPage)}
                     </PermissionRoute>
                 ),
             },

@@ -1,6 +1,6 @@
 
 import { BaseService } from './baseService';
-import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, UserProfile, ReferralRule, ParcelItem, Employee } from '../types';
+import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, CustomerCashbackRule, UserProfile, ReferralRule, ParcelItem, Employee } from '../types';
 import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or, limit } from 'firebase/firestore';
 import { db, storage } from './firebaseInstance';
 import { calculateDriverCommission } from '../utils/commissionCalculator';
@@ -47,6 +47,18 @@ export class LogisticsService extends BaseService {
     }
     async saveCustomerSpecialRate(rate: CustomerSpecialRate) { await this.saveDocument('customer_rates', rate); }
     async deleteCustomerSpecialRate(id: string) { await this.deleteDocument('customer_rates', id); }
+
+    // --- Customer Cashback Rules ---
+    async getCustomerCashbackRules(customerId?: string): Promise<CustomerCashbackRule[]> {
+        if (customerId) {
+            const q = query(collection(this.db, 'customer_cashback_rules'), where('customerId', '==', customerId));
+            const snap = await getDocs(q);
+            return snap.docs.map(d => d.data() as CustomerCashbackRule);
+        }
+        return this.getCollection<CustomerCashbackRule>('customer_cashback_rules');
+    }
+    async saveCustomerCashbackRule(rule: CustomerCashbackRule) { await this.saveDocument('customer_cashback_rules', rule); }
+    async deleteCustomerCashbackRule(id: string) { await this.deleteDocument('customer_cashback_rules', id); }
 
     // --- Referral Rules ---
     async getReferralRules() { return this.getCollection<ReferralRule>('referral_rules'); }

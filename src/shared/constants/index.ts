@@ -44,7 +44,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'VIEW_PARCEL_AGING',
     'MANAGE_PARCEL_FLEET',
     'MANAGE_PARCEL_PLACES',
-    'MANAGE_PARCEL_PRODUCTS'
+    'MANAGE_PARCEL_PRODUCTS',
+    'MANAGE_CASHBACK'
   ],
   'accountant': [
     'VIEW_DASHBOARD',
@@ -83,6 +84,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_PARCEL_OPERATIONS',
     'MANAGE_PARCEL_DISPATCH',
     'MANAGE_PARCEL_FLEET'
+  ],
+  'sales': [
+    'VIEW_DASHBOARD',
+    'VIEW_PARCELS_OVERVIEW',
+    'MANAGE_CUSTOMERS',
+    'MANAGE_CASHBACK',
+    'VIEW_PARCEL_RETENTION',
+    'VIEW_PARCEL_AGING'
   ]
 };
 
@@ -107,6 +116,8 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-parcels-places', label: 'Places', viewId: 'PARCELS_PLACES', iconKey: 'places', order: 16, allowedRoles: ['system-admin'], section: 'warehouse' },
   { id: 'nav-parcels-products', label: 'Products/Services', viewId: 'PARCELS_PRODUCTS', iconKey: 'products', order: 17, allowedRoles: ['system-admin'], section: 'warehouse' },
   { id: 'nav-promotions', label: 'Promotions', viewId: 'PROMOTIONS', iconKey: 'gift', order: 18, allowedRoles: ['system-admin'], section: 'warehouse' },
+  { id: 'nav-cashback', label: 'Cashback Rules', viewId: 'CASHBACK', iconKey: 'money', order: 19, allowedRoles: ['system-admin', 'sales'], section: 'sales' },
+  { id: 'nav-cashback-report', label: 'Cashback Report', viewId: 'CASHBACK_REPORT', iconKey: 'reports', order: 20, allowedRoles: ['system-admin', 'sales', 'accountant'], section: 'sales' },
 
   // ==============================
   // DRIVER MENUS (Admin + Portal)

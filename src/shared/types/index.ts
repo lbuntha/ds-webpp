@@ -147,9 +147,10 @@ export type Permission =
   | 'VIEW_DRIVER_EARNINGS'       // Driver: View earnings and commissions
   | 'CUSTOMER_VIEW_REPORTS'      // Customer: View spending reports
   | 'MANAGE_PARCEL_CONFIG'       // Admin: Manage parcel configuration
-  | 'MANAGE_LOGISTICS_CONFIG';   // Admin: Manage logistics settings
+  | 'MANAGE_LOGISTICS_CONFIG'   // Admin: Manage logistics settings
+  | 'MANAGE_CASHBACK';           // Sales: Manage cashback rules
 
-export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse' | 'fleet-driver';
+export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse' | 'fleet-driver' | 'sales';
 
 export type PermissionGroup = 'FINANCE' | 'LOGISTICS' | 'REPORTS' | 'SETTINGS' | 'SYSTEM' | 'DRIVER' | 'CUSTOMER';
 
@@ -233,6 +234,19 @@ export interface CustomerSpecialRate {
   startDate: string; // ISO Date YYYY-MM-DD
   endDate: string; // ISO Date YYYY-MM-DD
   createdAt: number;
+}
+
+export interface CustomerCashbackRule {
+  id: string;
+  customerId: string;
+  customerName: string;              // Snapshot for UI
+  minParcelsPerMonth: number;        // Threshold (e.g., 300)
+  cashbackPercent: number;           // Percentage (e.g., 10 for 10%)
+  startDate: string;                 // ISO Date YYYY-MM-DD
+  endDate: string;                   // ISO Date YYYY-MM-DD
+  isActive: boolean;
+  createdAt: number;
+  updatedAt?: number;
 }
 
 export interface ReferralRule {
@@ -910,7 +924,7 @@ export interface WalletTransaction {
   userName?: string;
   amount: number;
   currency: 'USD' | 'KHR';
-  type: 'DEPOSIT' | 'WITHDRAWAL' | 'EARNING' | 'REFUND' | 'SETTLEMENT' | 'TAXI_FEE';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'EARNING' | 'REFUND' | 'SETTLEMENT' | 'TAXI_FEE' | 'CASHBACK';
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FAILED';
   date: string;
   description?: string;

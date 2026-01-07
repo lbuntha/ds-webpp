@@ -220,6 +220,11 @@ export class FirebaseService {
     saveCustomerSpecialRate(rate: any) { return this.logisticsService.saveCustomerSpecialRate(rate); }
     deleteCustomerSpecialRate(id: string) { return this.logisticsService.deleteCustomerSpecialRate(id); }
 
+    // Cashback Rules
+    getCustomerCashbackRules(customerId?: string) { return this.logisticsService.getCustomerCashbackRules(customerId); }
+    saveCustomerCashbackRule(rule: any) { return this.logisticsService.saveCustomerCashbackRule(rule); }
+    deleteCustomerCashbackRule(id: string) { return this.logisticsService.deleteCustomerCashbackRule(id); }
+
     // Referral Rules
     getReferralRules() { return this.logisticsService.getReferralRules(); }
     saveReferralRule(rule: any) { return this.logisticsService.saveReferralRule(rule); }
