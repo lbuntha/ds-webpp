@@ -1,7 +1,7 @@
 
 import { BaseService } from './baseService';
 import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, UserProfile, ReferralRule, ParcelItem, Employee } from '../types';
-import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or, limit } from 'firebase/firestore';
 import { db, storage } from './firebaseInstance';
 import { calculateDriverCommission } from '../utils/commissionCalculator';
 
@@ -380,7 +380,36 @@ export class LogisticsService extends BaseService {
             bookingToSave.involvedDriverIds = Array.from(driverIds);
         }
 
+        // --- NEW: BARCODE INDEXING ---
+        const searchCodes = new Set<string>();
+        if (bookingToSave.items) {
+            bookingToSave.items.forEach((item: ParcelItem) => {
+                if (item.barcode) searchCodes.add(item.barcode.trim());
+                if (item.trackingCode) searchCodes.add(item.trackingCode.trim());
+                if (item.id) searchCodes.add(item.id.trim());
+            });
+        }
+        if (bookingToSave.id) searchCodes.add(bookingToSave.id);
+
+        (bookingToSave as any).itemBarcodes = Array.from(searchCodes).filter(c => c && c.length > 0);
+
         await this.saveDocument('parcel_bookings', bookingToSave);
+    }
+
+    async findBookingByBarcode(barcode: string): Promise<ParcelBooking | null> {
+        try {
+            const cleanCode = barcode.trim();
+            if (!cleanCode) return null;
+
+            const q = query(collection(this.db, 'parcel_bookings'), where('itemBarcodes', 'array-contains', cleanCode), limit(1));
+            const snap = await getDocs(q);
+
+            if (snap.empty) return null;
+            return snap.docs[0].data() as ParcelBooking;
+        } catch (e) {
+            console.error("Error finding booking by barcode", e);
+            return null;
+        }
     }
 
     async updateParcelStatus(id: string, statusId: string, userId: string, userName: string) {

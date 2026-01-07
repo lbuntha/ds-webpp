@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { ParcelBooking, ParcelItem, Employee, UserProfile, AppNotification } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -44,6 +45,7 @@ export const WarehouseOperations: React.FC = () => {
     const [quickScanBarcode, setQuickScanBarcode] = useState('');
     const [scanResult, setScanResult] = useState<{ type: 'success' | 'error' | 'not_found', message: string } | null>(null);
     const quickScanInputRef = useRef<HTMLInputElement>(null);
+    const [isCameraScanOpen, setIsCameraScanOpen] = useState(false);
 
     const loadData = async () => {
         setLoading(true);
@@ -117,35 +119,68 @@ export const WarehouseOperations: React.FC = () => {
 
     // --- QUICK SCAN: Barcode reader for instant receipt confirmation ---
     const handleQuickScan = async (barcode: string) => {
-        if (!barcode.trim()) return;
+        const code = barcode.trim();
+        if (!code) return;
 
         setProcessing(true);
         setScanResult(null);
 
         try {
-            // Find the item with matching barcode in inbound items
-            const matchedEntry = inboundItems.find(entry => entry.item.barcode === barcode.trim());
+            // 1. Find locally in inbound items (Fastest)
+            // Note: inboundItems only includes items NOT yet at warehouse or completed
+            let matchedEntry = inboundItems.find(entry => entry.item.barcode === code);
+            let foundBookingId = matchedEntry?.bookingId;
+            let foundItem = matchedEntry?.item;
 
+            // 2. If not found locally, try Backend Search (Global)
             if (!matchedEntry) {
-                setScanResult({ type: 'not_found', message: `No incoming parcel found with barcode: ${barcode}` });
+                try {
+                    const backendBooking = await firebaseService.findBookingByBarcode(code);
+                    if (backendBooking) {
+                        const item = (backendBooking.items || []).find(i =>
+                            i.barcode === code || i.trackingCode === code || i.id === code
+                        );
+                        if (item) {
+                            foundBookingId = backendBooking.id;
+                            foundItem = item;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Backend search failed", e);
+                }
+            }
+
+            if (!foundItem || !foundBookingId) {
+                setScanResult({ type: 'not_found', message: `No incoming parcel found with barcode: ${code}` });
                 setQuickScanBarcode('');
                 setTimeout(() => setScanResult(null), 4000);
                 quickScanInputRef.current?.focus();
                 return;
             }
 
-            // Confirm receipt for the matched item
+            // Status Validation (Since backend search returns ANY status)
+            if (foundItem.status === 'AT_WAREHOUSE') {
+                setScanResult({ type: 'error', message: `Parcel is already AT WAREHOUSE.` });
+                setTimeout(() => setScanResult(null), 4000);
+                return;
+            }
+            if (['DELIVERED', 'RETURNED', 'CANCELLED'].includes(foundItem.status)) {
+                setScanResult({ type: 'error', message: `Parcel is ${foundItem.status}. Cannot receive.` });
+                setTimeout(() => setScanResult(null), 4000);
+                return;
+            }
+
+            // Confirm receipt
             const userName = currentUser?.name || 'Warehouse Staff';
-            await firebaseService.receiveItemAtWarehouse(matchedEntry.bookingId, matchedEntry.item.id, userName);
+            await firebaseService.receiveItemAtWarehouse(foundBookingId, foundItem.id, userName);
 
             setScanResult({
                 type: 'success',
-                message: `✓ Received: ${matchedEntry.item.receiverName} (${barcode})`
+                message: `✓ Received: ${foundItem.receiverName} (${code})`
             });
             setQuickScanBarcode('');
             await loadData();
 
-            // Clear success message after delay and refocus for next scan
             setTimeout(() => {
                 setScanResult(null);
                 quickScanInputRef.current?.focus();
@@ -158,6 +193,33 @@ export const WarehouseOperations: React.FC = () => {
             setProcessing(false);
         }
     };
+
+    // --- CAMERA SCAN LOGIC ---
+    useEffect(() => {
+        if (isCameraScanOpen) {
+            const scanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                /* verbose= */ false
+            );
+
+            scanner.render(
+                (decodedText) => {
+                    // Success callback
+                    handleQuickScan(decodedText);
+                    scanner.clear();
+                    setIsCameraScanOpen(false);
+                },
+                (errorMessage) => {
+                    // Error callback (optional logging)
+                }
+            );
+
+            return () => {
+                scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+            };
+        }
+    }, [isCameraScanOpen]);
 
     // --- LOGIC: OUTBOUND (Warehouse -> Driver) ---
     const outboundItems = bookings.flatMap(b =>
@@ -422,34 +484,46 @@ export const WarehouseOperations: React.FC = () => {
                                     <label className="block text-sm font-bold text-gray-800 mb-1">
                                         Quick Scan to Confirm Receipt
                                     </label>
-                                    <div className="relative">
-                                        <input
-                                            ref={quickScanInputRef}
-                                            type="text"
-                                            className="w-full px-4 py-3 text-lg font-mono tracking-wider border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white placeholder-gray-400"
-                                            placeholder="Scan barcode here..."
-                                            value={quickScanBarcode}
-                                            onChange={(e) => setQuickScanBarcode(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    handleQuickScan(quickScanBarcode);
-                                                }
-                                            }}
-                                            disabled={processing}
-                                            autoFocus
-                                        />
-                                        {processing && (
-                                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                                <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                            </div>
-                                        )}
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <input
+                                                ref={quickScanInputRef}
+                                                type="text"
+                                                className="w-full pl-4 pr-12 py-3 text-lg font-mono tracking-wider border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white placeholder-gray-400"
+                                                placeholder="Scan barcode here..."
+                                                value={quickScanBarcode}
+                                                onChange={(e) => setQuickScanBarcode(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleQuickScan(quickScanBarcode);
+                                                    }
+                                                }}
+                                                disabled={processing}
+                                                autoFocus
+                                            />
+                                            {processing && (
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                    <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <Button
+                                            onClick={() => setIsCameraScanOpen(true)}
+                                            className="bg-blue-600 hover:bg-blue-700 h-auto px-6"
+                                            title="Scan with Camera"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </Button>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Use barcode scanner or type manually. Press Enter to confirm.
+                                        Use barcode scanner, type manually, or use camera. Press Enter to confirm if typing.
                                     </p>
                                 </div>
                             </div>
@@ -738,6 +812,26 @@ export const WarehouseOperations: React.FC = () => {
                     </div>
                 )
             }
+
+            {/* Camera Scan Modal */}
+            {isCameraScanOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
+                        <div className="p-4 bg-gray-100 flex justify-between items-center border-b border-gray-200">
+                            <h3 className="font-bold text-gray-800">Scan Barcode / QR</h3>
+                            <button onClick={() => setIsCameraScanOpen(false)} className="text-gray-500 hover:text-gray-700">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="p-4">
+                            <div id="reader" className="w-full"></div>
+                        </div>
+                        <div className="p-4 bg-gray-50 text-center text-xs text-gray-500">
+                            Point camera at the parcel barcode
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

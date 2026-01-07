@@ -33,12 +33,27 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
 
     // Collapse state with localStorage persistence
     const [isCollapsed, setIsCollapsed] = useState(() => {
+        // Default to collapsed on mobile (< 768px) regardless of stored preference
+        if (window.innerWidth < 768) return true;
+
         const saved = localStorage.getItem('sidebar-collapsed');
         return saved === 'true';
     });
 
     useEffect(() => {
         localStorage.setItem('sidebar-collapsed', String(isCollapsed));
+    }, [isCollapsed]);
+
+    // Auto-collapse on resize
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 768 && !isCollapsed) {
+                setIsCollapsed(true);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, [isCollapsed]);
 
     const toggleCollapse = () => setIsCollapsed(!isCollapsed);

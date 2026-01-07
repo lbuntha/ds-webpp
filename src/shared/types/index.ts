@@ -342,6 +342,7 @@ export interface Customer {
   isTaxable?: boolean;               // Whether VAT/Tax applies to this customer
   excludeFeesInSettlement?: boolean; // Exclude fees from settlement (pay gross amount)
   telegramChatId?: string;           // Telegram Chat ID for notifications
+  remark?: string;                   // Internal notes about the customer
   createdAt: number;
   updatedAt?: number;
 

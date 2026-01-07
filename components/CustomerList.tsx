@@ -25,6 +25,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
     const [referralCode, setReferralCode] = useState('');
     const [type, setType] = useState<'INDIVIDUAL' | 'CORPORATE'>('INDIVIDUAL');
     const [linkedUserId, setLinkedUserId] = useState<string>('');
+    const [remark, setRemark] = useState('');
 
     const [isSaving, setIsSaving] = useState(false);
 
@@ -37,6 +38,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
             setReferralCode(editingCustomer.referralCode || '');
             setType(editingCustomer.type || 'INDIVIDUAL');
             setLinkedUserId(editingCustomer.linkedUserId || '');
+            setRemark(editingCustomer.remark || '');
         } else {
             resetForm();
         }
@@ -50,6 +52,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
         setReferralCode('');
         setType('INDIVIDUAL');
         setLinkedUserId('');
+        setRemark('');
     };
 
     const handleCreateClick = () => {
@@ -92,6 +95,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                 address,
                 referralCode,
                 type,
+                remark,
                 updatedAt: Date.now()
             };
 
@@ -127,11 +131,17 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
         }
     };
 
-    const filteredCustomers = customers.filter(c =>
-        (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.phone || '').includes(searchTerm) ||
-        (c.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredCustomers = customers.filter(c => {
+        // Filter OUT if linked user exists AND is not a 'customer' role
+        const linkedUser = users.find(u => u.uid === c.linkedUserId);
+        if (linkedUser && linkedUser.role !== 'customer') {
+            return false;
+        }
+
+        return (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.phone || '').includes(searchTerm) ||
+            (c.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+    });
 
     // Map users for dropdown
     const availableUsers = users.filter(u => u.status !== 'REJECTED');
@@ -256,7 +266,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                         setEditingCustomer(null);
                     }}
                     title={isCreating ? "Add New Customer" : "Edit Customer"}
-                    maxWidth="max-w-2xl"
+                    maxWidth="max-w-3xl"
                 >
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
@@ -336,6 +346,17 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                                 <p className="mt-1 text-xs text-gray-500">
                                     Linking a user enables them to view this customer's data and bookings.
                                 </p>
+                            </div>
+
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700">Remarks (Internal)</label>
+                                <textarea
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"
+                                    rows={2}
+                                    placeholder="Internal notes about this customer..."
+                                    value={remark}
+                                    onChange={e => setRemark(e.target.value)}
+                                />
                             </div>
                         </div>
                         <div className="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">

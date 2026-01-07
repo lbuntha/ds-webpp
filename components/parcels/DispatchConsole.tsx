@@ -99,6 +99,8 @@ export const DispatchConsole: React.FC = () => {
     // --- NEW SCANNING LOGIC ---
     const [barcode, setBarcode] = useState('');
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const [isCameraScanOpen, setIsCameraScanOpen] = useState(false); // CAMERA STATE
+    const [isScanning, setIsScanning] = useState(false); // SPINNER STATE
 
     // Focus input when driver matches in Warehouse mode
     useEffect(() => {
@@ -106,6 +108,43 @@ export const DispatchConsole: React.FC = () => {
             inputRef.current.focus();
         }
     }, [selectedDriver, activeTab]);
+
+    // --- CAMERA SCAN LOGIC ---
+    useEffect(() => {
+        if (isCameraScanOpen) {
+            import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
+                const scanner = new Html5QrcodeScanner(
+                    "dispatch-reader",
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    /* verbose= */ false
+                );
+
+                scanner.render(
+                    (decodedText) => {
+                        // Success callback
+                        // Simulate scan behavior
+                        setBarcode(decodedText);
+                        // Trigger logic
+                        // We need a slight delay or direct call because setBarcode is async
+                        // But handleScan reads state `barcode`.
+                        // Better to refactor handleScan or call logic directly.
+                        // Let's call a dedicated function or logic directly.
+                        handleScanLogic(decodedText);
+
+                        scanner.clear();
+                        setIsCameraScanOpen(false);
+                    },
+                    (errorMessage) => {
+                    }
+                );
+
+                // Cleanup
+                return () => {
+                    scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+                };
+            });
+        }
+    }, [isCameraScanOpen]); // Dependencies need care to avoid stale closures if using handleScan
 
     const assignItemToDriver = async (itemEntry: { bookingId: string, item: ParcelItem }, driverId: string) => {
         const driver = drivers.find(d => d.id === driverId);
@@ -165,48 +204,94 @@ export const DispatchConsole: React.FC = () => {
         setSelectedDriver(null);
     };
 
-    const handleScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter' && selectedDriver) {
-            const code = barcode.trim();
-            if (!code) return;
+    // Extracted logic for scan processing to be reusable by Camera
+    const handleScanLogic = async (code: string) => {
+        if (!selectedDriver) return;
 
+        const cleanCode = code.trim();
+        if (!cleanCode) return;
+
+        setIsScanning(true); // START SPINNER
+
+        try {
             // 1. Check if eligible (AT_WAREHOUSE)
             const match = warehouseItems.find(entry =>
-                (entry.item.barcode === code) ||
-                (entry.item.trackingCode === code) ||
-                (entry.item.id === code)
+                (entry.item.barcode === cleanCode) ||
+                (entry.item.trackingCode === cleanCode) ||
+                (entry.item.id === cleanCode)
             );
 
             if (match) {
                 await assignItemToDriver(match, selectedDriver);
                 setBarcode('');
-                // Don't deselect driver, allow rapid scanning
-            } else {
-                // 2. Global Search for better error message
-                let foundStatus: string | null = null;
-                let foundId: string | null = null;
+                return;
+            }
 
-                for (const b of bookings) {
+            // 2. Global Search for better error message OR fetch from backend
+            let foundStatus: string | null = null;
+            let foundItem: ParcelItem | null = null;
+            let foundBooking: ParcelBooking | null = null;
+
+            const checkInBookings = (inBookings: ParcelBooking[]) => {
+                for (const b of inBookings) {
                     const item = (b.items || []).find(i =>
-                        i.barcode === code || i.trackingCode === code || i.id === code
+                        i.barcode === cleanCode || i.trackingCode === cleanCode || i.id === cleanCode
                     );
                     if (item) {
-                        foundStatus = item.status;
-                        foundId = item.id;
-                        break;
+                        return { item, booking: b };
                     }
                 }
+                return null;
+            };
 
-                if (foundStatus) {
-                    if (foundStatus === 'IN_TRANSIT') toast.error(`Parcel is already Out for Delivery.`);
-                    else if (foundStatus === 'DELIVERED') toast.error(`Parcel is already Delivered.`);
-                    else if (foundStatus === 'PENDING') toast.error(`Parcel is PENDING (Not picked up yet).`);
-                    else toast.error(`Parcel status is ${foundStatus}. Must be AT_WAREHOUSE.`);
-                } else {
-                    toast.error(`Parcel not found: ${code}`);
+            const localResult = checkInBookings(bookings);
+            if (localResult) {
+                foundStatus = localResult.item.status;
+                foundItem = localResult.item;
+                foundBooking = localResult.booking;
+            } else {
+                // 3. Backend Search (Fallback)
+                try {
+                    const backendBooking = await firebaseService.findBookingByBarcode(cleanCode);
+                    if (backendBooking) {
+                        const item = (backendBooking.items || []).find(i =>
+                            i.barcode === cleanCode || i.trackingCode === cleanCode || i.id === cleanCode
+                        );
+                        if (item) {
+                            foundStatus = item.status;
+                            foundItem = item;
+                            foundBooking = backendBooking;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Backend search failed", e);
                 }
-                setBarcode('');
             }
+
+            if (foundItem && foundBooking && foundStatus) {
+                if (foundStatus === 'AT_WAREHOUSE') {
+                    await assignItemToDriver({ bookingId: foundBooking.id, item: foundItem }, selectedDriver);
+                    setBarcode('');
+                } else if (foundStatus === 'IN_TRANSIT') toast.error(`Parcel is already Out for Delivery.`);
+                else if (foundStatus === 'DELIVERED') toast.error(`Parcel is already Delivered.`);
+                else if (foundStatus === 'PENDING') toast.error(`Parcel is PENDING (Not picked up yet).`);
+                else toast.error(`Parcel status is ${foundStatus}. Must be AT_WAREHOUSE.`);
+            } else {
+                toast.error(`Parcel not found: ${cleanCode}`);
+            }
+            setBarcode('');
+        } catch (e) {
+            console.error("Scan Error", e);
+            toast.error("Scanning failed.");
+        } finally {
+            setIsScanning(false); // STOP SPINNER
+        }
+    };
+
+    const handleScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && selectedDriver) {
+            e.preventDefault();
+            handleScanLogic(barcode);
         }
     };
 
@@ -313,16 +398,39 @@ export const DispatchConsole: React.FC = () => {
                                             <label className="block text-xs font-bold uppercase text-indigo-700 mb-1">
                                                 SCAN PARCEL FOR {drivers.find(d => d.id === selectedDriver)?.name}
                                             </label>
-                                            <input
-                                                ref={inputRef}
-                                                type="text"
-                                                className="w-full px-3 py-2 border rounded shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                                placeholder="Scan Barcode / Tracking ID..."
-                                                value={barcode}
-                                                onChange={(e) => setBarcode(e.target.value)}
-                                                onKeyDown={handleScan}
-                                                autoFocus
-                                            />
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <input
+                                                        ref={inputRef}
+                                                        type="text"
+                                                        className="w-full px-3 py-2 border rounded shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-8"
+                                                        placeholder={isScanning ? "Searching..." : "Scan Barcode / Tracking ID..."}
+                                                        value={barcode}
+                                                        onChange={(e) => setBarcode(e.target.value)}
+                                                        onKeyDown={handleScan}
+                                                        autoFocus
+                                                        disabled={isScanning}
+                                                    />
+                                                    {isScanning && (
+                                                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                                                            <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    onClick={() => setIsCameraScanOpen(true)}
+                                                    className="px-3 bg-indigo-600 hover:bg-indigo-700"
+                                                    title="Scan with Camera"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    </svg>
+                                                </Button>
+                                            </div>
                                             <p className="text-[10px] text-indigo-400 mt-1">Press Enter to assign instantly.</p>
                                         </div>
                                     )}
@@ -415,6 +523,26 @@ export const DispatchConsole: React.FC = () => {
                     </Card>
                 </div>
             </div>
+
+            {/* Camera Scan Modal */}
+            {isCameraScanOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
+                        <div className="p-4 bg-gray-100 flex justify-between items-center border-b border-gray-200">
+                            <h3 className="font-bold text-gray-800">Scan Barcode / QR</h3>
+                            <button onClick={() => setIsCameraScanOpen(false)} className="text-gray-500 hover:text-gray-700">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="p-4">
+                            <div id="dispatch-reader" className="w-full"></div>
+                        </div>
+                        <div className="p-4 bg-gray-50 text-center text-xs text-gray-500">
+                            Point camera at the parcel barcode to assign instantly.
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

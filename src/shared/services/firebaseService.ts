@@ -206,6 +206,9 @@ export class FirebaseService {
         return this.logisticsService.subscribeToCustomerBookings(uid, cid, name, cb);
     }
 
+    // Search
+    findBookingByBarcode(barcode: string) { return this.logisticsService.findBookingByBarcode(barcode); }
+
     sendChatMessage(msg: any) { return this.logisticsService.sendChatMessage(msg); }
     subscribeToChat(id: string, cb: any) { return this.logisticsService.subscribeToChat(id, cb); }
     settleParcelItems(items: any[], settlementType: 'driver' | 'customer' = 'customer', currency?: 'USD' | 'KHR', transactionId?: string) {
