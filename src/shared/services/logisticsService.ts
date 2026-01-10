@@ -3,6 +3,7 @@ import { BaseService } from './baseService';
 import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, CustomerCashbackRule, UserProfile, ReferralRule, ParcelItem, Employee } from '../types';
 import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or, limit } from 'firebase/firestore';
 import { db, storage } from './firebaseInstance';
+import { stockService } from './stockService';
 import { calculateDriverCommission } from '../utils/commissionCalculator';
 
 export class LogisticsService extends BaseService {
@@ -173,6 +174,42 @@ export class LogisticsService extends BaseService {
     async saveParcelBooking(b: ParcelBooking, paymentAccountId?: string, walletService?: any, configService?: any, hrService?: any) {
         const bookingToSave = this.cleanData(b);
 
+        // --- STOCK RESERVATION ---
+        if (bookingToSave.items && bookingToSave.senderId && bookingToSave.branchId) {
+            const stockItems = bookingToSave.items.filter((i: ParcelItem) => i.stockItemId);
+
+            // Only reserve if status is PENDING (new booking)
+            if (stockItems.length > 0 && bookingToSave.status === 'PENDING') {
+                // Group quantity by stockItemId
+                const consolidated: Record<string, number> = {};
+                stockItems.forEach((i: ParcelItem) => {
+                    if (i.stockItemId) {
+                        const qty = i.quantity || 1;
+                        consolidated[i.stockItemId] = (consolidated[i.stockItemId] || 0) + qty;
+                    }
+                });
+
+                const reservationList = Object.entries(consolidated).map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
+
+                try {
+                    const result = await stockService.reserveStock(
+                        bookingToSave.senderId,
+                        bookingToSave.branchId,
+                        reservationList,
+                        bookingToSave.id,
+                        'customer-app',
+                        bookingToSave.senderName || 'Customer'
+                    );
+
+                    if (!result.success) {
+                        throw new Error(`Stock Reservation Failed: ${result.error}`);
+                    }
+                } catch (e: any) {
+                    throw new Error(`Stock Error: ${e.message}`);
+                }
+            }
+        }
+
         // --- ITEM-LEVEL COMMISSION TRIGGER ---
         if (walletService && hrService && bookingToSave.id && bookingToSave.items) {
             try {
@@ -228,6 +265,23 @@ export class LogisticsService extends BaseService {
 
 
                     if (isNowDelivered && wasNotDelivered) {
+                        // --- STOCK DEDUCTION ---
+                        if (item.stockItemId && bookingToSave.senderId && bookingToSave.branchId) {
+                            try {
+                                await stockService.confirmDelivery(
+                                    bookingToSave.senderId,
+                                    bookingToSave.branchId,
+                                    [{ stockItemId: item.stockItemId, quantity: item.quantity || 1 }],
+                                    bookingToSave.id,
+                                    item.id,
+                                    'driver-app',
+                                    'Driver'
+                                );
+                            } catch (e) {
+                                console.error("Stock Deduction Failed:", e);
+                            }
+                        }
+
                         // 1. Pickup Commission (to collector who picked up)
                         if (item.collectorId && !item.pickupCommission) {
                             const collector = employees.find((e: any) => e.linkedUserId === item.collectorId);
@@ -272,6 +326,25 @@ export class LogisticsService extends BaseService {
                                 );
                                 item.taxiFeePosted = true;
                             }
+                        }
+                    }
+
+                    // --- STOCK RELEASE (CANCELLED) ---
+                    const isNowCancelled = (item.status === 'CANCELLED' || bookingToSave.status === 'CANCELLED') &&
+                        (!oldItem || (oldItem.status !== 'CANCELLED' && oldItem.status !== 'RETURN_TO_SENDER')); // Avoid double release
+
+                    if (isNowCancelled && item.stockItemId && bookingToSave.senderId && bookingToSave.branchId) {
+                        try {
+                            await stockService.releaseReservation(
+                                bookingToSave.senderId,
+                                bookingToSave.branchId,
+                                [{ stockItemId: item.stockItemId, quantity: item.quantity || 1 }],
+                                bookingToSave.id,
+                                'system',
+                                'System'
+                            );
+                        } catch (e) {
+                            console.error("Stock Release Failed:", e);
                         }
                     }
                 }

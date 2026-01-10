@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../shared/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { CustomerBooking } from '../../../components/customer/CustomerBooking';
 
 /**
@@ -9,6 +9,10 @@ import { CustomerBooking } from '../../../components/customer/CustomerBooking';
 export default function CustomerBookingView() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Determine initial mode based on URL
+    const initialMode = location.pathname.includes('stock-booking') ? 'STOCK' : 'PHOTO';
 
     const handleComplete = () => {
         // Navigate to parcels view after successful booking
@@ -25,7 +29,7 @@ export default function CustomerBookingView() {
 
     return (
         <div className="space-y-6">
-            <CustomerBooking user={user} onComplete={handleComplete} />
+            <CustomerBooking user={user} onComplete={handleComplete} initialMode={initialMode} />
         </div>
     );
 }

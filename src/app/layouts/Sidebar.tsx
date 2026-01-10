@@ -123,6 +123,15 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
         if (item.viewId === 'CASHBACK') return '/app/cashback';
         if (item.viewId === 'CASHBACK_REPORT') return '/app/cashback-report';
 
+        // Stock Management routes
+        if (item.viewId === 'STOCK_MANAGEMENT') return '/app/stock';
+        if (item.viewId === 'STOCK_ALERTS') return '/app/stock/alerts';
+        if (item.viewId === 'STOCK_REQUESTS') return '/app/stock/requests';
+        if (item.viewId === 'CUSTOMER_STOCK') return '/app/customer/stock';
+        if (item.viewId === 'CUSTOMER_PRODUCTS') return '/app/customer/products';
+        if (item.viewId === 'CUSTOMER_STOCK_REQUESTS') return '/app/customer/stock-requests';
+        if (item.viewId === 'CUSTOMER_STOCK_BOOKING') return '/app/customer/stock-booking';
+
         if (item.viewId.startsWith('CUSTOMER_')) return `/app/customer/${item.viewId.replace('CUSTOMER_', '').toLowerCase()}`;
         if (item.viewId.startsWith('DRIVER_')) return `/app/driver/${item.viewId.replace('DRIVER_', '').toLowerCase()}`;
 
@@ -181,13 +190,13 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
                             <Link
                                 to={routePath}
                                 className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-6'} py-3 text-sm font-medium transition-all duration-200 ${isItemActive ? 'bg-slate-800 border-l-4 border-red-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
-                                title={isCollapsed ? t(item.label) : undefined}
+                                title={isCollapsed ? t(item.label as any) : undefined}
                             >
                                 <span className={isCollapsed ? '' : 'mr-3'}>
                                     <MenuIcon iconKey={item.iconKey} className="w-5 h-5" />
                                 </span>
                                 {!isCollapsed && (
-                                    <span className="truncate transition-opacity duration-200">{t(item.label)}</span>
+                                    <span className="truncate transition-opacity duration-200">{t(item.label as any)}</span>
                                 )}
                             </Link>
                         </div>

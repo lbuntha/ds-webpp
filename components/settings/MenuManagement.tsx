@@ -13,7 +13,7 @@ const ICON_OPTIONS = [
     'manual', 'truck', 'fleet', 'dollar', 'plus', 'box', 'map', 'user',
     'list', 'operations', 'dispatch', 'warehouse', 'places', 'config',
     'aging', 'retention', 'wallet', 'money', 'checkCircle', 'products',
-    'search', 'bell', 'close', 'calendar', 'telegram', 'gift'
+    'search', 'bell', 'close', 'calendar', 'telegram', 'gift', 'inventory'
 ];
 
 interface Props {

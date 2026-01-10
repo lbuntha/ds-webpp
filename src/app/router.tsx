@@ -48,6 +48,14 @@ const PromotionsPage = lazy(() => import('./views/PromotionsPage'));
 const CashbackPage = lazy(() => import('./views/CashbackPage'));
 const CashbackReportPage = lazy(() => import('./views/CashbackReportPage'));
 
+// Stock Management Views
+const StockManagement = lazy(() => import('../../components/stock/StockManagement').then(m => ({ default: m.StockManagement })));
+const StockAlertReport = lazy(() => import('../../components/reports/StockAlertReport').then(m => ({ default: m.StockAlertReport })));
+const CustomerStockView = lazy(() => import('../../components/customer/CustomerStockView').then(m => ({ default: m.CustomerStockView })));
+const ProductCatalog = lazy(() => import('../../components/customer/ProductCatalog').then(m => ({ default: m.ProductCatalog })));
+const StockRequestList = lazy(() => import('../../components/customer/StockRequestList').then(m => ({ default: m.StockRequestList })));
+const IncomingRequests = lazy(() => import('../../components/stock/IncomingRequests').then(m => ({ default: m.IncomingRequests })));
+
 // Reports & Settings
 const ReportsView = lazy(() => import('./views/ReportsView'));
 const ClosingView = lazy(() => import('./views/ClosingView'));
@@ -294,6 +302,31 @@ const routes: RouteObject[] = [
                     </PermissionRoute>
                 ),
             },
+            // Stock Management Routes
+            {
+                path: 'stock',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_CUSTOMER_STOCK">
+                        {withSuspense(StockManagement)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'stock/alerts',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_STOCK_REPORTS">
+                        {withSuspense(StockAlertReport)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'stock/requests',
+                element: (
+                    <PermissionRoute requiredPermission="REVIEW_STOCK_REQUEST">
+                        {withSuspense(IncomingRequests)}
+                    </PermissionRoute>
+                ),
+            },
             {
                 path: 'parcels/fleet',
                 element: (
@@ -514,6 +547,14 @@ const routes: RouteObject[] = [
                 ),
             },
             {
+                path: 'customer/stock-booking',
+                element: (
+                    <PermissionRoute requiredPermission="CREATE_BOOKING">
+                        {withSuspense(CustomerBookingView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
                 path: 'customer/parcels',
                 element: (
                     <PermissionRoute requiredPermission="VIEW_MY_PARCELS">
@@ -550,6 +591,30 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="VIEW_PROFILE">
                         {withSuspense(CustomerWalletView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'customer/stock',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_CUSTOMER_STOCK">
+                        {withSuspense(CustomerStockView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'customer/products',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_CUSTOMER_PRODUCTS">
+                        {withSuspense(ProductCatalog)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'customer/stock-requests',
+                element: (
+                    <PermissionRoute requiredPermission="CREATE_STOCK_REQUEST">
+                        {withSuspense(StockRequestList)}
                     </PermissionRoute>
                 ),
             },

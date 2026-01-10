@@ -73,7 +73,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'VIEW_PARCEL_RETENTION',
     'VIEW_PARCEL_AGING'
   ],
-  'customer': ['CREATE_BOOKING', 'VIEW_MY_PARCELS', 'TRACK_PARCELS', 'VIEW_PROFILE', 'CUSTOMER_VIEW_REPORTS'],
+  'customer': ['CREATE_BOOKING', 'VIEW_MY_PARCELS', 'TRACK_PARCELS', 'VIEW_PROFILE', 'CUSTOMER_VIEW_REPORTS', 'VIEW_CUSTOMER_STOCK', 'MANAGE_CUSTOMER_PRODUCTS', 'CREATE_STOCK_REQUEST'],
   'driver': ['VIEW_DRIVER_JOBS', 'VIEW_DRIVER_PICKUPS', 'VIEW_DRIVER_EARNINGS', 'VIEW_PROFILE'],
   'fleet-driver': ['VIEW_DRIVER_JOBS', 'VIEW_DRIVER_PICKUPS', 'VIEW_DRIVER_EARNINGS', 'VIEW_PROFILE'],
   'warehouse': [
@@ -83,7 +83,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_PARCEL_WAREHOUSE',
     'MANAGE_PARCEL_OPERATIONS',
     'MANAGE_PARCEL_DISPATCH',
-    'MANAGE_PARCEL_FLEET'
+    'MANAGE_PARCEL_FLEET',
+    'MANAGE_CUSTOMER_STOCK',
+    'VIEW_STOCK_REPORTS',
+    'REVIEW_STOCK_REQUEST'
   ],
   'sales': [
     'VIEW_DASHBOARD',
@@ -113,6 +116,8 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-parcels-operations', label: 'Operations', viewId: 'PARCELS_OPERATIONS', iconKey: 'operations', order: 12, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-parcels-warehouse', label: 'Warehouse', viewId: 'PARCELS_WAREHOUSE', iconKey: 'warehouse', order: 13, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-parcels-dispatch', label: 'Dispatch', viewId: 'PARCELS_DISPATCH', iconKey: 'dispatch', order: 14, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
+  { id: 'nav-stock-management', label: 'Stock Management', viewId: 'STOCK_MANAGEMENT', iconKey: 'package', order: 15, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
+  { id: 'nav-incoming-requests', label: 'Incoming Requests', viewId: 'STOCK_REQUESTS', iconKey: 'inbox', order: 15.5, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-parcels-places', label: 'Places', viewId: 'PARCELS_PLACES', iconKey: 'places', order: 16, allowedRoles: ['system-admin'], section: 'warehouse' },
   { id: 'nav-parcels-products', label: 'Products/Services', viewId: 'PARCELS_PRODUCTS', iconKey: 'products', order: 17, allowedRoles: ['system-admin'], section: 'warehouse' },
   { id: 'nav-promotions', label: 'Promotions', viewId: 'PROMOTIONS', iconKey: 'gift', order: 18, allowedRoles: ['system-admin'], section: 'warehouse' },
@@ -122,7 +127,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   // ==============================
   // DRIVER MENUS (Admin + Portal)
   // ==============================
-  { id: 'nav-parcels-fleet', label: 'Fleet Management', viewId: 'PARCELS_FLEET', iconKey: 'fleet', order: 15, allowedRoles: ['system-admin', 'warehouse'], section: 'driver' },
+  { id: 'nav-parcels-fleet', label: 'Fleet Management', viewId: 'PARCELS_FLEET', iconKey: 'fleet', order: 16.5, allowedRoles: ['system-admin', 'warehouse'], section: 'driver' },
   { id: 'nav-driver-jobs', label: 'My Jobs', viewId: 'DRIVER_JOBS', iconKey: 'jobs', order: 60, allowedRoles: ['driver'], section: 'driver' },
   { id: 'nav-driver-wallet', label: 'Wallet', viewId: 'DRIVER_WALLET', iconKey: 'wallet', order: 61, allowedRoles: ['driver'], section: 'driver' },
   { id: 'nav-driver-profile', label: 'Profile', viewId: 'DRIVER_PROFILE', iconKey: 'user', order: 62, allowedRoles: ['driver'], section: 'driver' },
@@ -133,7 +138,11 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-customers', label: 'Customers', viewId: 'CUSTOMERS', iconKey: 'users', order: 19, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], section: 'customer' },
   { id: 'nav-customer-dashboard', label: 'My Parcels', viewId: 'CUSTOMER_PARCELS', iconKey: 'dashboard', order: 50, allowedRoles: ['customer'], section: 'customer' },
   { id: 'nav-customer-booking', label: 'New Booking', viewId: 'CUSTOMER_BOOKING', iconKey: 'plus', order: 51, allowedRoles: ['customer'], section: 'customer' },
+  { id: 'nav-customer-stock-booking', label: 'Stock Request', viewId: 'CUSTOMER_STOCK_BOOKING', iconKey: 'inventory', order: 51.5, allowedRoles: ['customer'], section: 'customer' },
   { id: 'nav-customer-wallet', label: 'Wallet', viewId: 'CUSTOMER_WALLET', iconKey: 'wallet', order: 52, allowedRoles: ['customer'], section: 'customer' },
+  { id: 'nav-customer-products', label: 'My Products', viewId: 'CUSTOMER_PRODUCTS', iconKey: 'products', order: 52.2, allowedRoles: ['customer'], section: 'customer' },
+  { id: 'nav-customer-stock', label: 'My Stock', viewId: 'CUSTOMER_STOCK', iconKey: 'package', order: 52.5, allowedRoles: ['customer'], section: 'customer' },
+  { id: 'nav-customer-stock-requests', label: 'Stock Requests', viewId: 'CUSTOMER_STOCK_REQUESTS', iconKey: 'fileText', order: 52.7, allowedRoles: ['customer'], section: 'customer' },
   { id: 'nav-customer-reports', label: 'Spending Report', viewId: 'CUSTOMER_REPORTS', iconKey: 'reports', order: 53, allowedRoles: ['customer'], section: 'customer' },
   { id: 'nav-customer-profile', label: 'My Profile', viewId: 'CUSTOMER_PROFILE', iconKey: 'user', order: 54, allowedRoles: ['customer'], section: 'customer' },
 
@@ -163,6 +172,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-reports', label: 'Reports', viewId: 'REPORTS', iconKey: 'reports', order: 40, allowedRoles: ['system-admin', 'accountant'], section: 'reports' },
   { id: 'nav-parcels-retention', label: 'Customer Retention', viewId: 'PARCELS_RETENTION', iconKey: 'retention', order: 41, allowedRoles: ['system-admin', 'accountant'], section: 'reports' },
   { id: 'nav-parcels-aging', label: 'Aging Report', viewId: 'PARCELS_AGING', iconKey: 'aging', order: 42, allowedRoles: ['system-admin', 'accountant'], section: 'reports' },
+  { id: 'nav-stock-alerts', label: 'Stock Alerts', viewId: 'STOCK_ALERTS', iconKey: 'alert', order: 43, allowedRoles: ['system-admin', 'warehouse'], section: 'reports' },
 
   // ==============================
   // SYSTEM / ADMIN ONLY
@@ -203,6 +213,14 @@ export const FEATURE_LIST: { key: Permission; label: string }[] = [
   { key: 'MANAGE_PARCEL_PLACES', label: 'Parcels: Places Management' },
   { key: 'MANAGE_PARCEL_PRODUCTS', label: 'Parcels: Products/Services Setup' },
   { key: 'CUSTOMER_VIEW_REPORTS', label: 'Customer: Spending Reports' },
+  // Stock Management
+  { key: 'MANAGE_CUSTOMER_STOCK', label: 'Stock: Manage Customer Stock' },
+  { key: 'VIEW_CUSTOMER_STOCK', label: 'Stock: View Own Stock' },
+  { key: 'VIEW_STOCK_REPORTS', label: 'Stock: View Stock Alerts' },
+  // Product Catalog & Stock Requests
+  { key: 'MANAGE_CUSTOMER_PRODUCTS', label: 'Products: Manage Product Catalog' },
+  { key: 'CREATE_STOCK_REQUEST', label: 'Stock: Create Stock Requests' },
+  { key: 'REVIEW_STOCK_REQUEST', label: 'Stock: Review Stock Requests' },
 ];
 
 export const PERMISSION_GROUPS: Record<PermissionGroup, Permission[]> = {

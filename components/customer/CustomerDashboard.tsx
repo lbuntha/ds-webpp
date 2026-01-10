@@ -25,6 +25,7 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
     // Modals & Selected Item State
     const [selectedBooking, setSelectedBooking] = useState<ParcelBooking | null>(null);
     const [bookingToCancel, setBookingToCancel] = useState<ParcelBooking | null>(null);
+    const [isCancelling, setIsCancelling] = useState(false);
     const [initialChatItemId, setInitialChatItemId] = useState<string | undefined>(undefined);
     const [activeChat, setActiveChat] = useState<{ itemId: string, itemName: string, driverName: string, driverId?: string, bookingId: string } | null>(null);
 
@@ -105,6 +106,7 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
             return;
         }
 
+        setIsCancelling(true);
         try {
             const updatedBooking: ParcelBooking = {
                 ...bookingToCancel,
@@ -127,11 +129,15 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
             };
             await firebaseService.saveParcelBooking(updatedBooking);
             setBookingToCancel(null);
+            toast.success("Booking cancelled successfully.");
         } catch (e) {
             console.error(e);
             toast.error("Failed to cancel booking.");
+        } finally {
+            setIsCancelling(false);
         }
     };
+
 
     const handleOpenChat = (booking: ParcelBooking, item: ParcelItem) => {
         setActiveChat({
@@ -283,7 +289,9 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onNewBooking }) => {
                 bookingId={bookingToCancel?.id || ''}
                 onConfirm={confirmCancel}
                 onCancel={() => setBookingToCancel(null)}
+                isLoading={isCancelling}
             />
+
 
             {activeChat && (
                 <ChatModal

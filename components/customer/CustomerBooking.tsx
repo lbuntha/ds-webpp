@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { ParcelServiceType, ParcelItem, UserProfile, ParcelBooking, AppNotification, SavedLocation, GeoPoint, ParcelPromotion, CustomerSpecialRate, CurrencyConfig, Place } from '../../src/shared/types';
+import { ParcelServiceType, ParcelItem, UserProfile, ParcelBooking, AppNotification, SavedLocation, GeoPoint, ParcelPromotion, CustomerSpecialRate, CurrencyConfig, Place, CustomerProduct, CustomerStock, CustomerStockItem } from '../../src/shared/types';
+import { stockService } from '../../src/shared/services/stockService';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -13,9 +14,10 @@ import { processImageForUpload } from '../../src/shared/utils/imageUtils';
 interface Props {
     user: UserProfile;
     onComplete: () => void;
+    initialMode?: 'PHOTO' | 'MANUAL' | 'STOCK';
 }
 
-export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
+export const CustomerBooking: React.FC<Props> = ({ user, onComplete, initialMode = 'PHOTO' }) => {
     const { t } = useLanguage();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // --- STATE ---
-    const [bookingType, setBookingType] = useState<'PHOTO' | 'MANUAL'>('PHOTO');
+    const [bookingType, setBookingType] = useState<'PHOTO' | 'MANUAL' | 'STOCK'>(initialMode);
 
     const [serviceTypeId, setServiceTypeId] = useState('');
     const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
@@ -58,11 +60,32 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
     // Rate State
     const [currencies, setCurrencies] = useState<CurrencyConfig[]>([]);
     const [effectiveExchangeRate, setEffectiveExchangeRate] = useState<number>(4100);
+    const [customerProducts, setCustomerProducts] = useState<CustomerProduct[]>([]);
+    const [customerStocks, setCustomerStocks] = useState<CustomerStock[]>([]);
+    const [selectedStockBranchId, setSelectedStockBranchId] = useState<string>('');
+
+    // Multi-Product Booking Mode State
+    const [bookingMode, setBookingMode] = useState<'SINGLE' | 'MULTI'>('SINGLE');
+    const [singleReceiverName, setSingleReceiverName] = useState('');
+    const [singleReceiverPhone, setSingleReceiverPhone] = useState('');
+    const [singleAddress, setSingleAddress] = useState('');
+    const [singleLocationId, setSingleLocationId] = useState<string>('');
+
 
     // Load Services, Promotions, Rates & Defaults
     useEffect(() => {
         firebaseService.getParcelServices().then(setServices);
+        firebaseService.getParcelServices().then(setServices);
         firebaseService.getCurrencies().then(setCurrencies);
+        if (user.linkedCustomerId) {
+            stockService.getCustomerProducts(user.linkedCustomerId).then(setCustomerProducts);
+            stockService.getCustomerStock(user.linkedCustomerId).then(stocks => {
+                setCustomerStocks(stocks);
+                if (stocks.length > 0) {
+                    setSelectedStockBranchId(stocks[0].branchId);
+                }
+            });
+        }
 
         const fetchPromosAndRates = async () => {
             try {
@@ -350,8 +373,10 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
             }
         }
 
-        const count = Math.max(items.length, 1);
+        // SINGLE FEE LOGIC: Count is always 1 for the base price in SINGLE mode
+        const count = (bookingMode === 'SINGLE') ? 1 : Math.max(items.length, 1);
         const subtotal = basePrice * count;
+
 
         let discount = 0;
         if (selectedPromoId) {
@@ -371,8 +396,9 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
         let khr = 0;
         items.forEach(item => {
             const amount = Number(item.productPrice) || 0;
-            if (item.codCurrency === 'KHR') khr += amount;
-            else usd += amount;
+            const qty = item.quantity || 1;
+            if (item.codCurrency === 'KHR') khr += (amount * qty);
+            else usd += (amount * qty);
         });
         if (khr > 0 && usd > 0) return { value: usd + (khr / 4100), display: `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛` };
         else if (khr > 0) return { value: khr / 4100, display: `${khr.toLocaleString()} ៛` };
@@ -389,6 +415,15 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
             setToast({ message: "Please add at least one parcel.", type: 'error' });
             return;
         }
+
+        // Validation for Single Booking Mode
+        if (bookingType === 'STOCK' && bookingMode === 'SINGLE') {
+            if (!singleReceiverName || !singleReceiverPhone || !singleAddress) {
+                setToast({ message: "Please fill in all receiver details at the top.", type: 'error' });
+                return;
+            }
+        }
+
 
         setLoading(true);
 
@@ -423,29 +458,44 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
             // Import fee calculator for dual currency support
             const { calculateDeliveryFee } = await import('../../src/shared/utils/feeCalculator');
 
+            // 1. Calculate SINGLE FEE for the whole booking
+            const singleFeeResult = await calculateDeliveryFee({
+                serviceTypeId,
+                customerId: user.linkedCustomerId || '',
+                itemCount: 1, // Always 1 for Single Booking Mode
+                codCurrency: (items[0]?.codCurrency || 'USD'), // Use first item's currency preference for fee calculation basis if needed
+                exchangeRate: effectiveExchangeRate,
+                services,
+                specialRates
+            });
+
+            const totalDeliveryFee = singleFeeResult.pricePerItem;
+            const totalDeliveryFeeUSD = singleFeeResult.pricePerItemUSD;
+            const totalDeliveryFeeKHR = singleFeeResult.pricePerItemKHR;
+
+            // Distribute fee per item for internal record consistency (so sum(items) ~ total)
+            const itemCount = Math.max(items.length, 1);
+            const feePerItem = totalDeliveryFee / itemCount;
+            const feePerItemUSD = totalDeliveryFeeUSD / itemCount;
+            const feePerItemKHR = totalDeliveryFeeKHR / itemCount;
+
             // Calculate fees for each item with both currencies
             const finalItems = await Promise.all(items.map(async (i) => {
-                const feeResult = await calculateDeliveryFee({
-                    serviceTypeId,
-                    customerId: user.linkedCustomerId || '',
-                    itemCount: 1,
-                    codCurrency: i.codCurrency || (Number(i.productPrice) >= 1000 ? 'KHR' : 'USD'),
-                    exchangeRate: effectiveExchangeRate,
-                    services,
-                    specialRates
-                });
-
                 return {
                     ...i,
                     productPrice: Number(i.productPrice) || 0,
                     codCurrency: i.codCurrency || (Number(i.productPrice) >= 1000 ? 'KHR' : 'USD'),
-                    receiverName: i.receiverName || 'Details in Photo',
-                    destinationAddress: i.destinationAddress || 'Driver to Extract',
-                    deliveryFee: feeResult.pricePerItem,
-                    deliveryFeeUSD: feeResult.pricePerItemUSD,
-                    deliveryFeeKHR: feeResult.pricePerItemKHR
+                    receiverName: (bookingType === 'STOCK' && bookingMode === 'SINGLE') ? singleReceiverName : (i.receiverName || 'Details in Photo'),
+                    receiverPhone: (bookingType === 'STOCK' && bookingMode === 'SINGLE') ? singleReceiverPhone : (i.receiverPhone || ''),
+                    destinationAddress: (bookingType === 'STOCK' && bookingMode === 'SINGLE') ? singleAddress : (i.destinationAddress || 'Driver to Extract'),
+
+                    // Distribute the single fee across items
+                    deliveryFee: feePerItem,
+                    deliveryFeeUSD: feePerItemUSD,
+                    deliveryFeeKHR: feePerItemKHR
                 };
             }));
+
 
             const booking: ParcelBooking = {
                 id: bookingId,
@@ -476,7 +526,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                         notes: 'Booking created by customer'
                     }
                 ],
-                branchId: 'b1',
+                branchId: (bookingType === 'STOCK' && selectedStockBranchId) ? selectedStockBranchId : 'b1',
                 notes: notes,
                 createdAt: Date.now(),
                 exchangeRateForCOD: effectiveExchangeRate
@@ -545,7 +595,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
 
     return (
         <>
-            <div className="max-w-2xl mx-auto space-y-6 pb-32 px-2 sm:px-0">
+            <div className="max-w-6xl mx-auto space-y-6 pb-32 px-2 sm:px-0">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{t('new_booking')}</h2>
                     <button onClick={onComplete} className="text-gray-500 hover:text-gray-900">{t('cancel')}</button>
@@ -580,81 +630,120 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                             </div>
 
                             <div
-                                onClick={() => { setBookingType('MANUAL'); setItems([]); }}
-                                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-center justify-center space-x-3 ${bookingType === 'MANUAL' ? 'border-red-600 bg-red-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                                onClick={() => { setBookingType('STOCK'); setItems([]); setSelectedStockBranchId(''); }}
+                                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-center justify-center space-x-3 ${bookingType === 'STOCK' ? 'border-red-600 bg-red-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                             >
-                                <div className={`p-2 rounded-full ${bookingType === 'MANUAL' ? 'bg-red-200 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                <div className={`p-2 rounded-full ${bookingType === 'STOCK' ? 'bg-red-200 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                                 </div>
                                 <div className="text-left">
-                                    <div className={`font-bold text-sm ${bookingType === 'MANUAL' ? 'text-red-900' : 'text-gray-700'}`}>{t('manual_entry')}</div>
-                                    <div className="text-xs text-gray-500">Type Details</div>
+                                    <div className={`font-bold text-sm ${bookingType === 'STOCK' ? 'text-red-900' : 'text-gray-700'}`}>Stock Request</div>
+                                    <div className="text-xs text-gray-500">From Inventory</div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-                            <h3 className="font-bold text-gray-800 mb-3">1. {t('pickup_location')}</h3>
-                            <div className="space-y-3">
-                                <select
-                                    className="block w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-red-500 focus:border-red-500 bg-gray-50 text-sm"
-                                    value={pickupLocationId}
-                                    onChange={(e) => setPickupLocationId(e.target.value)}
-                                >
-                                    {savedLocations.map(loc => (
-                                        <option key={loc.id} value={loc.id}>
-                                            {loc.label} - {loc.address}
-                                        </option>
-                                    ))}
-                                    <option value="custom">+ Use a different location</option>
-                                </select>
+                        {/* Stock Location Picker (Only for STOCK mode) */}
+                        {bookingType === 'STOCK' && (
+                            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-4">
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h3 className="font-bold text-lg text-gray-800">Source Location</h3>
+                                    </div>
+                                    <p className="text-gray-500 text-sm mb-3">Where should we pick up the stock from?</p>
 
-                                {pickupLocationId === 'custom' && (
-                                    <div className="space-y-2 pl-2 border-l-2 border-red-100">
-                                        <div className="flex gap-2">
-                                            <div className="relative flex-1">
-                                                <PlaceAutocomplete
-                                                    placeholder="Enter Pickup Address"
-                                                    value={customPickupAddress}
-                                                    onChange={setCustomPickupAddress}
-                                                    onSelect={handlePickupPlaceSelect}
-                                                    onPickMap={() => setMapPickerTarget({ type: 'PICKUP' })}
-                                                    className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-indigo-500 sm:text-sm pr-10"
-                                                />
-                                            </div>
+                                    {customerStocks.length > 0 ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {customerStocks.map(stock => (
+                                                <div
+                                                    key={stock.id}
+                                                    onClick={() => {
+                                                        setSelectedStockBranchId(stock.branchId);
+                                                        // Also set pickup address for display
+                                                        setPickupLocationId('stock-' + stock.branchId);
+                                                        // We might want to set a friendly name for pickup address
+                                                        // But customer might not know the exact address of the hub, so maybe just Branch Name
+                                                    }}
+                                                    className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${selectedStockBranchId === stock.branchId ? 'border-red-600 bg-red-50' : 'border-gray-100 hover:border-gray-200'}`}
+                                                >
+                                                    <div className="font-bold text-gray-900">{stock.branchName}</div>
+                                                    <div className="text-xs text-gray-500 mt-1">{stock.items.length} unique items in stock</div>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="flex gap-2 justify-between">
-                                            <span className="text-xs text-gray-400">
-                                                {customPickupLat ? `${customPickupLat}, ${customPickupLng}` : 'No coordinates selected'}
-                                            </span>
+                                    ) : (
+                                        <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                                            <p className="text-gray-500">No stock found in any warehouse.</p>
                                         </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
-                                        <div className="mt-2 pt-2 border-t border-gray-100">
-                                            <label className="flex items-center space-x-2 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={saveNewLocation}
-                                                    onChange={e => setSaveNewLocation(e.target.checked)}
-                                                    className="rounded text-red-600 focus:ring-red-500 border-gray-300"
-                                                />
-                                                <span className="text-sm text-gray-700">Save this location for next time?</span>
-                                            </label>
-                                            {saveNewLocation && (
-                                                <div className="mt-2 animate-fade-in-up">
-                                                    <Input
-                                                        placeholder="Label (e.g. Home)"
-                                                        value={newLocationLabel}
-                                                        onChange={e => setNewLocationLabel(e.target.value)}
-                                                        className="text-sm"
-                                                        autoFocus
+                        {bookingType !== 'STOCK' && (
+                            <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                                <h3 className="font-bold text-gray-800 mb-3">1. {t('pickup_location')}</h3>
+                                <div className="space-y-3">
+                                    <select
+                                        className="block w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-red-500 focus:border-red-500 bg-gray-50 text-sm"
+                                        value={pickupLocationId}
+                                        onChange={(e) => setPickupLocationId(e.target.value)}
+                                    >
+                                        {savedLocations.map(loc => (
+                                            <option key={loc.id} value={loc.id}>
+                                                {loc.label} - {loc.address}
+                                            </option>
+                                        ))}
+                                        <option value="custom">+ Use a different location</option>
+                                    </select>
+
+                                    {pickupLocationId === 'custom' && (
+                                        <div className="space-y-2 pl-2 border-l-2 border-red-100">
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <PlaceAutocomplete
+                                                        placeholder="Enter Pickup Address"
+                                                        value={customPickupAddress}
+                                                        onChange={setCustomPickupAddress}
+                                                        onSelect={handlePickupPlaceSelect}
+                                                        onPickMap={() => setMapPickerTarget({ type: 'PICKUP' })}
+                                                        className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-indigo-500 sm:text-sm pr-10"
                                                     />
                                                 </div>
-                                            )}
+                                            </div>
+                                            <div className="flex gap-2 justify-between">
+                                                <span className="text-xs text-gray-400">
+                                                    {customPickupLat ? `${customPickupLat}, ${customPickupLng}` : 'No coordinates selected'}
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-2 pt-2 border-t border-gray-100">
+                                                <label className="flex items-center space-x-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={saveNewLocation}
+                                                        onChange={e => setSaveNewLocation(e.target.checked)}
+                                                        className="rounded text-red-600 focus:ring-red-500 border-gray-300"
+                                                    />
+                                                    <span className="text-sm text-gray-700">Save this location for next time?</span>
+                                                </label>
+                                                {saveNewLocation && (
+                                                    <div className="mt-2 animate-fade-in-up">
+                                                        <Input
+                                                            placeholder="Label (e.g. Home)"
+                                                            value={newLocationLabel}
+                                                            onChange={e => setNewLocationLabel(e.target.value)}
+                                                            className="text-sm"
+                                                            autoFocus
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         <div>
                             <h3 className="font-bold text-lg text-gray-800 mb-2">2. {t('select_vehicle')}</h3>
@@ -781,6 +870,280 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete }) => {
                                                 </option>
                                             ))}
                                         </select>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
+                        {/* --- STOCK BOOKING MODE UI --- */}
+                        {bookingType === 'STOCK' && (
+                            <div className="space-y-4">
+                                {/* Mode Toggle Removed - Enforced Single Mode */}
+
+
+                                {/* Single Receiver Form */}
+                                {bookingMode === 'SINGLE' && (
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                        <h3 className="text-sm font-bold text-gray-700 uppercase mb-3">Receiver Details</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-500 mb-1">Receiver Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={singleReceiverName}
+                                                    onChange={e => setSingleReceiverName(e.target.value)}
+                                                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-sm"
+                                                    placeholder="Name"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-500 mb-1">Receiver Phone</label>
+                                                <input
+                                                    type="text"
+                                                    value={singleReceiverPhone}
+                                                    onChange={e => setSingleReceiverPhone(e.target.value)}
+                                                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-sm"
+                                                    placeholder="Phone"
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-xs font-medium text-gray-500 mb-1">Delivery Address</label>
+                                                <input
+                                                    type="text"
+                                                    value={singleAddress}
+                                                    onChange={e => setSingleAddress(e.target.value)}
+                                                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 text-sm"
+                                                    placeholder="Full Address"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Product / SKU</th>
+                                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Qty</th>
+                                                    {bookingMode !== 'SINGLE' && (
+                                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver Info</th>
+                                                    )}
+                                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">COD & Currency</th>
+                                                    {bookingMode !== 'SINGLE' && (
+                                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                                                    )}
+                                                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
+
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {items.map((item, idx) => (
+                                                    <tr key={item.id}>
+                                                        <td className="px-3 py-3 align-top">
+                                                            <div className="space-y-1">
+                                                                <select
+                                                                    className="block w-full py-2 pl-3 pr-10 text-sm border-gray-300 bg-white rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500 shadow-sm transition-colors cursor-pointer hover:border-gray-400"
+                                                                    value={bookingType === 'STOCK' ? (item.stockItemId || '') : (item.productId || '')}
+                                                                    onChange={(e) => {
+                                                                        const selectedId = e.target.value;
+
+                                                                        if (bookingType === 'STOCK') {
+                                                                            // Find by Stock Item ID
+                                                                            const currentBranchStock = customerStocks.find(s => s.branchId === selectedStockBranchId);
+                                                                            const stockItem = currentBranchStock?.items.find(i => i.id === selectedId);
+
+                                                                            if (stockItem) {
+                                                                                setItems(prev => {
+                                                                                    const newItems = [...prev];
+                                                                                    newItems[idx] = {
+                                                                                        ...newItems[idx],
+                                                                                        productId: stockItem.productId,
+                                                                                        stockItemId: stockItem.id,
+                                                                                        sku: stockItem.sku,
+                                                                                        productPrice: stockItem.unitPrice || 0,
+                                                                                        codCurrency: stockItem.unitPriceCurrency || 'USD',
+                                                                                        image: stockItem.image || ''
+                                                                                    };
+                                                                                    return newItems;
+                                                                                });
+                                                                            }
+                                                                        } else {
+                                                                            // Catalog Mode: Find by Product ID
+                                                                            const prodCatalg = customerProducts.find(p => p.id === selectedId);
+                                                                            if (prodCatalg) {
+                                                                                setItems(prev => {
+                                                                                    const newItems = [...prev];
+                                                                                    newItems[idx] = {
+                                                                                        ...newItems[idx],
+                                                                                        productId: prodCatalg.id,
+                                                                                        sku: prodCatalg.sku,
+                                                                                        productPrice: prodCatalg.defaultPrice || 0,
+                                                                                        codCurrency: prodCatalg.priceCurrency || 'USD',
+                                                                                        image: prodCatalg.image || ''
+                                                                                    };
+                                                                                    return newItems;
+                                                                                });
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <option value="">Select Product...</option>
+                                                                    {(() => {
+                                                                        // Intelligent Dropdown: Show Stock Items if available in this branch
+                                                                        const currentBranchStock = customerStocks.find(s => s.branchId === selectedStockBranchId);
+
+                                                                        if (bookingType === 'STOCK' && currentBranchStock) {
+                                                                            return currentBranchStock.items.map(stockItem => {
+                                                                                const avail = stockItem.quantity - (stockItem.reservedQuantity || 0);
+                                                                                const product = customerProducts.find(p => p.id === stockItem.productId);
+                                                                                const displaySku = product?.sku || stockItem.sku;
+                                                                                return (
+                                                                                    <option key={stockItem.id} value={stockItem.id} disabled={avail <= 0}>
+                                                                                        {displaySku ? `${displaySku} - ${stockItem.productName}` : stockItem.productName} (Avail: {avail})
+                                                                                    </option>
+                                                                                );
+                                                                            });
+                                                                        } else {
+                                                                            // Fallback to full catalog
+                                                                            return customerProducts.map(p => (
+                                                                                <option key={p.id} value={p.id}>
+                                                                                    {p.productName} ({p.sku})
+                                                                                </option>
+                                                                            ));
+                                                                        }
+                                                                    })()}
+                                                                </select>
+                                                                {/* Only show Stock SKU if actually selected */}
+                                                                {item.sku && <div className="text-xs text-gray-500 font-mono">SKU: {item.sku}</div>}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-3 align-top">
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                className="block w-full py-2 px-2 text-sm border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500 text-center"
+                                                                value={item.quantity || 1}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 1;
+                                                                    updateItem(idx, 'quantity', val);
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        {bookingMode !== 'SINGLE' && (
+                                                            <td className="px-3 py-3 align-top">
+                                                                <div className="space-y-2">
+                                                                    <div className="relative rounded-md shadow-sm">
+                                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                            <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                                            </svg>
+                                                                        </div>
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="Name"
+                                                                            className="block w-full pl-10 text-sm border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+                                                                            value={item.receiverName}
+                                                                            onChange={(e) => updateItem(idx, 'receiverName', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="relative rounded-md shadow-sm">
+                                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                            <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                                                            </svg>
+                                                                        </div>
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="Phone"
+                                                                            className="block w-full pl-10 text-sm border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+                                                                            value={item.receiverPhone}
+                                                                            onChange={(e) => updateItem(idx, 'receiverPhone', e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        )}
+                                                        <td className="px-3 py-3 align-top">
+                                                            <div className="flex items-center space-x-2">
+                                                                <input
+                                                                    type="number"
+                                                                    placeholder="0.00"
+                                                                    className="block w-full py-2 px-3 text-sm border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500 text-right"
+                                                                    value={item.productPrice}
+                                                                    onChange={(e) => updateItem(idx, 'productPrice', e.target.value)}
+                                                                />
+                                                                <select
+                                                                    className="block w-24 py-2 px-2 text-sm border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+                                                                    value={item.codCurrency || 'USD'}
+                                                                    onChange={(e) => updateItem(idx, 'codCurrency', e.target.value)}
+                                                                >
+                                                                    <option value="USD">USD</option>
+                                                                    <option value="KHR">KHR</option>
+                                                                </select>
+                                                            </div>
+                                                        </td>
+                                                        {bookingMode !== 'SINGLE' && (
+                                                            <td className="px-3 py-3 align-top">
+                                                                <div className="relative rounded-md shadow-sm">
+                                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                        </svg>
+                                                                    </div>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Location (Free text)"
+                                                                        className="block w-full pl-10 text-sm border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+                                                                        value={item.destinationAddress || ''}
+                                                                        onChange={(e) => updateItem(idx, 'destinationAddress', e.target.value)}
+                                                                    />
+                                                                    <div className="absolute inset-y-0 right-0 pr-2 flex items-center">
+                                                                        <svg className="h-3 w-3 text-gray-400 cursor-nw-resize" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                        </svg>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        )}
+
+                                                        <td className="px-3 py-3 align-top text-center">
+                                                            <button
+                                                                onClick={() => removeItem(idx)}
+                                                                className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {items.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={bookingMode === 'SINGLE' ? 4 : 6} className="px-6 py-10 text-center text-gray-500 italic">
+                                                            Use the button below to add your first package.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div
+                                        onClick={() => setItems(prev => [...prev, {
+                                            id: `pi-${Date.now()}-${Math.random()}`,
+                                            image: '',
+                                            receiverName: '',
+                                            receiverPhone: '',
+                                            destinationAddress: '',
+                                            productPrice: 0,
+                                            codCurrency: 'USD',
+                                            status: 'PENDING'
+                                        }])}
+                                        className="w-full bg-gray-50 hover:bg-gray-100 py-3 text-center border-t border-dashed border-gray-300 cursor-pointer text-sm font-medium text-gray-600 hover:text-red-600 transition-colors"
+                                    >
+                                        + Add Row
                                     </div>
                                 </div>
                             </div>

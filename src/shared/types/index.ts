@@ -58,7 +58,14 @@ export interface ParcelItem {
   delivererName?: string;
   pickupCommission?: number;
   deliveryCommission?: number;
+  quantity?: number; // Quantity of items (defaults to 1)
   modifications?: ParcelModification[];
+
+  // Stock / Product Link
+  productId?: string;      // ID of the CustomerProduct
+  stockItemId?: string;    // ID of the specific Stock Item (if from stock)
+  sku?: string;           // Product SKU (snapshot)
+  attributes?: { name: string; value: string }[]; // Product variants (Color, Size, etc.)
   // Taxi delivery fields
   isTaxiDelivery?: boolean;        // Flag for taxi handoff
   taxiFee?: number;                 // Fee paid to taxi driver
@@ -148,7 +155,15 @@ export type Permission =
   | 'CUSTOMER_VIEW_REPORTS'      // Customer: View spending reports
   | 'MANAGE_PARCEL_CONFIG'       // Admin: Manage parcel configuration
   | 'MANAGE_LOGISTICS_CONFIG'   // Admin: Manage logistics settings
-  | 'MANAGE_CASHBACK';           // Sales: Manage cashback rules
+  | 'MANAGE_CASHBACK'            // Sales: Manage cashback rules
+  // Stock Management Permissions
+  | 'MANAGE_CUSTOMER_STOCK'      // Warehouse: Record deposits, adjust stock
+  | 'VIEW_CUSTOMER_STOCK'        // Customer: View own stock
+  | 'VIEW_STOCK_REPORTS'         // Admin: Low stock reports
+  // Product Catalog & Stock Request Permissions
+  | 'MANAGE_CUSTOMER_PRODUCTS'   // Customer: Register/edit products
+  | 'CREATE_STOCK_REQUEST'       // Customer: Submit stock requests
+  | 'REVIEW_STOCK_REQUEST';      // Warehouse: Approve/reject requests
 
 export type UserRole = 'system-admin' | 'accountant' | 'finance-manager' | 'customer' | 'driver' | 'warehouse' | 'fleet-driver' | 'sales';
 
@@ -969,4 +984,120 @@ export interface IDataService {
   getBranches(): Promise<Branch[]>;
   getTransactions(): Promise<JournalEntry[]>;
   addTransaction(entry: JournalEntry): Promise<void>;
+}
+
+// =====================
+// CUSTOMER STOCK TYPES
+// =====================
+
+export interface CustomerStockItem {
+  id: string;
+  productId?: string;              // Linked customer product ID
+  productName: string;
+  sku?: string;                    // Optional SKU/barcode
+  quantity: number;                // Available quantity
+  reservedQuantity: number;        // Locked for pending bookings
+  unitPrice?: number;              // Default COD price per unit
+  unitPriceCurrency?: 'USD' | 'KHR';
+  image?: string;
+  description?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface CustomerStock {
+  id: string;                       // Format: {customerId}_{branchId}
+  customerId: string;
+  customerName: string;
+  branchId: string;                 // Doorstep location (multi-branch support)
+  branchName: string;
+  items: CustomerStockItem[];
+  totalItemCount: number;
+  lastUpdated: number;
+}
+
+export type StockTransactionType = 'DEPOSIT' | 'BOOKING_RESERVE' | 'BOOKING_DELIVERED' | 'BOOKING_CANCELLED' | 'ADJUSTMENT';
+
+export interface StockTransactionItem {
+  stockItemId: string;
+  productName: string;
+  quantityChange: number;          // Positive for deposits, negative for deductions
+}
+
+export interface StockTransaction {
+  id: string;
+  customerId: string;
+  customerName: string;
+  branchId: string;
+  branchName?: string;
+  type: StockTransactionType;
+  items: StockTransactionItem[];
+  relatedBookingId?: string;
+  relatedItemId?: string;            // For per-item delivery tracking
+  notes?: string;
+  createdAt: number;
+  createdBy: string;
+  createdByName: string;
+}
+
+// =====================
+// CUSTOMER PRODUCT CATALOG
+// =====================
+
+export interface CustomerProduct {
+  id: string;
+  customerId: string;
+  customerName: string;
+  productName: string;
+  sku?: string;
+  attributes?: { name: string; value: string }[];
+  description?: string;
+  defaultPrice?: number;
+  priceCurrency?: 'USD' | 'KHR';
+  image?: string;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// =====================
+// STOCK REQUESTS
+// =====================
+
+export type StockRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'CANCELLED';
+
+export interface StockRequestItem {
+  productId: string;               // Links to CustomerProduct
+  productName: string;
+  sku?: string;
+  quantity: number;
+  actualQuantity?: number;         // Quantity verified by warehouse
+  unitPrice?: number;
+  image?: string;
+}
+
+export interface StockRequest {
+  id: string;
+  customerId: string;
+  customerName: string;
+  branchId: string;
+  branchName: string;
+  status: StockRequestStatus;
+  items: StockRequestItem[];
+  totalQuantity: number;
+  expectedDate?: string;           // Expected delivery date
+  pickupPreference: 'SELF_DROP' | 'REQUEST_PICKUP';
+  pickupAddress?: string;          // If REQUEST_PICKUP
+  notes?: string;
+  rejectionReason?: string;
+
+  // Audit
+  createdAt: number;
+  createdBy: string;
+  reviewedAt?: number;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  receivedAt?: number;
+  receivedBy?: string;
+  receivedByName?: string;
 }
