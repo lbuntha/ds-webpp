@@ -42,6 +42,65 @@ export const DriverPickupProcessor: React.FC<Props> = ({ job, user, services, on
     const [showMapPicker, setShowMapPicker] = useState(false);
     const [gpsLoading, setGpsLoading] = useState(false);
 
+    // Detect if this is a pre-filled booking (STOCK booking with receiver info already set)
+    // Must have REAL receiver info, not placeholder text
+    const isPreFilledBooking = items.every(i => {
+        const name = (i.receiverName || '').trim().toLowerCase();
+        const addr = (i.destinationAddress || '').trim().toLowerCase();
+
+        // Check for placeholder values that indicate driver needs to fill in
+        const hasPlaceholderName = !name ||
+            name === 'details in photo' ||
+            name.includes('details in photo');
+
+        const hasPlaceholderAddress = !addr ||
+            addr.includes('driver to extract') ||
+            addr.includes('driver to fill') ||
+            addr === 'unknown';
+
+        return !hasPlaceholderName && !hasPlaceholderAddress;
+    });
+
+    // Batch pickup handler for pre-filled bookings
+    const handleBatchPickup = async () => {
+        setIsSaving(true);
+        try {
+            const updatedItems = items.map(item => ({
+                ...item,
+                status: 'PICKED_UP' as const,
+                driverId: user.uid,
+                driverName: user.name,
+                collectorId: user.uid,
+                collectorName: user.name,
+                modifications: [
+                    ...(item.modifications || []),
+                    {
+                        timestamp: Date.now(),
+                        userId: user.uid,
+                        userName: user.name,
+                        field: 'Status',
+                        oldValue: item.status || 'PENDING',
+                        newValue: 'PICKED_UP'
+                    }
+                ]
+            }));
+
+            const updatedJob = {
+                ...job,
+                items: updatedItems,
+                status: 'IN_TRANSIT' as const
+            };
+
+            await onSave(updatedJob);
+            await onFinish();
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to confirm pickup. Please try again.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Initialize: Find first pending item
     useEffect(() => {
         const firstPending = items.findIndex(i => i.status === 'PENDING');
@@ -238,6 +297,96 @@ export const DriverPickupProcessor: React.FC<Props> = ({ job, user, services, on
 
     const isLastItem = pendingCount <= 1 && activeItem.status === 'PENDING';
 
+    // --- SUMMARY CONFIRMATION SCREEN (for pre-filled STOCK bookings) ---
+    if (isPreFilledBooking && pendingCount > 0) {
+        const totalCodUSD = items.filter(i => i.codCurrency !== 'KHR').reduce((sum, i) => sum + (Number(i.productPrice) || 0), 0);
+        const totalCodKHR = items.filter(i => i.codCurrency === 'KHR').reduce((sum, i) => sum + (Number(i.productPrice) || 0), 0);
+        const receiverInfo = items[0]; // All items have same receiver
+
+        return (
+            <div className="fixed inset-0 z-[100] bg-gray-100 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h2 className="text-xl font-bold">📦 Stock Pickup</h2>
+                                <p className="text-indigo-100 text-sm mt-1">From: {job.senderName}</p>
+                            </div>
+                            <button onClick={onCancel} className="text-white/70 hover:text-white">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Receiver Info */}
+                    <div className="p-4 border-b border-gray-100 bg-gray-50">
+                        <p className="text-xs text-gray-500 uppercase font-bold mb-1">Deliver To</p>
+                        <p className="font-bold text-gray-900">{receiverInfo.receiverName}</p>
+                        <p className="text-sm text-gray-600">{receiverInfo.receiverPhone}</p>
+                        <p className="text-sm text-gray-500 mt-1">{receiverInfo.destinationAddress}</p>
+                    </div>
+
+                    {/* Products List */}
+                    <div className="p-4 max-h-[40vh] overflow-y-auto">
+                        <p className="text-xs text-gray-500 uppercase font-bold mb-3">Products ({items.length})</p>
+                        <div className="space-y-3">
+                            {items.map((item, idx) => (
+                                <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                                    {item.image && (
+                                        <img src={item.image} className="w-12 h-12 rounded-lg object-cover border border-gray-200" alt="" />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-900 text-sm truncate">
+                                            {item.sku || item.receiverName || `Item ${idx + 1}`}
+                                        </p>
+                                        <p className="text-xs text-gray-500">Qty: {item.quantity || 1}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-gray-900">
+                                            {item.codCurrency === 'KHR'
+                                                ? `${(item.productPrice || 0).toLocaleString()}៛`
+                                                : `$${(item.productPrice || 0).toFixed(2)}`}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Totals */}
+                    <div className="p-4 bg-indigo-50 border-t border-indigo-100">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm text-gray-600">Total COD</span>
+                            <span className="font-bold text-lg text-indigo-900">
+                                {totalCodUSD > 0 && `$${totalCodUSD.toFixed(2)}`}
+                                {totalCodUSD > 0 && totalCodKHR > 0 && ' + '}
+                                {totalCodKHR > 0 && `${totalCodKHR.toLocaleString()}៛`}
+                                {totalCodUSD === 0 && totalCodKHR === 0 && '$0.00'}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-gray-500">
+                            <span>Delivery Fee</span>
+                            <span>${(job.totalDeliveryFee || 0).toFixed(2)}</span>
+                        </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="p-4">
+                        <Button
+                            onClick={handleBatchPickup}
+                            isLoading={isSaving}
+                            className="w-full py-4 text-lg font-bold bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200"
+                        >
+                            ✓ Confirm Pickup ({items.length} items)
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // --- NORMAL ITEM-BY-ITEM FORM (for PHOTO bookings that need data entry) ---
     return (
         <div className="fixed inset-0 z-[100] bg-gray-100 flex flex-col h-full md:flex-row overflow-hidden">
 

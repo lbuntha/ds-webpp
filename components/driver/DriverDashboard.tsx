@@ -16,7 +16,7 @@ import { toast } from '../../src/shared/utils/toast';
 import { DriverJobCard } from './DriverJobCard';
 import { DriverDeliveryCard } from './DriverDeliveryCard';
 import { DriverPickupProcessor } from './DriverPickupProcessor';
-import { ActionConfirmationModal, TransferModal } from './DriverActionModals';
+import { ActionConfirmationModal, TransferModal, BatchDeliveryModal } from './DriverActionModals';
 
 interface Props {
     user: UserProfile;
@@ -39,6 +39,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
 
     // Modals
     const [actionModal, setActionModal] = useState<{ isOpen: boolean; bookingId: string; itemId: string; action: 'TRANSIT' | 'DELIVER' | 'RETURN' | 'OUT_FOR_DELIVERY' } | null>(null);
+    const [batchActionModal, setBatchActionModal] = useState<{ isOpen: boolean; bookingId: string; itemIds: string[]; action: 'DELIVER' | 'RETURN' } | null>(null);
     const [transferModal, setTransferModal] = useState<{ isOpen: boolean; bookingId: string; itemId: string } | null>(null);
     const [confirmJob, setConfirmJob] = useState<ParcelBooking | null>(null);
     const [zoomImage, setZoomImage] = useState<string | null>(null);
@@ -159,6 +160,18 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
         )
     })).filter(b => b.activeItems.length > 0);
 
+    // Smart delivery count:
+    // - Normal bookings: count each parcel (item)
+    // - Stock bookings: count as 1 (detected by stockItemId on items)
+    const deliveryCount = myActiveJobs.reduce((total, job) => {
+        const isStockBooking = job.activeItems.some(item => item.stockItemId);
+        if (isStockBooking) {
+            return total + 1; // Stock booking = 1 delivery
+        } else {
+            return total + job.activeItems.length; // Normal = count parcels
+        }
+    }, 0);
+
     const pendingHubHandover = bookings.flatMap(b => (b.items || []).map(i => ({ ...i, bookingId: b.id, senderName: b.senderName })))
         .filter(i => i.driverId === user.uid && i.status === 'IN_TRANSIT' && i.targetBranchId);
 
@@ -266,7 +279,6 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                         newItem.isTaxiDelivery = true;
                         newItem.taxiFee = taxiData.taxiFee;
                         newItem.taxiFeeCurrency = taxiData.taxiFeeCurrency;
-                        // REMOVED: newItem.productPrice = 0; -> We now assume Driver is responsible for COD or it was collected via Taxi but accounted to Driver
                     }
 
                     if (updatedCOD) {
@@ -417,6 +429,72 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                         await firebaseService.sendNotification(notif);
                     }
                 }
+            } catch (e) {
+                console.error('Background sync error:', e);
+                refreshJobs();
+            }
+        })();
+    };
+
+    // Batch action handler for combined bookings (STOCK) - with proof, COD, and taxi support
+    const handleBatchAction = async (
+        bookingId: string,
+        itemIds: string[],
+        action: 'DELIVER' | 'RETURN',
+        proof?: string,
+        cod?: { amount: number, currency: 'USD' | 'KHR' },
+        taxiData?: { isTaxiDelivery: boolean, taxiFee: number, taxiFeeCurrency: 'USD' | 'KHR' }
+    ) => {
+        const booking = bookings.find(b => b.id === bookingId);
+        if (!booking) return;
+
+        // Calculate per-item COD distribution if COD was updated
+        const itemCount = itemIds.length;
+        const codPerItem = cod ? cod.amount / itemCount : 0;
+
+        const updatedItems = (booking.items || []).map(item => {
+            if (itemIds.includes(item.id)) {
+                if (action === 'DELIVER') {
+                    return {
+                        ...item,
+                        status: 'DELIVERED' as const,
+                        driverSettlementStatus: 'UNSETTLED' as const,
+                        delivererId: user.uid,
+                        delivererName: user.name,
+                        targetBranchId: null,
+                        proofOfDelivery: proof,
+                        // Update COD if provided (distribute evenly)
+                        ...(cod ? { productPrice: codPerItem, codCurrency: cod.currency } : {}),
+                        // Taxi delivery data (apply to first item only for accounting)
+                        ...(taxiData && item.id === itemIds[0] ? {
+                            isTaxiDelivery: true,
+                            taxiFee: taxiData.taxiFee,
+                            taxiFeeCurrency: taxiData.taxiFeeCurrency
+                        } : {})
+                    };
+                }
+                if (action === 'RETURN') {
+                    return { ...item, status: 'RETURN_TO_SENDER' as const };
+                }
+            }
+            return item;
+        });
+
+        const allDone = updatedItems.every(i => i.status === 'DELIVERED' || i.status === 'RETURN_TO_SENDER');
+        const finalBooking = {
+            ...booking,
+            items: updatedItems,
+            status: allDone ? 'COMPLETED' as const : booking.status
+        };
+
+        // Optimistic update
+        setBookings(prev => prev.map(b => b.id === bookingId ? finalBooking : b));
+        toast.success(action === 'DELIVER' ? `${itemIds.length} items delivered!` : `${itemIds.length} items returned!`);
+
+        // Background save
+        (async () => {
+            try {
+                await firebaseService.saveParcelBooking(finalBooking);
             } catch (e) {
                 console.error('Background sync error:', e);
                 refreshJobs();
@@ -721,16 +799,15 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                     });
                 }}
                 onFinish={async () => {
-                    // Done with batch, close processor immediately
+                    // Done with pickup, close processor and switch to deliveries
                     setProcessingJob(null);
+                    setActiveTab('MY_PARCELS'); // Switch to Deliveries tab
                     toast.success("Pickup complete!");
-                    // Background refresh
-                    refreshJobs();
+                    // Note: Local state is already updated via onSave, no need to refresh immediately
                 }}
                 onCancel={() => {
-                    // Cancel without reload if nothing changed
+                    // Cancel - just close the processor
                     setProcessingJob(null);
-                    refreshJobs();
                 }}
             />
         );
@@ -748,7 +825,7 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
             <div className="flex space-x-1 bg-white p-1 rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
                 {[
                     { id: 'MY_PICKUPS', label: `Pickups (${myPickups.length})` },
-                    { id: 'MY_PARCELS', label: `Deliveries (${myActiveJobs.reduce((s, j) => s + j.activeItems.length, 0)})` },
+                    { id: 'MY_PARCELS', label: `Deliveries (${deliveryCount})` },
                     { id: 'WAREHOUSE', label: `Hub (${pendingHubHandover.length})` },
                     { id: 'AVAILABLE', label: `New (${availablePickups.length})` },
                     { id: 'SETTLEMENT', label: 'Wallet' }
@@ -951,6 +1028,30 @@ export const DriverDashboard: React.FC<Props> = ({ user }) => {
                     setActionModal(null);
                 }}
             />
+
+            {/* Batch Action Modal for Stock Bookings */}
+            {batchActionModal?.isOpen && (() => {
+                const booking = bookings.find(b => b.id === batchActionModal.bookingId);
+                const items = booking?.items?.filter(i => batchActionModal.itemIds.includes(i.id)) || [];
+                const totalCodUSD = items.filter(i => i.codCurrency !== 'KHR').reduce((sum, i) => sum + (Number(i.productPrice) || 0), 0);
+                const totalCodKHR = items.filter(i => i.codCurrency === 'KHR').reduce((sum, i) => sum + (Number(i.productPrice) || 0), 0);
+                const primaryCurrency = totalCodKHR > totalCodUSD * 4100 ? 'KHR' : 'USD';
+                const totalCod = primaryCurrency === 'KHR' ? totalCodKHR : totalCodUSD;
+
+                return (
+                    <BatchDeliveryModal
+                        isOpen={true}
+                        itemCount={batchActionModal.itemIds.length}
+                        initialCodAmount={totalCod}
+                        initialCodCurrency={primaryCurrency}
+                        onCancel={() => setBatchActionModal(null)}
+                        onConfirm={(proof, cod, taxiData) => {
+                            handleBatchAction(batchActionModal.bookingId, batchActionModal.itemIds, batchActionModal.action, proof, cod, taxiData);
+                            setBatchActionModal(null);
+                        }}
+                    />
+                );
+            })()}
 
             <TransferModal
                 isOpen={!!transferModal}

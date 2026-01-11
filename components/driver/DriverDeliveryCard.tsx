@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ParcelBooking, ParcelItem } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
@@ -20,7 +20,14 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
   const [quickEditCurrency, setQuickEditCurrency] = useState<'USD' | 'KHR'>('USD');
   const [isSaving, setIsSaving] = useState(false);
 
-  const items = job.items || [];
+  // Filter to active items for this driver
+  const activeItems = useMemo(() => {
+    return (job.items || []).filter(i => {
+      const isCorrectStatus = i.status === 'PICKED_UP' || i.status === 'AT_WAREHOUSE' || i.status === 'OUT_FOR_DELIVERY' || (i.status === 'IN_TRANSIT' && !i.targetBranchId);
+      const isMyItem = !currentDriverId || i.driverId === currentDriverId || i.delivererId === currentDriverId;
+      return isCorrectStatus && isMyItem;
+    });
+  }, [job.items, currentDriverId]);
 
   const formatTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -43,16 +50,119 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
     setQuickEditId(null);
   };
 
+  // Calculate totals for view
+  const totalCodUSD = activeItems.filter(i => i.codCurrency !== 'KHR').reduce((sum, i) => sum + (Number(i.productPrice) || 0), 0);
+  const totalCodKHR = activeItems.filter(i => i.codCurrency === 'KHR').reduce((sum, i) => sum + (Number(i.productPrice) || 0), 0);
+
+  // Detect STOCK booking by stockProducts array on job (new simplified structure)
+  const isStockBooking = job.stockProducts && job.stockProducts.length > 0;
+
+  if (activeItems.length === 0) return null;
+
+  // --- STOCK VIEW: Show stock products list + single delivery action ---
+  if (isStockBooking && activeItems.length === 1) {
+    const item = activeItems[0]; // The single consolidated item
+    return (
+      <Card className="border border-gray-200 shadow-sm relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500"></div>
+
+        {/* Header */}
+        <div className="pl-3 pr-3 pt-3 pb-2 border-b border-gray-100">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+                  📦 Stock ({job.stockProducts!.length})
+                </span>
+                <span className="text-[10px] text-gray-400">{job.bookingDate}</span>
+              </div>
+              <h4 className="font-bold text-gray-900 mt-1">{item.receiverName}</h4>
+              <p className="text-xs text-gray-600">{item.receiverPhone}</p>
+              <p className="text-xs text-gray-500 mt-1">{item.destinationAddress}</p>
+            </div>
+            <button
+              onClick={() => onChatClick(job.id, item)}
+              className="text-xs text-indigo-600 flex items-center font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Products List from stockProducts */}
+        <div className="px-3 py-2 max-h-[150px] overflow-y-auto bg-gray-50">
+          {job.stockProducts!.map((sp, idx) => (
+            <div key={sp.stockItemId || idx} className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0">
+              {sp.image && (
+                <img
+                  src={sp.image}
+                  className="w-10 h-10 rounded object-cover cursor-pointer"
+                  onClick={() => onZoomImage(sp.image!)}
+                  alt=""
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-800 truncate">{sp.name || sp.sku || `Product ${idx + 1}`}</p>
+                <p className="text-[10px] text-gray-500">Qty: {sp.quantity || 1}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-red-600">
+                  {sp.codCurrency === 'KHR'
+                    ? `${(sp.unitPrice || 0).toLocaleString()}៛`
+                    : `$${(sp.unitPrice || 0).toFixed(2)}`}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Totals */}
+        <div className="px-3 py-2 bg-red-50 border-t border-red-100">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-gray-600">Total COD to Collect:</span>
+            <span className="font-bold text-red-700">
+              {item.codCurrency === 'KHR'
+                ? `${(item.productPrice || 0).toLocaleString()}៛`
+                : `$${(item.productPrice || 0).toFixed(2)}`}
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-gray-500 mt-1">
+            <span>Delivery Fee:</span>
+            <span>${(job.totalDeliveryFee || 0).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Action Buttons - operates on the single consolidated item */}
+        <div className="flex gap-2 p-3">
+          <button
+            className="flex-1 bg-green-600 text-white py-2.5 rounded-lg text-sm font-bold shadow-sm hover:bg-green-700"
+            onClick={() => onAction(job.id, item.id, 'DELIVER')}
+          >
+            ✓ Delivered
+          </button>
+          <button
+            className="px-4 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-lg text-xs font-bold hover:bg-gray-50"
+            onClick={() => onAction(job.id, item.id, 'RETURN')}
+          >
+            Return
+          </button>
+          {hasBranches && (
+            <button
+              className="px-4 bg-indigo-50 text-indigo-700 py-2.5 rounded-lg text-xs font-bold border border-indigo-100 hover:bg-indigo-100"
+              onClick={() => onAction(job.id, item.id, 'TRANSFER')}
+            >
+              Hub
+            </button>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  // --- STANDARD VIEW for normal bookings (item-by-item delivery) ---
   return (
     <div className="space-y-3">
-      {items.filter(i => {
-        // Filter by status (Picked up or already at warehouse waiting for delivery)
-        const isCorrectStatus = i.status === 'PICKED_UP' || i.status === 'AT_WAREHOUSE' || i.status === 'OUT_FOR_DELIVERY' || (i.status === 'IN_TRANSIT' && !i.targetBranchId);
-        // Filter by driver identity
-        const isMyItem = !currentDriverId || i.driverId === currentDriverId || i.delivererId === currentDriverId;
-        return isCorrectStatus && isMyItem;
-      }).map((item) => {
-        // Calculate estimated KHR if item is USD and we have a custom rate
+      {activeItems.map((item) => {
         const showEstimate = item.codCurrency !== 'KHR' && item.productPrice > 0 && job.exchangeRateForCOD;
         const estimatedKHR = showEstimate ? item.productPrice * (job.exchangeRateForCOD || 4100) : 0;
 
@@ -83,7 +193,7 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
                 </div>
                 <p className="text-xs text-gray-600 mt-1 truncate">{item.destinationAddress}</p>
 
-                {/* Inline COD Editing */}
+                {/* Inline COD */}
                 <div className="flex items-center gap-4 mt-2">
                   {quickEditId === item.id ? (
                     <div className="flex items-center gap-1 bg-white border border-red-200 rounded p-1 shadow-sm animate-fade-in-up">
@@ -94,7 +204,6 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
                         onChange={e => {
                           const val = parseFloat(e.target.value);
                           setQuickEditAmount(val);
-                          // Auto switch currency
                           if (!isNaN(val)) {
                             setQuickEditCurrency(val >= 1000 ? 'KHR' : 'USD');
                           }
@@ -133,14 +242,10 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
                             or {estimatedKHR.toLocaleString()}៛ (Rate: {job.exchangeRateForCOD})
                           </div>
                         )}
-                        {/* Delivery Fee Display - Uses ITEM's fee and currency */}
                         {(() => {
-                          // Use per-item fee if available, fallback to booking-level for legacy
-                          const itemFee = item.deliveryFee ?? (job.totalDeliveryFee / (items.length || 1));
+                          const itemFee = item.deliveryFee ?? (job.totalDeliveryFee / (activeItems.length || 1));
                           const itemCurrency = item.codCurrency || 'USD';
-
                           if (itemFee <= 0) return null;
-
                           return (
                             <div className="text-[10px] font-medium text-indigo-600 mt-0.5">
                               Fee: {itemCurrency === 'KHR'
@@ -198,3 +303,4 @@ export const DriverDeliveryCard: React.FC<Props> = ({ job, onZoomImage, onAction
     </div>
   );
 };
+

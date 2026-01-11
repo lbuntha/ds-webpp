@@ -73,6 +73,18 @@ export interface ParcelItem {
   taxiFeeReimbursed?: boolean;      // True when driver has been reimbursed
 }
 
+// Stock Product - for tracking individual products in a STOCK booking
+export interface StockProduct {
+  productId: string;       // CustomerProduct ID
+  stockItemId: string;     // Stock item ID for inventory deduction
+  sku: string;            // Product SKU
+  name: string;           // Product name
+  image?: string;         // Product image URL
+  quantity: number;       // Quantity
+  unitPrice: number;      // Price per unit (COD)
+  codCurrency: 'USD' | 'KHR';
+}
+
 export enum AccountType {
   ASSET = 'Asset',
   LIABILITY = 'Liability',
@@ -908,6 +920,8 @@ export interface ParcelBooking {
   lockedByDriverId?: string;
   lockedByDriverName?: string;
   lockedAt?: number;
+  // Stock booking - stores individual products for inventory control
+  stockProducts?: StockProduct[];
 }
 
 export interface ChatMessage {

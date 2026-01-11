@@ -1,6 +1,6 @@
 
 import { BaseService } from './baseService';
-import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, CustomerCashbackRule, UserProfile, ReferralRule, ParcelItem, Employee } from '../types';
+import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, CustomerCashbackRule, UserProfile, ReferralRule, ParcelItem, Employee, StockProduct } from '../types';
 import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or, limit } from 'firebase/firestore';
 import { db, storage } from './firebaseInstance';
 import { stockService } from './stockService';
@@ -175,21 +175,16 @@ export class LogisticsService extends BaseService {
         const bookingToSave = this.cleanData(b);
 
         // --- STOCK RESERVATION ---
-        if (bookingToSave.items && bookingToSave.senderId && bookingToSave.branchId) {
-            const stockItems = bookingToSave.items.filter((i: ParcelItem) => i.stockItemId);
+        // Only reserve if status is PENDING (new booking)
+        if (bookingToSave.senderId && bookingToSave.branchId && bookingToSave.status === 'PENDING') {
 
-            // Only reserve if status is PENDING (new booking)
-            if (stockItems.length > 0 && bookingToSave.status === 'PENDING') {
-                // Group quantity by stockItemId
-                const consolidated: Record<string, number> = {};
-                stockItems.forEach((i: ParcelItem) => {
-                    if (i.stockItemId) {
-                        const qty = i.quantity || 1;
-                        consolidated[i.stockItemId] = (consolidated[i.stockItemId] || 0) + qty;
-                    }
-                });
+            // NEW: Use stockProducts array for simplified stock bookings
+            if (bookingToSave.stockProducts && bookingToSave.stockProducts.length > 0) {
+                const reservationList = bookingToSave.stockProducts.map((sp: StockProduct) => ({
+                    stockItemId: sp.stockItemId,
+                    quantity: sp.quantity || 1
+                }));
 
-                const reservationList = Object.entries(consolidated).map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
 
                 try {
                     const result = await stockService.reserveStock(
@@ -206,6 +201,40 @@ export class LogisticsService extends BaseService {
                     }
                 } catch (e: any) {
                     throw new Error(`Stock Error: ${e.message}`);
+                }
+            }
+            // LEGACY: Check items for stockItemId (old booking structure)
+            else if (bookingToSave.items) {
+                const stockItems = bookingToSave.items.filter((i: ParcelItem) => i.stockItemId);
+
+                if (stockItems.length > 0) {
+                    // Group quantity by stockItemId
+                    const consolidated: Record<string, number> = {};
+                    stockItems.forEach((i: ParcelItem) => {
+                        if (i.stockItemId) {
+                            const qty = i.quantity || 1;
+                            consolidated[i.stockItemId] = (consolidated[i.stockItemId] || 0) + qty;
+                        }
+                    });
+
+                    const reservationList = Object.entries(consolidated).map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
+
+                    try {
+                        const result = await stockService.reserveStock(
+                            bookingToSave.senderId,
+                            bookingToSave.branchId,
+                            reservationList,
+                            bookingToSave.id,
+                            'customer-app',
+                            bookingToSave.senderName || 'Customer'
+                        );
+
+                        if (!result.success) {
+                            throw new Error(`Stock Reservation Failed: ${result.error}`);
+                        }
+                    } catch (e: any) {
+                        throw new Error(`Stock Error: ${e.message}`);
+                    }
                 }
             }
         }
@@ -266,7 +295,29 @@ export class LogisticsService extends BaseService {
 
                     if (isNowDelivered && wasNotDelivered) {
                         // --- STOCK DEDUCTION ---
-                        if (item.stockItemId && bookingToSave.senderId && bookingToSave.branchId) {
+                        // Use stockProducts array for stock bookings
+                        if (bookingToSave.stockProducts && bookingToSave.stockProducts.length > 0 && bookingToSave.senderId && bookingToSave.branchId) {
+                            try {
+                                // Deduct all products in stockProducts array
+                                const stockDeductions = bookingToSave.stockProducts.map(sp => ({
+                                    stockItemId: sp.stockItemId,
+                                    quantity: sp.quantity || 1
+                                }));
+                                await stockService.confirmDelivery(
+                                    bookingToSave.senderId,
+                                    bookingToSave.branchId,
+                                    stockDeductions,
+                                    bookingToSave.id,
+                                    item.id,
+                                    'driver-app',
+                                    'Driver'
+                                );
+                            } catch (e) {
+                                console.error("Stock Deduction (stockProducts) Failed:", e);
+                            }
+                        }
+                        // Legacy: Single item stock deduction (for old bookings)
+                        else if (item.stockItemId && bookingToSave.senderId && bookingToSave.branchId) {
                             try {
                                 await stockService.confirmDelivery(
                                     bookingToSave.senderId,
@@ -278,7 +329,7 @@ export class LogisticsService extends BaseService {
                                     'Driver'
                                 );
                             } catch (e) {
-                                console.error("Stock Deduction Failed:", e);
+                                console.error("Stock Deduction (legacy) Failed:", e);
                             }
                         }
 

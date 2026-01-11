@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { ParcelServiceType, ParcelItem, UserProfile, ParcelBooking, AppNotification, SavedLocation, GeoPoint, ParcelPromotion, CustomerSpecialRate, CurrencyConfig, Place, CustomerProduct, CustomerStock, CustomerStockItem } from '../../src/shared/types';
+import { ParcelServiceType, ParcelItem, UserProfile, ParcelBooking, AppNotification, SavedLocation, GeoPoint, ParcelPromotion, CustomerSpecialRate, CurrencyConfig, Place, CustomerProduct, CustomerStock, CustomerStockItem, StockProduct } from '../../src/shared/types';
 import { stockService } from '../../src/shared/services/stockService';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Button } from '../ui/Button';
@@ -373,8 +373,10 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete, initialMode
             }
         }
 
-        // SINGLE FEE LOGIC: Count is always 1 for the base price in SINGLE mode
-        const count = (bookingMode === 'SINGLE') ? 1 : Math.max(items.length, 1);
+        // FEE COUNTING LOGIC:
+        // - STOCK bookings: Always 1 fee per booking (combined products to 1 receiver)
+        // - PHOTO/MANUAL bookings: 1 fee per image (each image = 1 parcel)
+        const count = bookingType === 'STOCK' ? 1 : Math.max(items.length, 1);
         const subtotal = basePrice * count;
 
 
@@ -458,44 +460,91 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete, initialMode
             // Import fee calculator for dual currency support
             const { calculateDeliveryFee } = await import('../../src/shared/utils/feeCalculator');
 
-            // 1. Calculate SINGLE FEE for the whole booking
+            // FEE COUNTING:
+            // - STOCK: 1 fee for entire booking (multiple products to 1 receiver)
+            // - PHOTO/MANUAL: 1 fee per image (each image = 1 parcel)
+            const feeItemCount = bookingType === 'STOCK' ? 1 : Math.max(items.length, 1);
+
+            // Calculate fee based on item count
             const singleFeeResult = await calculateDeliveryFee({
                 serviceTypeId,
                 customerId: user.linkedCustomerId || '',
-                itemCount: 1, // Always 1 for Single Booking Mode
-                codCurrency: (items[0]?.codCurrency || 'USD'), // Use first item's currency preference for fee calculation basis if needed
+                itemCount: feeItemCount,
+                codCurrency: (items[0]?.codCurrency || 'USD'),
                 exchangeRate: effectiveExchangeRate,
                 services,
                 specialRates
             });
 
-            const totalDeliveryFee = singleFeeResult.pricePerItem;
-            const totalDeliveryFeeUSD = singleFeeResult.pricePerItemUSD;
-            const totalDeliveryFeeKHR = singleFeeResult.pricePerItemKHR;
+            // Total fee for the booking
+            const totalDeliveryFee = singleFeeResult.totalPrice || (singleFeeResult.pricePerItem * feeItemCount);
+            const totalDeliveryFeeUSD = singleFeeResult.totalPriceUSD || (singleFeeResult.pricePerItemUSD * feeItemCount);
+            const totalDeliveryFeeKHR = singleFeeResult.totalPriceKHR || (singleFeeResult.pricePerItemKHR * feeItemCount);
 
-            // Distribute fee per item for internal record consistency (so sum(items) ~ total)
+            // Distribute fee per item for internal record consistency
             const itemCount = Math.max(items.length, 1);
             const feePerItem = totalDeliveryFee / itemCount;
             const feePerItemUSD = totalDeliveryFeeUSD / itemCount;
             const feePerItemKHR = totalDeliveryFeeKHR / itemCount;
 
-            // Calculate fees for each item with both currencies
-            const finalItems = await Promise.all(items.map(async (i) => {
-                return {
-                    ...i,
-                    productPrice: Number(i.productPrice) || 0,
-                    codCurrency: i.codCurrency || (Number(i.productPrice) >= 1000 ? 'KHR' : 'USD'),
-                    receiverName: (bookingType === 'STOCK' && bookingMode === 'SINGLE') ? singleReceiverName : (i.receiverName || 'Details in Photo'),
-                    receiverPhone: (bookingType === 'STOCK' && bookingMode === 'SINGLE') ? singleReceiverPhone : (i.receiverPhone || ''),
-                    destinationAddress: (bookingType === 'STOCK' && bookingMode === 'SINGLE') ? singleAddress : (i.destinationAddress || 'Driver to Extract'),
+            // For STOCK bookings: Create ONE ParcelItem (same structure as normal) + stockProducts for inventory
+            // For PHOTO bookings: Create multiple items as usual
+            let finalItems: ParcelItem[];
+            let stockProducts: StockProduct[] | undefined;
 
-                    // Distribute the single fee across items
-                    deliveryFee: feePerItem,
-                    deliveryFeeUSD: feePerItemUSD,
-                    deliveryFeeKHR: feePerItemKHR
-                };
-            }));
+            if (bookingType === 'STOCK') {
+                // Calculate total COD from all products (price * quantity for each)
+                const totalCodUSD = items.filter(i => i.codCurrency !== 'KHR')
+                    .reduce((s, i) => s + (Number(i.productPrice) || 0) * (i.quantity || 1), 0);
+                const totalCodKHR = items.filter(i => i.codCurrency === 'KHR')
+                    .reduce((s, i) => s + (Number(i.productPrice) || 0) * (i.quantity || 1), 0);
+                const primaryCurrency = totalCodKHR > 0 ? 'KHR' : 'USD';
+                const totalCod = primaryCurrency === 'KHR' ? totalCodKHR : totalCodUSD;
 
+                // Create ONE ParcelItem - EXACTLY like normal booking structure
+                // No special fields - pickup/delivery works the same as normal
+                finalItems = [{
+                    id: `item-${Date.now()}`,
+                    image: items[0]?.image || '',
+                    receiverName: singleReceiverName || 'Details in Photo',
+                    receiverPhone: singleReceiverPhone || '',
+                    destinationAddress: singleAddress || 'Driver to Extract',
+                    productPrice: totalCod,  // Total COD to collect
+                    codCurrency: primaryCurrency,
+                    deliveryFee: totalDeliveryFee,
+                    deliveryFeeUSD: totalDeliveryFeeUSD,
+                    deliveryFeeKHR: totalDeliveryFeeKHR,
+                    status: 'PENDING'
+                    // No quantity field - stockProducts handles stock info
+                }];
+
+                // stockProducts: ONLY for stock reservation and deduction
+                stockProducts = items.map(i => ({
+                    productId: i.productId || '',
+                    stockItemId: i.stockItemId || '',
+                    sku: i.sku || '',
+                    name: i.sku || 'Product',
+                    image: i.image,
+                    quantity: i.quantity || 1,
+                    unitPrice: Number(i.productPrice) || 0,
+                    codCurrency: (i.codCurrency || 'USD') as 'USD' | 'KHR'
+                }));
+            } else {
+                // PHOTO booking: Create items as before
+                finalItems = await Promise.all(items.map(async (i) => {
+                    return {
+                        ...i,
+                        productPrice: Number(i.productPrice) || 0,
+                        codCurrency: i.codCurrency || (Number(i.productPrice) >= 1000 ? 'KHR' : 'USD'),
+                        receiverName: i.receiverName || 'Details in Photo',
+                        receiverPhone: i.receiverPhone || '',
+                        destinationAddress: i.destinationAddress || 'Driver to Extract',
+                        deliveryFee: feePerItem,
+                        deliveryFeeUSD: feePerItemUSD,
+                        deliveryFeeKHR: feePerItemKHR
+                    };
+                }));
+            }
 
             const booking: ParcelBooking = {
                 id: bookingId,
@@ -508,6 +557,7 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete, initialMode
                 serviceTypeId,
                 serviceTypeName: service?.name || '',
                 items: finalItems,
+                stockProducts,  // NEW: Stock products for inventory control
                 distance: 0,
                 subtotal: pricing.subtotal,
                 discountAmount: pricing.discount,

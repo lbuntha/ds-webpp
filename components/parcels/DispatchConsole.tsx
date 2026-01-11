@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ParcelBooking, Employee, ParcelItem, AppNotification } from '../../src/shared/types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ParcelBooking, Employee, ParcelItem, AppNotification, UserProfile } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { firebaseService } from '../../src/shared/services/firebaseService';
@@ -8,6 +8,7 @@ import { toast } from '../../src/shared/utils/toast';
 export const DispatchConsole: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'NEW_JOBS' | 'WAREHOUSE'>('NEW_JOBS');
     const [bookings, setBookings] = useState<ParcelBooking[]>([]);
+    const [allBookings, setAllBookings] = useState<ParcelBooking[]>([]); // For balance calculation
     const [drivers, setDrivers] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -24,11 +25,60 @@ export const DispatchConsole: React.FC = () => {
             firebaseService.getParcelBookings(),
             firebaseService.getEmployees()
         ]);
-        // Filter for active bookings
+        // Store all bookings for balance calculation
+        setAllBookings(bData);
+        // Filter for active bookings (for dispatch list)
         setBookings(bData.filter(b => b.status !== 'COMPLETED' && b.status !== 'CANCELLED'));
         // Filter for active drivers only
         setDrivers(eData.filter(e => e.isDriver && e.status !== 'INACTIVE'));
         setLoading(false);
+    };
+
+    // Calculate unsettled balance for a driver based on delivered items (same logic as Driver Dashboard)
+    const getDriverBalance = (driver: Employee) => {
+        const driverUserId = driver.linkedUserId || driver.id;
+
+        // Find all unsettled items for this driver
+        const unsettledItems = allBookings.flatMap(b =>
+            (b.items || []).filter(i =>
+                (i.driverId === driverUserId || i.delivererId === driverUserId) &&
+                i.status === 'DELIVERED' &&
+                (!i.driverSettlementStatus || i.driverSettlementStatus === 'UNSETTLED')
+            )
+        );
+
+        let codUsd = 0, codKhr = 0;
+        let taxiUsd = 0, taxiKhr = 0;
+
+        unsettledItems.forEach(i => {
+            // COD collected (driver owes this)
+            const amt = Number(i.productPrice) || 0;
+            if (amt > 0) {
+                if (i.codCurrency === 'KHR') codKhr += amt; else codUsd += amt;
+            }
+
+            // Taxi fee reimbursement (company owes driver)
+            if (i.isTaxiDelivery && i.taxiFee && i.taxiFee > 0 && !i.taxiFeeReimbursed) {
+                if (i.taxiFeeCurrency === 'KHR') taxiKhr += i.taxiFee;
+                else taxiUsd += i.taxiFee;
+            }
+        });
+
+        // Net balance = COD - Taxi (positive means driver owes company)
+        return {
+            usd: codUsd - taxiUsd,
+            khr: codKhr - taxiKhr,
+            itemCount: unsettledItems.length
+        };
+    };
+
+    const isDriverEligible = (driver: Employee) => {
+        const bal = getDriverBalance(driver);
+        // Allow dispatch only if no unsettled items
+        // Using small threshold to handle floating point noise
+        const isUsdClear = Math.abs(bal.usd) < 0.01;
+        const isKhrClear = Math.abs(bal.khr) < 1; // 1 Riel threshold
+        return isUsdClear && isKhrClear;
     };
 
     useEffect(() => {
@@ -41,6 +91,11 @@ export const DispatchConsole: React.FC = () => {
         const driver = drivers.find(d => d.id === selectedDriver);
 
         if (!booking || !driver) return;
+
+        if (!isDriverEligible(driver)) {
+            toast.error(`Cannot assign: ${driver.name} has unsettled balance.`);
+            return;
+        }
 
         // CRITICAL: Always prefer Linked User ID for the driver so they can see it in their app
         const targetDriverId = driver.linkedUserId || driver.id;
@@ -151,6 +206,11 @@ export const DispatchConsole: React.FC = () => {
         const booking = bookings.find(b => b.id === itemEntry.bookingId);
 
         if (!booking || !driver) return;
+
+        if (!isDriverEligible(driver)) {
+            toast.error(`Cannot assign: ${driver.name} has unsettled balance.`);
+            return;
+        }
 
         const targetDriverId = driver.linkedUserId || driver.id;
 
@@ -392,47 +452,69 @@ export const DispatchConsole: React.FC = () => {
                                 </div>
                             ) : (
                                 <>
-                                    {/* Scan Input */}
+                                    {/* Scan Input OR Blocked Message */}
                                     {activeTab === 'WAREHOUSE' && selectedDriver && (
-                                        <div className="bg-indigo-50 p-4 rounded-lg border-2 border-indigo-200 mb-2">
-                                            <label className="block text-xs font-bold uppercase text-indigo-700 mb-1">
-                                                SCAN PARCEL FOR {drivers.find(d => d.id === selectedDriver)?.name}
-                                            </label>
-                                            <div className="flex gap-2">
-                                                <div className="relative flex-1">
-                                                    <input
-                                                        ref={inputRef}
-                                                        type="text"
-                                                        className="w-full px-3 py-2 border rounded shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-8"
-                                                        placeholder={isScanning ? "Searching..." : "Scan Barcode / Tracking ID..."}
-                                                        value={barcode}
-                                                        onChange={(e) => setBarcode(e.target.value)}
-                                                        onKeyDown={handleScan}
-                                                        autoFocus
-                                                        disabled={isScanning}
-                                                    />
-                                                    {isScanning && (
-                                                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                                                            <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                            </svg>
+                                        <>
+                                            {isDriverEligible(drivers.find(d => d.id === selectedDriver)!) ? (
+                                                <div className="bg-indigo-50 p-4 rounded-lg border-2 border-indigo-200 mb-2">
+                                                    <label className="block text-xs font-bold uppercase text-indigo-700 mb-1">
+                                                        SCAN PARCEL FOR {drivers.find(d => d.id === selectedDriver)?.name}
+                                                    </label>
+                                                    <div className="flex gap-2">
+                                                        <div className="relative flex-1">
+                                                            <input
+                                                                ref={inputRef}
+                                                                type="text"
+                                                                className="w-full px-3 py-2 border rounded shadow-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-8"
+                                                                placeholder={isScanning ? "Searching..." : "Scan Barcode / Tracking ID..."}
+                                                                value={barcode}
+                                                                onChange={(e) => setBarcode(e.target.value)}
+                                                                onKeyDown={handleScan}
+                                                                autoFocus
+                                                                disabled={isScanning}
+                                                            />
+                                                            {isScanning && (
+                                                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                                                                    <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                    </svg>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
+                                                        <Button
+                                                            onClick={() => setIsCameraScanOpen(true)}
+                                                            className="px-3 bg-indigo-600 hover:bg-indigo-700"
+                                                            title="Scan with Camera"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            </svg>
+                                                        </Button>
+                                                    </div>
+                                                    <p className="text-[10px] text-indigo-400 mt-1">Press Enter to assign instantly.</p>
                                                 </div>
-                                                <Button
-                                                    onClick={() => setIsCameraScanOpen(true)}
-                                                    className="px-3 bg-indigo-600 hover:bg-indigo-700"
-                                                    title="Scan with Camera"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    </svg>
-                                                </Button>
-                                            </div>
-                                            <p className="text-[10px] text-indigo-400 mt-1">Press Enter to assign instantly.</p>
-                                        </div>
+                                            ) : (
+                                                <div className="bg-red-50 p-4 rounded-lg border-2 border-red-200 mb-2 text-center">
+                                                    <div className="flex justify-center mb-2">
+                                                        <span className="p-2 bg-red-100 rounded-full">
+                                                            <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                        </span>
+                                                    </div>
+                                                    <h3 className="text-sm font-bold text-red-800 uppercase">Assignment Blocked</h3>
+                                                    <p className="text-xs text-red-600 mt-1">
+                                                        {drivers.find(d => d.id === selectedDriver)?.name} has an unsettled wallet balance.
+                                                    </p>
+                                                    <p className="text-sm font-bold text-red-700 mt-2">
+                                                        Owes:
+                                                        {Math.abs(getDriverBalance(drivers.find(d => d.id === selectedDriver)!).usd) > 0.01 && ` $${getDriverBalance(drivers.find(d => d.id === selectedDriver)!).usd.toFixed(2)}`}
+                                                        {Math.abs(getDriverBalance(drivers.find(d => d.id === selectedDriver)!).khr) > 1 && ` ${getDriverBalance(drivers.find(d => d.id === selectedDriver)!).khr.toLocaleString()} KHR`}
+                                                    </p>
+                                                    <p className="text-[10px] text-red-400 mt-2">Clear balance to resume assignment.</p>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
 
                                     {/* Assigned Items List (Visible only in Warehouse mode when driver selected) */}
@@ -480,30 +562,53 @@ export const DispatchConsole: React.FC = () => {
                                     {/* Driver List */}
                                     <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
                                         <p className="text-xs font-bold text-gray-500 uppercase sticky top-0 bg-white pb-2">Available Drivers ({drivers.length})</p>
-                                        {drivers.map(driver => (
-                                            <div
-                                                key={driver.id}
-                                                onClick={() => setSelectedDriver(driver.id)}
-                                                className={`p-3 rounded-lg border cursor-pointer flex items-center space-x-3 transition-all ${selectedDriver === driver.id ? 'bg-green-50 border-green-500 ring-1 ring-green-500' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
-                                            >
-                                                <div className="h-9 w-9 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 relative">
-                                                    {driver.name.charAt(0)}
-                                                    {driver.linkedUserId && (
-                                                        <span className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 border-2 border-white rounded-full" title="App Connected"></span>
+                                        {drivers.map(driver => {
+                                            const isEligible = isDriverEligible(driver);
+                                            const balance = getDriverBalance(driver);
+                                            return (
+                                                <div
+                                                    key={driver.id}
+                                                    onClick={() => setSelectedDriver(driver.id)}
+                                                    className={`p-3 rounded-lg border flex items-center space-x-3 transition-all cursor-pointer ${selectedDriver === driver.id
+                                                        ? 'bg-green-50 border-green-500 ring-1 ring-green-500'
+                                                        : isEligible
+                                                            ? 'bg-white border-gray-200 hover:bg-gray-50'
+                                                            : 'bg-red-50 border-red-200 opacity-80'
+                                                        }`}
+                                                >
+                                                    <div className="h-9 w-9 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 relative">
+                                                        {driver.name.charAt(0)}
+                                                        {driver.linkedUserId && (
+                                                            <span className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 border-2 border-white rounded-full" title="App Connected"></span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between items-start">
+                                                            <p className="text-sm font-medium text-gray-900">{driver.name}</p>
+                                                            {!isEligible && (
+                                                                <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 rounded">BLOCKED</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col gap-1 mt-1">
+                                                            <div className="flex gap-2">
+                                                                <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded">{driver.vehicleType}</span>
+                                                                {driver.zone && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 rounded">{driver.zone}</span>}
+                                                            </div>
+                                                            {!isEligible && (
+                                                                <p className="text-[10px] text-red-600 font-medium">
+                                                                    Owes:
+                                                                    {Math.abs(balance.usd) > 0.01 && ` $${balance.usd.toFixed(2)}`}
+                                                                    {Math.abs(balance.khr) > 1 && ` ${balance.khr.toLocaleString()} KHR`}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {selectedDriver === driver.id && (
+                                                        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                                                     )}
                                                 </div>
-                                                <div className="flex-1">
-                                                    <p className="text-sm font-medium text-gray-900">{driver.name}</p>
-                                                    <div className="flex gap-2">
-                                                        <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded">{driver.vehicleType}</span>
-                                                        {driver.zone && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 rounded">{driver.zone}</span>}
-                                                    </div>
-                                                </div>
-                                                {selectedDriver === driver.id && (
-                                                    <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                                )}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                         {drivers.length === 0 && <p className="text-xs text-red-500 text-center py-4">No active drivers found.</p>}
                                     </div>
 
