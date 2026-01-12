@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { firebaseService } from '../../src/shared/services/firebaseService';
-import { ParcelBooking } from '../../src/shared/types';
+import { ParcelBooking, UserProfile } from '../../src/shared/types';
 import { toast } from '../../src/shared/utils/toast';
 
 declare global {
@@ -13,28 +13,43 @@ export const BookingMapReport: React.FC = () => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const [map, setMap] = useState<any>(null);
     const [bookings, setBookings] = useState<ParcelBooking[]>([]);
+    const [drivers, setDrivers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
 
     const defaultCenter = { lat: 11.5564, lng: 104.9282 }; // Phnom Penh
 
     useEffect(() => {
-        loadBookings();
+        loadData();
     }, []);
 
-    const loadBookings = async () => {
+    const loadData = async () => {
         try {
-            const allBookings = await firebaseService.getParcelBookings();
+            const [allBookings, allUsers] = await Promise.all([
+                firebaseService.getParcelBookings(),
+                firebaseService.getUsers()
+            ]);
+
             setBookings(allBookings);
+
+            // Filter drivers with location
+            const activeDrivers = allUsers.filter(u =>
+                (u.role === 'driver' || u.role === 'fleet-driver') &&
+                u.lastLocation &&
+                (u.lastLocation.lat || u.lastLocation.latitude) &&
+                (u.lastLocation.lng || u.lastLocation.longitude)
+            );
+            setDrivers(activeDrivers);
+
         } catch (error) {
-            console.error("Error loading bookings:", error);
-            toast.error("Failed to load bookings");
+            console.error("Error loading map data:", error);
+            toast.error("Failed to load map data");
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (!loading && bookings.length >= 0) {
+        if (!loading && (bookings.length >= 0 || drivers.length >= 0)) {
             // Load Leaflet resources if not present
             if (!document.getElementById('leaflet-css')) {
                 const link = document.createElement('link');
@@ -67,9 +82,19 @@ export const BookingMapReport: React.FC = () => {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(mapInstance);
 
-            const icon = window.L.icon({
+            const redIcon = window.L.icon({
                 iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
                 iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
+
+            const blueIcon = window.L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
                 shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
                 iconSize: [25, 41],
                 iconAnchor: [12, 41],
@@ -80,6 +105,7 @@ export const BookingMapReport: React.FC = () => {
             const markers = window.L.layerGroup().addTo(mapInstance);
             const boundsPoints: [number, number][] = [];
 
+            // Plot Bookings
             bookings.forEach(booking => {
                 const maxStatus = (booking.status || '').toUpperCase();
                 // Check if the BOOKING is pending (usually means ready for pickup)
@@ -87,7 +113,7 @@ export const BookingMapReport: React.FC = () => {
                     if (booking.pickupLocation?.lat && booking.pickupLocation?.lng) {
                         const marker = window.L.marker(
                             [booking.pickupLocation.lat, booking.pickupLocation.lng],
-                            { icon: icon }
+                            { icon: redIcon }
                         );
 
                         const itemCount = booking.items ? booking.items.length : 0;
@@ -106,6 +132,36 @@ export const BookingMapReport: React.FC = () => {
                         markers.addLayer(marker);
                         boundsPoints.push([booking.pickupLocation.lat, booking.pickupLocation.lng]);
                     }
+                }
+            });
+
+            // Plot Drivers
+            drivers.forEach(driver => {
+                const lat = driver.lastLocation?.lat || driver.lastLocation?.latitude;
+                const lng = driver.lastLocation?.lng || driver.lastLocation?.longitude;
+
+                if (lat && lng) {
+                    const marker = window.L.marker(
+                        [lat, lng],
+                        { icon: blueIcon }
+                    );
+
+                    // Format timestamp if available
+                    const timeStr = driver.lastLocation?.timestamp
+                        ? new Date(driver.lastLocation.timestamp).toLocaleTimeString()
+                        : 'Unknown Time';
+
+                    const popupContent = `
+                        <div class="p-2">
+                            <p class="font-bold text-sm mb-1 text-blue-700">DRIVER: ${driver.name}</p>
+                            <p class="text-xs text-gray-600 mb-1">Phone: ${driver.phone || 'N/A'}</p>
+                            <p class="text-xs text-gray-600 mb-1">Last Active: ${timeStr}</p>
+                        </div>
+                    `;
+
+                    marker.bindPopup(popupContent);
+                    markers.addLayer(marker);
+                    boundsPoints.push([lat, lng]);
                 }
             });
 
@@ -130,7 +186,7 @@ export const BookingMapReport: React.FC = () => {
             <div className="p-4 border-b border-gray-100 flex justify-between items-center">
                 <h2 className="text-lg font-bold text-gray-800">Booking Map Report</h2>
                 <div className="text-sm text-gray-500">
-                    Showing {bookings.length} locations
+                    {drivers.length} Drivers | {bookings.length} Orders
                 </div>
             </div>
 

@@ -225,6 +225,14 @@ export interface UserProfile {
   excludeFeesInSettlement?: boolean; // Customer: Exclude fees from settlement (pay gross amount)
   // Authentication
   authMethod?: 'email' | 'google' | 'phone';
+  lastLocation?: {
+    lat?: number;
+    lng?: number;
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    timestamp?: number;
+  };
   // Note: Password/PIN is handled entirely by Firebase Auth, not stored in Firestore
 }
 
