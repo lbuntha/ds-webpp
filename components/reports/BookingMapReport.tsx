@@ -82,7 +82,8 @@ export const BookingMapReport: React.FC = () => {
 
             bookings.forEach(booking => {
                 booking.items.forEach(item => {
-                    if (item.destinationLocation?.lat && item.destinationLocation?.lng) {
+                    const status = item.status || booking.status;
+                    if (status === 'PENDING' && item.destinationLocation?.lat && item.destinationLocation?.lng) {
                         const marker = window.L.marker(
                             [item.destinationLocation.lat, item.destinationLocation.lng],
                             { icon: icon }
@@ -93,7 +94,7 @@ export const BookingMapReport: React.FC = () => {
                                 <p class="font-bold text-sm mb-1">${booking.senderName || 'Unknown Customer'}</p>
                                 <p class="text-xs text-gray-600 mb-1">Items: ${item.quantity || 1}</p>
                                 <p class="text-xs text-gray-600 mb-1">Booking: ${booking.id.slice(0, 8)}...</p>
-                                <p class="text-xs">Status: <span class="font-medium">${item.status || booking.status}</span></p>
+                                <p class="text-xs">Status: <span class="font-medium">${status}</span></p>
                                 <p class="text-xs">COD: ${item.codCurrency} ${item.productPrice || 0}</p>
                             </div>
                         `;
