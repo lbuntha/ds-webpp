@@ -846,6 +846,8 @@ export interface ParcelServiceType {
   revenueAccountId?: string; // Legacy / Primary USD
   description?: string;
   image?: string;
+  rule?: string; // English Rule
+  ruleKH?: string; // Khmer Rule
 
   // Multi-currency Mapping
   revenueAccountUSD?: string;

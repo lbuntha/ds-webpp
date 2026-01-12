@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ParcelServiceType, Account, AccountType, TaxRate, AccountSubType } from '../../src/shared/types';
+import { ParcelServiceType, Account, TaxRate } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
-import { ImageUpload } from '../ui/ImageUpload';
+import { Modal } from '../ui/Modal';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
+import { ParcelServiceForm } from './ParcelServiceForm';
+import { Package, Plus, Edit2, Trash2 } from 'lucide-react';
 
 interface Props {
     accounts: Account[];
@@ -16,23 +17,13 @@ interface Props {
 export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBookService }) => {
     const [services, setServices] = useState<ParcelServiceType[]>([]);
     const [loading, setLoading] = useState(false);
-    const [editingId, setEditingId] = useState<string | null>(null);
 
-    const [name, setName] = useState('');
-    const [nameKH, setNameKH] = useState('');
-    const [defaultPrice, setDefaultPrice] = useState(0);
-    const [pricePerKm, setPricePerKm] = useState(0);
-    const [defaultPriceKHR, setDefaultPriceKHR] = useState(0);
-    const [pricePerKmKHR, setPricePerKmKHR] = useState(0);
-    const [description, setDescription] = useState('');
-    const [image, setImage] = useState('');
-    const [taxRateId, setTaxRateId] = useState('');
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingService, setEditingService] = useState<ParcelServiceType | null>(null);
 
     // Delete confirmation
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-
-    // Filter Accounts - Allow broad selection but group them for UX
-    const availableAccounts = accounts.filter(a => !a.isHeader);
 
     const loadServices = async () => {
         const data = await firebaseService.getParcelServices();
@@ -43,60 +34,44 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
         loadServices();
     }, []);
 
-    const resetForm = () => {
-        setEditingId(null);
-        setName('');
-        setNameKH('');
-        setDefaultPrice(0);
-        setPricePerKm(0);
-        setDefaultPriceKHR(0);
-        setPricePerKmKHR(0);
-        setDescription('');
-        setImage('');
-        setTaxRateId('');
+    const handleAddNew = () => {
+        setEditingService(null);
+        setIsModalOpen(true);
     };
 
-    const handleEdit = (s: ParcelServiceType) => {
-        setEditingId(s.id);
-        setName(s.name);
-        setNameKH(s.nameKH || '');
-        setDefaultPrice(s.defaultPrice);
-        setPricePerKm(s.pricePerKm || 0);
-        setDefaultPriceKHR(s.defaultPriceKHR || 0);
-        setPricePerKmKHR(s.pricePerKmKHR || 0);
-        setTaxRateId(s.taxRateId || '');
-        setDescription(s.description || '');
-        setImage(s.image || '');
-
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const handleEdit = (service: ParcelServiceType) => {
+        setEditingService(service);
+        setIsModalOpen(true);
     };
 
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name) {
-            toast.warning("Name is required.");
-            return;
-        }
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingService(null);
+    };
 
+    const handleSave = async (formData: Partial<ParcelServiceType>) => {
         setLoading(true);
         try {
             const newService: ParcelServiceType = {
-                id: editingId || `ps-${Date.now()}`,
-                name,
-                nameKH: nameKH || undefined,
-                defaultPrice,
-                pricePerKm,
-                defaultPriceKHR,
-                pricePerKmKHR,
-                revenueAccountId: editingId ? (services.find(s => s.id === editingId)?.revenueAccountId) : undefined,
-                description,
-                image,
-                taxRateId: taxRateId || undefined,
+                id: editingService ? editingService.id : `ps-${Date.now()}`,
+                name: formData.name!,
+                nameKH: formData.nameKH,
+                defaultPrice: formData.defaultPrice!,
+                pricePerKm: formData.pricePerKm || 0,
+                defaultPriceKHR: formData.defaultPriceKHR || 0,
+                pricePerKmKHR: formData.pricePerKmKHR || 0,
+                revenueAccountId: editingService ? editingService.revenueAccountId : undefined, // Preserve if existing, logic handled elsewhere or deprecated
+                description: formData.description,
+                image: formData.image,
+                taxRateId: formData.taxRateId,
+                rule: formData.rule,
+                ruleKH: formData.ruleKH,
             };
+
             await firebaseService.saveParcelService(newService);
-            resetForm();
+            handleCloseModal();
             await loadServices();
-            toast.success(editingId ? "Service updated." : "Service created.");
+            toast.success(editingService ? "Service updated." : "Service created.");
         } catch (e) {
             console.error(e);
             toast.error("Failed to save service.");
@@ -108,7 +83,6 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
     const executeDelete = async (id: string) => {
         try {
             await firebaseService.deleteParcelService(id);
-            if (editingId === id) resetForm();
             await loadServices();
             toast.success("Service deleted.");
         } catch (e) {
@@ -118,169 +92,115 @@ export const ParcelServiceSetup: React.FC<Props> = ({ accounts, taxRates, onBook
         }
     };
 
-    const handleDelete = (id: string) => {
-        setConfirmDeleteId(id);
-    };
-
-
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Form */}
-            <Card title={editingId ? "Edit Product Configuration" : "New Service Configuration"}>
-                <form onSubmit={handleSave} className="space-y-6">
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">Configured Services</h3>
+                <Button onClick={handleAddNew} className="flex items-center gap-2">
+                    <Plus size={16} />
+                    Add New Service
+                </Button>
+            </div>
 
-                    {/* Top Section: Image & Core Info */}
-                    <div className="flex flex-col sm:flex-row gap-6">
-                        <div className="sm:w-1/3">
-                            <div className="bg-gray-50 p-2 rounded-xl border border-gray-200 h-full flex flex-col justify-center">
-                                <ImageUpload value={image} onChange={setImage} label="Icon" />
-                            </div>
-                        </div>
-                        <div className="sm:w-2/3 space-y-4">
-                            <Input
-                                label="Service Name"
-                                placeholder="e.g. Express Delivery"
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                required
-                            />
-                            <Input
-                                label="ឈ្មោះសេវាកម្ម (Khmer)"
-                                placeholder="ឧ. ដឹកជញ្ជូនរហ័ស"
-                                value={nameKH}
-                                onChange={e => setNameKH(e.target.value)}
-                            />
-                            <div className="grid grid-cols-2 gap-4">
-                                <Input
-                                    label="Base Price ($)"
-                                    type="number"
-                                    step="0.01"
-                                    value={defaultPrice}
-                                    onChange={e => setDefaultPrice(parseFloat(e.target.value))}
-                                />
-                                <Input
-                                    label="Price/Km ($)"
-                                    type="number"
-                                    step="0.01"
-                                    value={pricePerKm}
-                                    onChange={e => setPricePerKm(parseFloat(e.target.value))}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 bg-orange-50 p-2 rounded-lg border border-orange-100">
-                                <Input
-                                    label="Base Price (KHR)"
-                                    type="number"
-                                    value={defaultPriceKHR}
-                                    onChange={e => setDefaultPriceKHR(parseFloat(e.target.value))}
-                                />
-                                <Input
-                                    label="Price/Km (KHR)"
-                                    type="number"
-                                    value={pricePerKmKHR}
-                                    onChange={e => setPricePerKmKHR(parseFloat(e.target.value))}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate</label>
-                                <select
-                                    className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm sm:text-sm"
-                                    value={taxRateId}
-                                    onChange={e => setTaxRateId(e.target.value)}
-                                >
-                                    <option value="">No Tax Applied</option>
-                                    {taxRates.map(tr => (
-                                        <option key={tr.id} value={tr.id}>{tr.name} ({tr.rate}%)</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mt-4">
-                        <p className="text-xs text-gray-600">
-                            <strong>Note:</strong> Revenue & Tax accounting is now configured globally in <strong>Settings &gt; General</strong>.
-                        </p>
-                    </div>
-
-                    <div className="flex justify-end pt-4 gap-2 border-t border-gray-100">
-                        {editingId && (
-                            <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
-                        )}
-                        <Button type="submit" isLoading={loading}>
-                            {editingId ? 'Update Configuration' : 'Save Configuration'}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-
-            {/* List */}
-            <Card title="Configured Services">
-                <div className="space-y-3">
-                    {services.map(s => (
-                        <div key={s.id} className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center space-x-4">
-                                {s.image ? (
-                                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-100 flex-shrink-0 bg-white">
-                                        <img src={s.image} alt={s.name} className="w-full h-full object-cover" />
+            <div className="bg-white shadow overflow-hidden sm:rounded-md border border-gray-200">
+                <ul role="list" className="divide-y divide-gray-200">
+                    {services.length === 0 ? (
+                        <li className="px-6 py-12 text-center text-gray-500">
+                            <Package className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+                            <p>No services configured yet.</p>
+                            <Button variant="outline" onClick={handleAddNew} className="mt-4">
+                                Create your first service
+                            </Button>
+                        </li>
+                    ) : (
+                        services.map((service) => (
+                            <li key={service.id}>
+                                <div className="px-4 py-4 flex items-center sm:px-6 hover:bg-gray-50 transition-colors duration-150">
+                                    <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
+                                        <div className="flex items-center">
+                                            <div className="flex-shrink-0 h-12 w-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                                                {service.image ? (
+                                                    <img className="h-full w-full object-cover" src={service.image} alt={service.name} />
+                                                ) : (
+                                                    <Package className="h-6 w-6 text-gray-400" />
+                                                )}
+                                            </div>
+                                            <div className="ml-4">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-gray-900 truncate">{service.name}</p>
+                                                    {service.nameKH && <span className="text-xs text-gray-500 font-medium px-1.5 py-0.5 bg-gray-100 rounded">{service.nameKH}</span>}
+                                                </div>
+                                                <div className="mt-1 flex items-center text-sm text-gray-500 gap-4">
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="font-medium text-gray-900">${service.defaultPrice}</span> base
+                                                    </span>
+                                                    <span className="text-gray-300">|</span>
+                                                    <span className="flex items-center gap-1">
+                                                        <span className="font-medium text-gray-900">${service.pricePerKm}</span> / km
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 border border-gray-200">
-                                        <span className="text-xl">📦</span>
-                                    </div>
-                                )}
-                                <div>
-                                    <h4 className="font-bold text-gray-900 text-sm">{s.name}</h4>
-                                    {s.nameKH && (
-                                        <p className="text-xs text-gray-500">{s.nameKH}</p>
-                                    )}
-                                    <div className="flex gap-2 mt-1">
-                                        <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-medium">
-                                            Base: ${s.defaultPrice}
-                                        </span>
+                                    <div className="ml-5 flex-shrink-0 flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleEdit(service)}
+                                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                                            title="Edit"
+                                        >
+                                            <Edit2 size={18} />
+                                        </button>
+
+                                        {confirmDeleteId === service.id ? (
+                                            <div className="flex items-center gap-2 bg-red-50 p-1 rounded-full animate-in fade-in slide-in-from-right-4 duration-200">
+                                                <span className="text-xs text-red-600 font-medium px-2">Confirm?</span>
+                                                <button
+                                                    onClick={() => executeDelete(service.id)}
+                                                    className="p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                                                    title="Yes, delete"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setConfirmDeleteId(null)}
+                                                    className="p-1 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300"
+                                                    title="Cancel"
+                                                >
+                                                    <span className="sr-only">Cancel</span>
+                                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setConfirmDeleteId(service.id)}
+                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => handleEdit(s)}
-                                    className="text-gray-400 hover:text-indigo-600 p-2 rounded-full hover:bg-indigo-50 transition-colors"
-                                    title="Edit Configuration"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                </button>
-                                {confirmDeleteId === s.id ? (
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => executeDelete(s.id)}
-                                            className="text-white bg-red-600 hover:bg-red-700 p-2 rounded-full text-xs font-bold transition-colors"
-                                            title="Confirm Delete"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                        </button>
-                                        <button
-                                            onClick={() => setConfirmDeleteId(null)}
-                                            className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors"
-                                            title="Cancel"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={() => setConfirmDeleteId(s.id)}
-                                        className="text-gray-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"
-                                        title="Delete"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                    {services.length === 0 && <p className="text-gray-500 text-sm text-center py-8">No services configured.</p>}
-                </div>
-            </Card>
+                            </li>
+                        ))
+                    )}
+                </ul>
+            </div>
+
+            <Modal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                title={editingService ? `Edit ${editingService.name}` : "Add New Service"}
+                maxWidth="max-w-3xl"
+            >
+                <ParcelServiceForm
+                    initialData={editingService}
+                    taxRates={taxRates}
+                    onSave={handleSave}
+                    onCancel={handleCloseModal}
+                    isLoading={loading}
+                />
+            </Modal>
         </div>
     );
 };
