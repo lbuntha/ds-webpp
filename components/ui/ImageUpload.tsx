@@ -16,9 +16,9 @@ export const ImageUpload: React.FC<Props> = ({ label, value, onChange, className
     setError(null);
     const file = e.target.files?.[0];
     if (file) {
-      // Limit to 500KB
-      if (file.size > 500 * 1024) {
-        setError("File is too large. Max size is 500KB.");
+      // Limit to 5MB
+      if (file.size > 5 * 1024 * 1024) {
+        setError("File is too large. Max size is 5MB.");
         return;
       }
 
@@ -45,7 +45,7 @@ export const ImageUpload: React.FC<Props> = ({ label, value, onChange, className
     <div className={`w-full ${className}`}>
       {label && <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>}
 
-      <div className="flex items-start space-x-4">
+      <div className="flex flex-col items-center gap-3">
         {value ? (
           <div className="relative group">
             <div className="h-24 w-24 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
@@ -82,23 +82,17 @@ export const ImageUpload: React.FC<Props> = ({ label, value, onChange, className
           onChange={handleFileChange}
         />
 
-        <div className="flex-1 min-w-0">
+        <div className="text-center w-full">
           {!value ? (
-            <>
-              <p className="text-xs text-gray-500 mt-1">
-                Upload QR code (JPG/PNG). Max 5MB.
-              </p>
-              <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()} className="mt-2 text-xs h-8">
-                Select Image
-              </Button>
-            </>
+            <p className="text-xs text-gray-500">
+              Upload QR code (JPG/PNG). Max 5MB.
+            </p>
           ) : (
             <div className="mt-1">
-              <span className="text-xs text-green-600 font-medium flex items-center">
+              <span className="text-xs text-green-600 font-medium flex items-center justify-center">
                 <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                 Image Selected
               </span>
-              <p className="text-xs text-gray-400 mt-1">Click the X to remove.</p>
             </div>
           )}
           {error && (
