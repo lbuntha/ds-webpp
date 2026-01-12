@@ -62,6 +62,7 @@ const ClosingView = lazy(() => import('./views/ClosingView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 const UsersView = lazy(() => import('./views/UsersView'));
 const CustomersView = lazy(() => import('./views/CustomersView'));
+const BookingMapReport = lazy(() => import('../../components/reports/BookingMapReport').then(m => ({ default: m.BookingMapReport })));
 const UserProfileView = lazy(() => import('./views/UserProfileView'));
 const UserManualView = lazy(() => import('./views/UserManualView'));
 const SeedPermissionsView = lazy(() => import('./views/SeedPermissionsView'));
@@ -429,6 +430,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="VIEW_REPORTS">
                         {withSuspense(ReportsView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'reports/booking-map',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_REPORTS">
+                        {withSuspense(BookingMapReport)}
                     </PermissionRoute>
                 ),
             },

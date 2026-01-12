@@ -122,6 +122,7 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
         if (item.viewId === 'SETTLED_PARCELS') return '/app/settled-parcels';
         if (item.viewId === 'CASHBACK') return '/app/cashback';
         if (item.viewId === 'CASHBACK_REPORT') return '/app/cashback-report';
+        if (item.viewId === 'BOOKING_MAP') return '/app/reports/booking-map';
 
         // Stock Management routes
         if (item.viewId === 'STOCK_MANAGEMENT') return '/app/stock';
