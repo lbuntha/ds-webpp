@@ -12,6 +12,7 @@ import { ReferralSettings } from './ReferralSettings';
 import { MenuManagement } from './MenuManagement';
 import { RolePermissionManagement } from './RolePermissionManagement';
 import { RouteManagement } from './RouteManagement';
+import { CompanyProfileSettings } from './CompanyProfileSettings'; // Import
 import { TransactionDefinitions } from './TransactionDefinitions'; // Import
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { MASTER_COA_DATA } from '../../src/shared/constants';
@@ -50,7 +51,7 @@ export const SettingsDashboard: React.FC<Props> = ({
     onRunSetup, onUpdateSettings, onClearData, onMenuUpdate
 }) => {
     const { t } = useLanguage();
-    const [activeTab, setActiveTab] = useState<'GENERAL' | 'COA' | 'BRANCHES' | 'CURRENCIES' | 'TAXES' | 'COMMISSIONS' | 'REFERRAL' | 'MENU' | 'RULES' | 'PERMISSIONS' | 'ROUTES'>('GENERAL');
+    const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMPANY' | 'COA' | 'BRANCHES' | 'CURRENCIES' | 'TAXES' | 'COMMISSIONS' | 'REFERRAL' | 'MENU' | 'RULES' | 'PERMISSIONS' | 'ROUTES'>('GENERAL');
 
     // Account State
     const [accountFormOpen, setAccountFormOpen] = useState(false);
@@ -422,6 +423,7 @@ export const SettingsDashboard: React.FC<Props> = ({
             {/* Tabs */}
             <div className="flex space-x-1 bg-white p-1 rounded-xl shadow-sm border border-gray-100 max-w-fit overflow-x-auto">
                 <button onClick={() => setActiveTab('GENERAL')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'GENERAL' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>{t('general_config')}</button>
+                <button onClick={() => setActiveTab('COMPANY')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'COMPANY' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Company Profile</button>
                 <button onClick={() => setActiveTab('PERMISSIONS')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'PERMISSIONS' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Role Permissions</button>
                 <button onClick={() => setActiveTab('ROUTES')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'ROUTES' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Routes</button>
                 <button onClick={() => setActiveTab('COA')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'COA' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>{t('chart_of_accounts')}</button>
@@ -435,6 +437,7 @@ export const SettingsDashboard: React.FC<Props> = ({
             </div>
 
             {/* --- GENERAL VIEW --- */}
+            {activeTab === 'COMPANY' && <CompanyProfileSettings />}
             {activeTab === 'PERMISSIONS' && <RolePermissionManagement />}
             {activeTab === 'ROUTES' && <RouteManagement />}
             {activeTab === 'GENERAL' && (

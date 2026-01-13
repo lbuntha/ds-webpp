@@ -1,6 +1,6 @@
 import { BaseService } from './baseService';
 import { db, storage } from '../../config/firebase';
-import { SystemSettings, Branch, CurrencyConfig, TaxRate, UserProfile, UserRole, Permission, SavedLocation, AppNotification, NavigationItem, PayrollConfig } from '../types';
+import { SystemSettings, CompanyProfile, Branch, CurrencyConfig, TaxRate, UserProfile, UserRole, Permission, SavedLocation, AppNotification, NavigationItem, PayrollConfig } from '../types';
 import { doc, getDoc, setDoc, updateDoc, query, collection, where, getDocs, onSnapshot, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../constants';
@@ -12,6 +12,15 @@ export class ConfigService extends BaseService {
         return snap.exists() ? snap.data() as SystemSettings : {};
     }
     async updateSettings(s: SystemSettings) { await setDoc(doc(this.db, 'settings', 'general'), s, { merge: true }); }
+
+    // Company Profile
+    async getCompanyProfile(): Promise<CompanyProfile> {
+        const snap = await getDoc(doc(this.db, 'settings', 'company_profile'));
+        return snap.exists() ? snap.data() as CompanyProfile : {} as CompanyProfile;
+    }
+    async saveCompanyProfile(p: CompanyProfile) {
+        await setDoc(doc(this.db, 'settings', 'company_profile'), { ...p, updatedAt: Date.now() }, { merge: true });
+    }
 
     // Payroll Configuration
     async getPayrollConfig(): Promise<PayrollConfig> {

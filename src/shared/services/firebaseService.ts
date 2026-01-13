@@ -60,6 +60,10 @@ export class FirebaseService {
     getSettings() { return this.configService.getSettings(); }
     updateSettings(s: any) { return this.configService.updateSettings(s); }
 
+    // Company Profile
+    getCompanyProfile() { return this.configService.getCompanyProfile(); }
+    saveCompanyProfile(p: any) { return this.configService.saveCompanyProfile(p); }
+
     getBranches() { return this.configService.getBranches(); }
     addBranch(b: any) { return this.configService.addBranch(b); }
     updateBranch(b: any) { return this.configService.updateBranch(b); }

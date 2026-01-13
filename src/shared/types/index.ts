@@ -790,8 +790,22 @@ export interface PayrollConfig {
   dayOffsPerPeriod: number; // 2
 }
 
+export interface CompanyProfile {
+  name: string;
+  logo?: string;
+  contactCenterLogo?: string; // For mobile app
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  taxId?: string;
+  operatingZonesMarkdown?: string; // Khmer/English description
+  updatedAt?: number;
+}
+
 export interface SystemSettings {
   companyName?: string;
+  // ... existing fields ...
   setupComplete?: boolean;
   lockDate?: string;
 
