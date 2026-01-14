@@ -390,8 +390,12 @@ export interface Customer {
   referralCode?: string;
   isTaxable?: boolean;               // Whether VAT/Tax applies to this customer
   excludeFeesInSettlement?: boolean; // Exclude fees from settlement (pay gross amount)
-  telegramChatId?: string;           // Telegram Chat ID for notifications
-  remark?: string;                   // Internal notes about the customer
+  telegramChatId?: string;           // Telegram Chat ID for notifications (works for individual & group)
+  telegramChatType?: 'private' | 'group' | 'supergroup'; // Type of chat
+  telegramGroupName?: string;         // Name of the group (if group chat)
+  telegramLinkedAt?: any;             // Timestamp when linked
+  telegramLinkedBy?: string;          // Who initiated the link
+  remark?: string;                    // Internal notes about the customer
   createdAt: number;
   updatedAt?: number;
 

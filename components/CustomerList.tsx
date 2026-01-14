@@ -184,6 +184,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telegram</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked User</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
@@ -191,7 +192,7 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                     <tbody className="bg-white divide-y divide-gray-200">
                         {filteredCustomers.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="px-6 py-8 text-center text-gray-500 text-sm">
+                                <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
                                     No customers found matching your search.
                                 </td>
                             </tr>
@@ -222,6 +223,22 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                                                 }`}>
                                                 {customer.type || 'INDIVIDUAL'}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            {customer.telegramChatId ? (
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                                    <span className="text-green-600 font-medium">
+                                                        {customer.telegramChatType === 'group' || customer.telegramChatType === 'supergroup' ? (
+                                                            <span title={customer.telegramGroupName || 'Group'}>Group</span>
+                                                        ) : (
+                                                            'Private'
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400 italic">—</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {linkedUser ? (
@@ -358,6 +375,58 @@ export const CustomerList: React.FC<Props> = ({ customers, users, onRefresh }) =
                                     onChange={e => setRemark(e.target.value)}
                                 />
                             </div>
+
+                            {/* Telegram Integration Status - Only show when editing */}
+                            {editingCustomer && (
+                                <div className="col-span-2 border-t pt-4 mt-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Telegram Notifications</label>
+                                    {editingCustomer.telegramChatId ? (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                            <div className="flex items-center gap-2 text-green-700">
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span className="font-medium">Connected to Telegram</span>
+                                            </div>
+                                            <div className="mt-2 text-sm text-green-600 space-y-1">
+                                                <p>
+                                                    <span className="text-gray-500">Type:</span>{' '}
+                                                    {editingCustomer.telegramChatType === 'group' || editingCustomer.telegramChatType === 'supergroup'
+                                                        ? `Group Chat${editingCustomer.telegramGroupName ? ` (${editingCustomer.telegramGroupName})` : ''}`
+                                                        : 'Private Chat'}
+                                                </p>
+                                                <p>
+                                                    <span className="text-gray-500">Chat ID:</span>{' '}
+                                                    <code className="bg-green-100 px-1 rounded text-xs">{editingCustomer.telegramChatId}</code>
+                                                </p>
+                                                {editingCustomer.telegramLinkedBy && (
+                                                    <p>
+                                                        <span className="text-gray-500">Linked by:</span> {editingCustomer.telegramLinkedBy}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                            <div className="flex items-center gap-2 text-gray-500">
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span className="font-medium">Not Connected</span>
+                                            </div>
+                                            <p className="mt-2 text-sm text-gray-500">
+                                                Customer can link their Telegram by messaging the bot with:
+                                            </p>
+                                            <code className="mt-1 inline-block bg-gray-200 px-2 py-1 rounded text-sm font-mono">
+                                                /link {editingCustomer.code || editingCustomer.id.slice(0, 8)}
+                                            </code>
+                                            <p className="mt-2 text-xs text-gray-400">
+                                                They can add the bot to a group chat or message it directly.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div className="mt-5 sm:mt-6 sm:grid sm:grid-flow-row-dense sm:grid-cols-2 sm:gap-3">
                             <Button

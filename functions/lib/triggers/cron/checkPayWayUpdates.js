@@ -39,6 +39,10 @@ const admin = __importStar(require("firebase-admin"));
 const telegram_1 = require("telegram");
 const sessions_1 = require("telegram/sessions");
 const paywayParser_service_1 = require("../../services/paywayParser.service");
+const dotenv = __importStar(require("dotenv"));
+const path = __importStar(require("path"));
+// Load environment variables from .env file
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 const db = admin.firestore();
 // Configuration
 const API_ID = Number(process.env.TELEGRAM_API_ID);
@@ -47,8 +51,17 @@ const SESSION_STRING = process.env.TELEGRAM_APP_SESSION;
 // PayWay sender names to match
 const PAYWAY_SENDER_NAMES = ['PayWay', 'PayWay by ABA'];
 exports.checkPayWayUpdates = functions.pubsub.schedule('every 1 minutes').onRun(async (context) => {
+    console.log('[PayWay] Starting checkPayWayUpdates...');
+    console.log('[PayWay] Credentials check:', {
+        hasApiId: !!API_ID,
+        hasApiHash: !!API_HASH,
+        hasSession: !!SESSION_STRING,
+        apiIdValue: API_ID || 'MISSING',
+        apiHashPrefix: API_HASH ? API_HASH.substring(0, 5) + '...' : 'MISSING',
+        sessionPrefix: SESSION_STRING ? SESSION_STRING.substring(0, 20) + '...' : 'MISSING'
+    });
     if (!API_ID || !API_HASH || !SESSION_STRING) {
-        console.error("Missing Telegram Client credentials.");
+        console.error("[PayWay] FATAL: Missing Telegram Client credentials. Check TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_APP_SESSION in .env");
         return;
     }
     // Fetch active telegram groups from Firestore
@@ -57,18 +70,21 @@ exports.checkPayWayUpdates = functions.pubsub.schedule('every 1 minutes').onRun(
         .where('monitorPayWay', '==', true)
         .get();
     if (groupsSnapshot.empty) {
-        console.log("No active telegram groups configured for PayWay monitoring.");
+        console.log("[PayWay] No active telegram groups configured for PayWay monitoring.");
         return;
     }
     const telegramGroups = groupsSnapshot.docs.map(doc => doc.data());
-    console.log(`Found ${telegramGroups.length} active telegram groups to monitor.`);
+    console.log(`[PayWay] Found ${telegramGroups.length} active telegram groups:`, telegramGroups.map(g => g.chatTitle));
     const client = new telegram_1.TelegramClient(new sessions_1.StringSession(SESSION_STRING), API_ID, API_HASH, {
-        connectionRetries: 1,
+        connectionRetries: 3, // Increased from 1 to 3
+        timeout: 30, // 30 second timeout
     });
     try {
-        console.log("Connecting to Telegram Client...");
+        console.log("[PayWay] Connecting to Telegram Client...");
         await client.connect();
+        console.log("[PayWay] Connected successfully!");
         const dialogs = await client.getDialogs({ limit: 50 });
+        console.log(`[PayWay] Retrieved ${dialogs.length} dialogs. Titles:`, dialogs.slice(0, 10).map((d) => d.title || d.name));
         let totalNewCount = 0;
         // Iterate over each configured group
         for (const tgGroup of telegramGroups) {

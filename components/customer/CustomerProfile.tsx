@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Avatar } from '../ui/Avatar';
 import { ImageUpload } from '../ui/ImageUpload';
+import { Modal } from '../ui/Modal';
 import { LocationPicker } from '../ui/LocationPicker';
 import { PlaceAutocomplete } from '../ui/PlaceAutocomplete';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
@@ -54,6 +55,10 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
     const [exchangeRate, setExchangeRate] = useState<number | ''>('');
     const [rateLoading, setRateLoading] = useState(false);
     const [systemRate, setSystemRate] = useState(4100);
+
+    // Telegram Unlink Confirmation
+    const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
+    const [unlinkLoading, setUnlinkLoading] = useState(false);
 
 
 
@@ -393,33 +398,169 @@ export const CustomerProfile: React.FC<Props> = ({ user, hideExchangeRate }) => 
             {/* TELEGRAM CONNECTION SECTION */}
             <Card title="Telegram Notifications">
                 {customerData?.telegramChatId ? (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-3.5l1.5-1.5 2.5 1.5-3 3.5zm5-4.5l-4.5 2.5-2-1.5-3 1.5 6-6.5-1.5 7.5zM12 22c-5.52 0-10-4.48-10-10S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8 8-3.59 8-8-3.59-8-8-8z" /></svg>
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /></svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-green-900">Connected to Telegram</h3>
+                                    <p className="text-sm text-green-700">
+                                        {customerData.telegramChatType === 'group' || customerData.telegramChatType === 'supergroup'
+                                            ? `Notifications sent to group: ${customerData.telegramGroupName || 'Group Chat'}`
+                                            : 'Notifications sent to your private chat'}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-green-900">Connected to Telegram</h3>
-                                <p className="text-sm text-green-700">You are receiving settlement reports on Telegram.</p>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${customerData.telegramChatType === 'group' || customerData.telegramChatType === 'supergroup'
+                                    ? 'bg-purple-100 text-purple-700'
+                                    : 'bg-green-100 text-green-700'
+                                    }`}>
+                                    {customerData.telegramChatType === 'group' || customerData.telegramChatType === 'supergroup' ? '👥 Group' : '👤 Private'}
+                                </span>
                             </div>
                         </div>
-                        <Button variant="outline" className="text-xs" disabled>Connected</Button>
+                        <div className="mt-4 pt-4 border-t border-green-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <p className="text-xs text-green-600">
+                                You can unlink and connect to a different chat anytime.
+                            </p>
+                            <button
+                                onClick={() => setShowUnlinkConfirm(true)}
+                                className="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
+                            >
+                                Unlink Telegram
+                            </button>
+                        </div>
+
+                        {/* Unlink Confirmation Modal */}
+                        <Modal
+                            isOpen={showUnlinkConfirm}
+                            onClose={() => setShowUnlinkConfirm(false)}
+                            title="Unlink Telegram"
+                            maxWidth="max-w-md"
+                        >
+                            <div className="text-center py-4">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
+                                    <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">Disconnect from Telegram?</h3>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    You will stop receiving notifications on Telegram. You can reconnect anytime using your private chat or a group.
+                                </p>
+                                <div className="flex gap-3 justify-center">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setShowUnlinkConfirm(false)}
+                                        disabled={unlinkLoading}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        className="bg-red-600 hover:bg-red-700 text-white"
+                                        isLoading={unlinkLoading}
+                                        onClick={async () => {
+                                            setUnlinkLoading(true);
+                                            try {
+                                                const updatedCustomer = {
+                                                    ...customerData,
+                                                    telegramChatId: undefined,
+                                                    telegramChatType: undefined,
+                                                    telegramGroupName: undefined,
+                                                    telegramLinkedAt: undefined,
+                                                    telegramLinkedBy: undefined
+                                                };
+                                                await firebaseService.updateCustomer(updatedCustomer);
+                                                setCustomerData(updatedCustomer);
+                                                setShowUnlinkConfirm(false);
+                                                toast.success('Telegram unlinked successfully');
+                                            } catch (e) {
+                                                console.error(e);
+                                                toast.error('Failed to unlink Telegram');
+                                            } finally {
+                                                setUnlinkLoading(false);
+                                            }
+                                        }}
+                                    >
+                                        Unlink
+                                    </Button>
+                                </div>
+                            </div>
+                        </Modal>
                     </div>
                 ) : (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-                        <div className="w-16 h-16 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /></svg>
+                    <div className="space-y-4">
+                        {/* Option 1: Quick Connect (Private Chat) */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+                            <div className="w-16 h-16 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /></svg>
+                            </div>
+                            <h3 className="font-bold text-gray-900 mb-2">Get Instant Notifications</h3>
+                            <p className="text-gray-600 mb-4 text-sm max-w-md mx-auto">
+                                Receive settlement reports and payment updates directly on Telegram.
+                            </p>
+                            <a
+                                href={`https://t.me/DSDelivery_bot?start=${user.uid}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#0088cc] hover:bg-[#0077b5] shadow-sm transition-all transform hover:scale-105"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /></svg>
+                                Connect via Private Chat
+                            </a>
                         </div>
-                        <h3 className="font-bold text-gray-900 mb-2">Get Instant Notifications</h3>
-                        <p className="text-gray-600 mb-6 max-w-md mx-auto">Connect your Telegram account to receive instant settlement reports and payment updates directly on your phone.</p>
-                        <a
-                            href={`https://t.me/DSDelivery_bot?start=${user.uid}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#0088cc] hover:bg-[#0077b5] shadow-sm transition-all transform hover:scale-105"
-                        >
-                            Connect Telegram
-                        </a>
+
+                        {/* Option 2: Link to Group */}
+                        {customerData && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-xl p-5">
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-purple-900 mb-1">Link to Group Chat</h4>
+                                        <p className="text-sm text-purple-700 mb-4">
+                                            Add the bot to your Telegram group so your whole team can see notifications.
+                                        </p>
+
+                                        <div className="space-y-3">
+                                            <a
+                                                href={`https://t.me/DSDelivery_bot?startgroup=link_${customerData.code || customerData.id || ''}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center justify-center px-4 py-2 border border-purple-300 text-sm font-medium rounded-lg text-purple-700 bg-white hover:bg-purple-100 shadow-sm transition-all"
+                                            >
+                                                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /></svg>
+                                                Add Bot to Group
+                                            </a>
+
+                                            <div className="text-xs text-purple-600 bg-purple-100/50 rounded-lg p-3">
+                                                <p className="font-medium mb-1">After adding the bot, send this command in the group:</p>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <code className="bg-white px-2 py-1 rounded font-mono text-purple-800 text-xs break-all">
+                                                        /link {customerData.code || customerData.id || 'YOUR_CODE'}
+                                                    </code>
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(`/link ${customerData.code || customerData.id || 'YOUR_CODE'}`);
+                                                            toast.success('Command copied!');
+                                                        }}
+                                                        className="text-purple-600 hover:text-purple-800 font-medium"
+                                                    >
+                                                        Copy
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </Card>

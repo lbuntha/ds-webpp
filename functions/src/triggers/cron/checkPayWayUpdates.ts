@@ -3,6 +3,11 @@ import * as admin from 'firebase-admin';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { PayWayParser } from '../../services/paywayParser.service';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load environment variables from .env file
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const db = admin.firestore();
 
@@ -23,8 +28,18 @@ interface TelegramGroupConfig {
 }
 
 export const checkPayWayUpdates = functions.pubsub.schedule('every 1 minutes').onRun(async (context) => {
+    console.log('[PayWay] Starting checkPayWayUpdates...');
+    console.log('[PayWay] Credentials check:', {
+        hasApiId: !!API_ID,
+        hasApiHash: !!API_HASH,
+        hasSession: !!SESSION_STRING,
+        apiIdValue: API_ID || 'MISSING',
+        apiHashPrefix: API_HASH ? API_HASH.substring(0, 5) + '...' : 'MISSING',
+        sessionPrefix: SESSION_STRING ? SESSION_STRING.substring(0, 20) + '...' : 'MISSING'
+    });
+
     if (!API_ID || !API_HASH || !SESSION_STRING) {
-        console.error("Missing Telegram Client credentials.");
+        console.error("[PayWay] FATAL: Missing Telegram Client credentials. Check TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_APP_SESSION in .env");
         return;
     }
 
@@ -35,22 +50,25 @@ export const checkPayWayUpdates = functions.pubsub.schedule('every 1 minutes').o
         .get();
 
     if (groupsSnapshot.empty) {
-        console.log("No active telegram groups configured for PayWay monitoring.");
+        console.log("[PayWay] No active telegram groups configured for PayWay monitoring.");
         return;
     }
 
     const telegramGroups = groupsSnapshot.docs.map(doc => doc.data() as TelegramGroupConfig);
-    console.log(`Found ${telegramGroups.length} active telegram groups to monitor.`);
+    console.log(`[PayWay] Found ${telegramGroups.length} active telegram groups:`, telegramGroups.map(g => g.chatTitle));
 
     const client = new TelegramClient(new StringSession(SESSION_STRING), API_ID, API_HASH, {
-        connectionRetries: 1,
+        connectionRetries: 3,  // Increased from 1 to 3
+        timeout: 30,           // 30 second timeout
     });
 
     try {
-        console.log("Connecting to Telegram Client...");
+        console.log("[PayWay] Connecting to Telegram Client...");
         await client.connect();
+        console.log("[PayWay] Connected successfully!");
 
         const dialogs = await client.getDialogs({ limit: 50 });
+        console.log(`[PayWay] Retrieved ${dialogs.length} dialogs. Titles:`, dialogs.slice(0, 10).map((d: any) => d.title || d.name));
 
         let totalNewCount = 0;
 

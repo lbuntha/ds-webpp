@@ -88,7 +88,7 @@ const sendMessage = async (chatId, text) => {
     }
 };
 exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s;
     // Only allow POST requests
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
@@ -111,44 +111,205 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
     if (message) {
         const chatId = (_b = (_a = message.chat) === null || _a === void 0 ? void 0 : _a.id) === null || _b === void 0 ? void 0 : _b.toString();
         const text = message.text || '';
-        // --- 1. HANDLE COMMANDS (e.g. /start <UID>) ---
-        if (chatId && text.startsWith('/start')) {
-            const parts = text.split(' ');
-            if (parts.length === 2) {
-                const uid = parts[1].trim();
-                console.log(`🔗 Linking Request: UID=${uid}, ChatID=${chatId}`);
-                try {
-                    // Find User
-                    const userDoc = await db.collection('users').doc(uid).get();
-                    if (userDoc.exists) {
-                        const userData = userDoc.data();
-                        const customerId = userData === null || userData === void 0 ? void 0 : userData.linkedCustomerId;
-                        if (customerId) {
-                            // Update Customer with Telegram Chat ID
-                            await db.collection('customers').doc(customerId).update({
+        // --- 1. HANDLE COMMANDS ---
+        if (chatId && text.startsWith('/')) {
+            const chatType = ((_c = message.chat) === null || _c === void 0 ? void 0 : _c.type) || 'private';
+            const chatTitle = ((_d = message.chat) === null || _d === void 0 ? void 0 : _d.title) || null;
+            const fromUser = ((_e = message.from) === null || _e === void 0 ? void 0 : _e.first_name) || 'User';
+            const isGroup = chatType === 'group' || chatType === 'supergroup';
+            // ============================================
+            // COMMAND: /link <CODE_OR_ID>
+            // ============================================
+            if (text.startsWith('/link')) {
+                const parts = text.split(/\s+/);
+                if (parts.length < 2) {
+                    await sendMessage(chatId, `📋 *How to Link Your Account*\n\n` +
+                        `Please provide your customer code or ID:\n` +
+                        `\`/link YOUR_CODE\`\n\n` +
+                        `Example: \`/link CUST001\` or \`/link JK3erpQN...\``);
+                }
+                else {
+                    const customerCode = parts[1].trim();
+                    // Search by code first, then by document ID
+                    let customersSnapshot = await db.collection('customers')
+                        .where('code', '==', customerCode.toUpperCase())
+                        .limit(1)
+                        .get();
+                    if (customersSnapshot.empty) {
+                        // Try by document ID
+                        const customerDoc = await db.collection('customers').doc(customerCode).get();
+                        if (customerDoc.exists) {
+                            customersSnapshot = { empty: false, docs: [customerDoc] };
+                        }
+                    }
+                    if (customersSnapshot.empty) {
+                        await sendMessage(chatId, `❌ *Customer not found*\n\nNo customer found with code/ID: \`${customerCode}\`\n\nPlease check and try again.`);
+                    }
+                    else {
+                        const customerDoc = customersSnapshot.docs[0];
+                        const customerData = customerDoc.data();
+                        const updateData = {
+                            telegramChatId: chatId,
+                            telegramChatType: chatType,
+                            telegramLinkedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            telegramLinkedBy: fromUser
+                        };
+                        if (chatTitle)
+                            updateData.telegramGroupName = chatTitle;
+                        await customerDoc.ref.update(updateData);
+                        const locationDesc = isGroup ? `group "${chatTitle}"` : 'your Telegram';
+                        await sendMessage(chatId, `✅ *Successfully Linked!*\n\n` +
+                            `Customer: *${customerData === null || customerData === void 0 ? void 0 : customerData.name}*\n` +
+                            `Notifications will now be sent to ${locationDesc}.\n\n` +
+                            `_To unlink, use /unlink_`);
+                        console.log(`✅ Linked ${chatType} chat (${chatId}) to Customer ${customerDoc.id}`);
+                    }
+                }
+            }
+            // ============================================
+            // COMMAND: /unlink
+            // ============================================
+            else if (text === '/unlink') {
+                const customersSnapshot = await db.collection('customers')
+                    .where('telegramChatId', '==', chatId)
+                    .limit(1)
+                    .get();
+                if (customersSnapshot.empty) {
+                    await sendMessage(chatId, `ℹ️ No customer account is linked to this chat.`);
+                }
+                else {
+                    const customerDoc = customersSnapshot.docs[0];
+                    const customerData = customerDoc.data();
+                    await customerDoc.ref.update({
+                        telegramChatId: admin.firestore.FieldValue.delete(),
+                        telegramChatType: admin.firestore.FieldValue.delete(),
+                        telegramGroupName: admin.firestore.FieldValue.delete(),
+                        telegramLinkedAt: admin.firestore.FieldValue.delete(),
+                        telegramLinkedBy: admin.firestore.FieldValue.delete()
+                    });
+                    await sendMessage(chatId, `✅ *Unlinked Successfully*\n\nCustomer *${customerData === null || customerData === void 0 ? void 0 : customerData.name}* unlinked.\n\n_To link again, use /link YOUR_CODE_`);
+                    console.log(`✅ Unlinked chat (${chatId}) from Customer ${customerDoc.id}`);
+                }
+            }
+            // ============================================
+            // COMMAND: /status
+            // ============================================
+            else if (text === '/status') {
+                const customersSnapshot = await db.collection('customers')
+                    .where('telegramChatId', '==', chatId)
+                    .limit(1)
+                    .get();
+                if (customersSnapshot.empty) {
+                    await sendMessage(chatId, `ℹ️ *Not Linked*\n\nThis chat is not linked to any customer.\n\nUse \`/link YOUR_CODE\` to connect.`);
+                }
+                else {
+                    const customerData = customersSnapshot.docs[0].data();
+                    await sendMessage(chatId, `✅ *Linked*\n\nCustomer: *${customerData === null || customerData === void 0 ? void 0 : customerData.name}*\n\n_Notifications will be sent here._`);
+                }
+            }
+            // ============================================
+            // COMMAND: /start (with optional params)
+            // ============================================
+            else if (text.startsWith('/start')) {
+                const parts = text.split(' ');
+                if (parts.length >= 2) {
+                    const param = parts[1].trim();
+                    // Handle startgroup=link_CODE format
+                    if (param.startsWith('link_')) {
+                        const customerCode = param.replace('link_', '');
+                        // Search by code first, then by document ID
+                        let customersSnapshot = await db.collection('customers')
+                            .where('code', '==', customerCode.toUpperCase())
+                            .limit(1)
+                            .get();
+                        if (customersSnapshot.empty) {
+                            const customerDoc = await db.collection('customers').doc(customerCode).get();
+                            if (customerDoc.exists) {
+                                customersSnapshot = { empty: false, docs: [customerDoc] };
+                            }
+                        }
+                        if (!customersSnapshot.empty) {
+                            const customerDoc = customersSnapshot.docs[0];
+                            const customerData = customerDoc.data();
+                            const updateData = {
                                 telegramChatId: chatId,
-                                telegramUsername: ((_c = message.from) === null || _c === void 0 ? void 0 : _c.username) || '',
-                                telegramLinkedAt: admin.firestore.FieldValue.serverTimestamp()
-                            });
-                            await sendMessage(chatId, `✅ *Account Linked Successfully!*\n\nHello ${(userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer'},\nYou will now receive settlement reports in this chat.`);
-                            console.log(`✅ Linked User ${uid} (Customer ${customerId}) to Chat ${chatId}`);
+                                telegramChatType: chatType,
+                                telegramLinkedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                telegramLinkedBy: fromUser
+                            };
+                            if (chatTitle)
+                                updateData.telegramGroupName = chatTitle;
+                            await customerDoc.ref.update(updateData);
+                            const locationDesc = isGroup ? `group "${chatTitle}"` : 'your Telegram';
+                            await sendMessage(chatId, `✅ *Successfully Linked!*\n\n` +
+                                `Customer: *${customerData === null || customerData === void 0 ? void 0 : customerData.name}*\n` +
+                                `Notifications will now be sent to ${locationDesc}.`);
+                            console.log(`✅ Auto-linked ${chatType} chat (${chatId}) to Customer ${customerDoc.id} via startgroup`);
                         }
                         else {
-                            await sendMessage(chatId, `⚠️ *Account Found, but not linked to a Customer Profile.*\nPlease contact support.`);
+                            await sendMessage(chatId, `❌ *Customer not found*\n\nUse \`/link YOUR_CODE\` with your correct code.`);
                         }
                     }
                     else {
-                        await sendMessage(chatId, `❌ *User Not Found.*\nPlease try clicking the "Connect Telegram" button in your app again.`);
+                        // Old flow: /start UID - try to link via user account
+                        const uid = param;
+                        try {
+                            const userDoc = await db.collection('users').doc(uid).get();
+                            if (userDoc.exists) {
+                                const userData = userDoc.data();
+                                let customerId = userData === null || userData === void 0 ? void 0 : userData.linkedCustomerId;
+                                // Fallback: find customer by linkedUserId
+                                if (!customerId) {
+                                    const custByUser = await db.collection('customers')
+                                        .where('linkedUserId', '==', uid)
+                                        .limit(1).get();
+                                    if (!custByUser.empty)
+                                        customerId = custByUser.docs[0].id;
+                                }
+                                if (customerId) {
+                                    await db.collection('customers').doc(customerId).update({
+                                        telegramChatId: chatId,
+                                        telegramChatType: chatType,
+                                        telegramLinkedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                        telegramLinkedBy: fromUser
+                                    });
+                                    await sendMessage(chatId, `✅ *Account Linked Successfully!*\n\nHello ${(userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer'},\nYou will now receive notifications here.`);
+                                    console.log(`✅ Linked User ${uid} (Customer ${customerId}) to Chat ${chatId}`);
+                                }
+                                else {
+                                    await sendMessage(chatId, `⚠️ *No customer profile linked.*\n\nTry using: \`/link YOUR_CUSTOMER_CODE\``);
+                                }
+                            }
+                            else {
+                                // User not found - suggest /link command
+                                await sendMessage(chatId, `❌ *Could not find your account*\n\nPlease use: \`/link YOUR_CUSTOMER_CODE\`\n\n_Your code can be found in your profile._`);
+                            }
+                        }
+                        catch (error) {
+                            console.error('Link Error:', error);
+                            await sendMessage(chatId, `❌ *Error Linking Account.*\nPlease try \`/link YOUR_CODE\` instead.`);
+                        }
                     }
                 }
-                catch (error) {
-                    console.error('Link Error:', error);
-                    await sendMessage(chatId, `❌ *Error Linking Account.*\nPlease try again later.`);
+                else {
+                    // Plain /start - welcome message
+                    await sendMessage(chatId, `👋 *Welcome!*\n\n` +
+                        `I'm your notification bot. Here's how to get started:\n\n` +
+                        `📌 *Link your account:*\n\`/link YOUR_CODE\`\n\n` +
+                        `📌 *Check link status:*\n\`/status\`\n\n` +
+                        `📌 *Unlink this chat:*\n\`/unlink\`\n\n` +
+                        `_You can add me to a group too!_`);
                 }
             }
-            else {
-                // Just /start without param
-                await sendMessage(chatId, `👋 *Welcome to DoorStep delivery bot!*\n\nTo link your account, please use the "Connect Telegram" button in your DoorStep web app.`);
+            // ============================================
+            // COMMAND: /help
+            // ============================================
+            else if (text === '/help') {
+                await sendMessage(chatId, `📖 *Available Commands*\n\n` +
+                    `\`/link CODE\` - Link customer account\n` +
+                    `\`/unlink\` - Remove link\n` +
+                    `\`/status\` - Check link status\n` +
+                    `\`/help\` - Show this message`);
             }
         }
         // --- 2. LOG MESSAGE TO FIRESTORE ---
@@ -167,12 +328,12 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
             const docData = {
                 updateId: update.update_id,
                 messageId: message.message_id,
-                chatId: ((_e = (_d = message.chat) === null || _d === void 0 ? void 0 : _d.id) === null || _e === void 0 ? void 0 : _e.toString()) || '',
-                chatTitle: ((_f = message.chat) === null || _f === void 0 ? void 0 : _f.title) || 'Private',
-                chatType: ((_g = message.chat) === null || _g === void 0 ? void 0 : _g.type) || 'unknown',
-                from: ((_h = message.from) === null || _h === void 0 ? void 0 : _h.first_name) || ((_j = message.sender_chat) === null || _j === void 0 ? void 0 : _j.title) || 'Unknown',
-                fromId: ((_m = (((_k = message.from) === null || _k === void 0 ? void 0 : _k.id) || ((_l = message.sender_chat) === null || _l === void 0 ? void 0 : _l.id))) === null || _m === void 0 ? void 0 : _m.toString()) || '',
-                fromUsername: ((_o = message.from) === null || _o === void 0 ? void 0 : _o.username) || ((_p = message.sender_chat) === null || _p === void 0 ? void 0 : _p.username) || '',
+                chatId: ((_g = (_f = message.chat) === null || _f === void 0 ? void 0 : _f.id) === null || _g === void 0 ? void 0 : _g.toString()) || '',
+                chatTitle: ((_h = message.chat) === null || _h === void 0 ? void 0 : _h.title) || 'Private',
+                chatType: ((_j = message.chat) === null || _j === void 0 ? void 0 : _j.type) || 'unknown',
+                from: ((_k = message.from) === null || _k === void 0 ? void 0 : _k.first_name) || ((_l = message.sender_chat) === null || _l === void 0 ? void 0 : _l.title) || 'Unknown',
+                fromId: ((_p = (((_m = message.from) === null || _m === void 0 ? void 0 : _m.id) || ((_o = message.sender_chat) === null || _o === void 0 ? void 0 : _o.id))) === null || _p === void 0 ? void 0 : _p.toString()) || '',
+                fromUsername: ((_q = message.from) === null || _q === void 0 ? void 0 : _q.username) || ((_r = message.sender_chat) === null || _r === void 0 ? void 0 : _r.username) || '',
                 text: message.text || '',
                 date: admin.firestore.Timestamp.fromDate(new Date(message.date * 1000)),
                 processed: false,
@@ -180,7 +341,7 @@ exports.telegramWebhook = functions.https.onRequest(async (req, res) => {
             };
             // Save to Firestore
             const docRef = await db.collection('telegram_messages').add(docData);
-            console.log('✅ Message saved:', docRef.id, '| From:', docData.from, '| Text:', (_q = docData.text) === null || _q === void 0 ? void 0 : _q.substring(0, 50));
+            console.log('✅ Message saved:', docRef.id, '| From:', docData.from, '| Text:', (_s = docData.text) === null || _s === void 0 ? void 0 : _s.substring(0, 50));
         }
         catch (error) {
             console.error('❌ Error processing message:', error.message);
