@@ -38,6 +38,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
   const [taxId, setTaxId] = useState('');
   const [taxStatus, setTaxStatus] = useState<'RESIDENT' | 'NON_RESIDENT'>('RESIDENT');
   const [numberOfDependents, setNumberOfDependents] = useState(0);
+  const [employeeCode, setEmployeeCode] = useState(''); // Employee Code for QR scanning
 
   const [loading, setLoading] = useState(false);
 
@@ -62,6 +63,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setTaxId('');
     setTaxStatus('RESIDENT');
     setNumberOfDependents(0);
+    setEmployeeCode('');
   };
 
   const openAdd = () => {
@@ -90,6 +92,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
     setTaxId(e.taxId || '');
     setTaxStatus(e.taxStatus || 'RESIDENT');
     setNumberOfDependents(e.numberOfDependents || 0);
+    setEmployeeCode(e.employeeCode || '');
 
     setIsFormOpen(true);
   };
@@ -121,6 +124,7 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
       taxId,
       taxStatus,
       numberOfDependents,
+      employeeCode, // For QR scanning
 
       createdAt: editingId ? (employees.find(e => e.id === editingId)?.createdAt || Date.now()) : Date.now()
     };
@@ -163,139 +167,160 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
       </div>
 
       {isFormOpen && (
-        <Card className="border-none shadow-[0_20px_50px_rgba(79,70,229,0.1)] bg-white rounded-[2rem] overflow-hidden animate-in slide-in-from-top-4 duration-300">
-          <form onSubmit={handleSubmit} className="p-2">
-            <div className="bg-gray-50/50 p-6 rounded-[1.5rem] border border-gray-100">
-              <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Employee Profile' : 'Create New Employee'}</h3>
-                  <p className="text-sm text-gray-500 mt-1">Fill in the professional details for your team member.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className="p-2 hover:bg-white rounded-full text-gray-400 hover:text-gray-600 transition-colors shadow-sm"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                <div className="md:col-span-2">
-                  <Input
-                    label="Full Name"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    required
-                    placeholder="e.g. John Doe"
-                    className="text-lg font-bold py-3 px-4"
-                  />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <form onSubmit={handleSubmit} className="p-2">
+              <div className="bg-gray-50/50 p-6 rounded-[1.5rem] border border-gray-100">
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Employee Profile' : 'Create New Employee'}</h3>
+                    <p className="text-sm text-gray-500 mt-1">Fill in the professional details for your team member.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsFormOpen(false)}
+                    className="p-2 hover:bg-white rounded-full text-gray-400 hover:text-gray-600 transition-colors shadow-sm"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
 
-                <Input label="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" />
-                <Input label="Phone Number" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+855 ..." />
-
-                <Input label="Job Title / Position" value={position} onChange={e => setPosition(e.target.value)} placeholder="e.g. Driver, Manager" />
-                <Input label="Department" value={department} onChange={e => setDepartment(e.target.value)} placeholder="e.g. Logistics, Operations" />
-
-                <div className="md:col-span-2">
-                  <Input
-                    label="Bank Account Information"
-                    value={bankAccount}
-                    onChange={e => setBankAccount(e.target.value)}
-                    placeholder="e.g. ABA: 000 000 000"
-                  />
-                </div>
-              </div>
-
-              {/* Payroll & Tax Configuration */}
-              {(isDriver || hasBaseSalary || true) && ( // Show for all, or just Drivers? Plan says 'Employee Management', implies all.
-                <div className="md:col-span-2 space-y-6 mt-6">
-                  <h4 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-2">Payroll & Tax Details</h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Salary Config - Moved here/Refined */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-4">
-                      <label className="font-bold text-gray-700 flex items-center gap-2">
-                        <input type="checkbox" checked={hasBaseSalary} onChange={e => setHasBaseSalary(e.target.checked)} className="rounded text-indigo-600" />
-                        Enable Base Salary
-                      </label>
-
-                      {hasBaseSalary && (
-                        <div className="space-y-3 pl-6 border-l-2 border-indigo-100 ml-1">
-                          <Input label="Amount" type="number" step="0.01" value={baseSalaryAmount} onChange={e => setBaseSalaryAmount(parseFloat(e.target.value))} />
-                          <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Currency</label>
-                            <div className="flex gap-2">
-                              <button type="button" onClick={() => setBaseSalaryCurrency('USD')} className={`px-3 py-1 rounded-lg text-xs font-bold ${baseSalaryCurrency === 'USD' ? 'bg-indigo-600 text-white' : 'bg-white border'}`}>USD</button>
-                              <button type="button" onClick={() => setBaseSalaryCurrency('KHR')} className={`px-3 py-1 rounded-lg text-xs font-bold ${baseSalaryCurrency === 'KHR' ? 'bg-indigo-600 text-white' : 'bg-white border'}`}>KHR</button>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Payment Frequency</label>
-                            <select value={paymentFrequency} onChange={e => setPaymentFrequency(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
-                              <option value="MONTHLY">Monthly</option>
-                              <option value="WEEKLY">Weekly</option>
-                            </select>
-                          </div>
-                        </div>
-                      )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Full Name"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                        placeholder="e.g. John Doe"
+                        className="text-lg font-bold py-3 px-4"
+                      />
                     </div>
+                    <Input
+                      label="Employee Code"
+                      value={employeeCode}
+                      onChange={e => setEmployeeCode(e.target.value)}
+                      placeholder="e.g. EMP001, DS004"
+                      className="font-mono"
+                    />
+                  </div>
 
-                    {/* Bank Details */}
-                    <div className="space-y-4">
-                      <Input label="Bank Name" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. ABA Bank" />
-                      <Input label="Account Name" value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} placeholder="e.g. JOHN DOE" />
-                      <Input label="Account Number" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} placeholder="000 111 222" />
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Payment Method</label>
-                        <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
-                          <option value="BANK_TRANSFER">Bank Transfer</option>
-                          <option value="CASH">Cash</option>
-                        </select>
-                      </div>
-                    </div>
+                  <Input label="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" />
+                  <Input label="Phone Number" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+855 ..." />
 
-                    {/* Tax Info */}
-                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <Input label="Tax ID (TIN)" value={taxId} onChange={e => setTaxId(e.target.value)} placeholder="Likely N/A for most" />
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Tax Status</label>
-                        <select value={taxStatus} onChange={e => setTaxStatus(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
-                          <option value="RESIDENT">Resident</option>
-                          <option value="NON_RESIDENT">Non-Resident</option>
-                        </select>
-                      </div>
-                      <Input label="No. of Dependents" type="number" value={numberOfDependents} onChange={e => setNumberOfDependents(parseInt(e.target.value) || 0)} />
-                    </div>
+                  <Input label="Job Title / Position" value={position} onChange={e => setPosition(e.target.value)} placeholder="e.g. Driver, Manager" />
+                  <Input label="Department" value={department} onChange={e => setDepartment(e.target.value)} placeholder="e.g. Logistics, Operations" />
+
+                  <div className="md:col-span-2">
+                    <Input
+                      label="Bank Account Information"
+                      value={bankAccount}
+                      onChange={e => setBankAccount(e.target.value)}
+                      placeholder="e.g. ABA: 000 000 000"
+                    />
                   </div>
                 </div>
-              )}
 
-              <div className="flex justify-end items-center gap-3 mt-10 pt-6 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
-                >
-                  Discard Changes
-                </button>
-                <Button
-                  type="submit"
-                  isLoading={loading}
-                  className="bg-gray-900 hover:bg-black text-white px-8 py-2.5 rounded-xl shadow-xl transition-all flex items-center gap-2"
-                >
-                  {editingId ? 'Update Profile' : 'Create Staff Record'}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </Button>
+                {/* Payroll & Tax Configuration */}
+                {(isDriver || hasBaseSalary || true) && ( // Show for all, or just Drivers? Plan says 'Employee Management', implies all.
+                  <div className="md:col-span-2 space-y-6 mt-6">
+                    <h4 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-2">Payroll & Tax Details</h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Salary Config - Moved here/Refined */}
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-4">
+                        <label className="font-bold text-gray-700 flex items-center gap-2">
+                          <input type="checkbox" checked={hasBaseSalary} onChange={e => setHasBaseSalary(e.target.checked)} className="rounded text-indigo-600" />
+                          Enable Base Salary
+                        </label>
+
+                        {hasBaseSalary && (
+                          <div className="space-y-3 pl-6 border-l-2 border-indigo-100 ml-1">
+                            <Input label="Amount" type="number" step="0.01" value={baseSalaryAmount} onChange={e => setBaseSalaryAmount(parseFloat(e.target.value))} />
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1">Currency</label>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => setBaseSalaryCurrency('USD')} className={`px-3 py-1 rounded-lg text-xs font-bold ${baseSalaryCurrency === 'USD' ? 'bg-indigo-600 text-white' : 'bg-white border'}`}>USD</button>
+                                <button type="button" onClick={() => setBaseSalaryCurrency('KHR')} className={`px-3 py-1 rounded-lg text-xs font-bold ${baseSalaryCurrency === 'KHR' ? 'bg-indigo-600 text-white' : 'bg-white border'}`}>KHR</button>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1">Payment Frequency</label>
+                              <select value={paymentFrequency} onChange={e => setPaymentFrequency(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
+                                <option value="MONTHLY">Monthly</option>
+                                <option value="WEEKLY">Weekly</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bank Details */}
+                      <div className="space-y-4">
+                        <Input label="Bank Name" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. ABA Bank" />
+                        <Input label="Account Name" value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} placeholder="e.g. JOHN DOE" />
+                        <Input label="Account Number" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} placeholder="000 111 222" />
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">Payment Method</label>
+                          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
+                            <option value="BANK_TRANSFER">Bank Transfer</option>
+                            <option value="CASH">Cash</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Tax Info */}
+                      <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <Input label="Tax ID (TIN)" value={taxId} onChange={e => setTaxId(e.target.value)} placeholder="Likely N/A for most" />
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">Tax Status</label>
+                          <select value={taxStatus} onChange={e => setTaxStatus(e.target.value as any)} className="w-full text-sm border-gray-300 rounded-lg">
+                            <option value="RESIDENT">Resident</option>
+                            <option value="NON_RESIDENT">Non-Resident</option>
+                          </select>
+                        </div>
+                        <Input label="No. of Dependents" type="number" value={numberOfDependents} onChange={e => setNumberOfDependents(parseInt(e.target.value) || 0)} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end items-center gap-3 mt-10 pt-6 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsFormOpen(false)}
+                    className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-6 py-2.5 text-sm font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Reset
+                  </button>
+                  <Button
+                    type="submit"
+                    isLoading={loading}
+                    className="bg-gray-900 hover:bg-black text-white px-8 py-2.5 rounded-xl shadow-xl transition-all flex items-center gap-2"
+                  >
+                    {editingId ? 'Update Profile' : 'Create Staff Record'}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </Button>
+                </div>
               </div>
-            </div>
-          </form>
-        </Card>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Staff Directory Table */}

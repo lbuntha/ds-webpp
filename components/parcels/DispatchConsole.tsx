@@ -156,6 +156,7 @@ export const DispatchConsole: React.FC = () => {
     const inputRef = React.useRef<HTMLInputElement>(null);
     const [isCameraScanOpen, setIsCameraScanOpen] = useState(false); // CAMERA STATE
     const [isScanning, setIsScanning] = useState(false); // SPINNER STATE
+    const [isDriverScanOpen, setIsDriverScanOpen] = useState(false); // DRIVER QR SCAN STATE
 
     // Focus input when driver matches in Warehouse mode
     useEffect(() => {
@@ -163,6 +164,57 @@ export const DispatchConsole: React.FC = () => {
             inputRef.current.focus();
         }
     }, [selectedDriver, activeTab]);
+
+    // --- DRIVER QR SCAN HANDLER ---
+    const handleDriverScan = (code: string) => {
+        const cleanCode = code.trim();
+        if (!cleanCode) return;
+
+        // Search by employeeCode, id, or linkedUserId
+        const matchedDriver = drivers.find(d =>
+            d.employeeCode === cleanCode ||
+            d.id === cleanCode ||
+            d.linkedUserId === cleanCode
+        );
+
+        if (matchedDriver) {
+            if (!isDriverEligible(matchedDriver)) {
+                const balance = getDriverBalance(matchedDriver);
+                toast.error(`${matchedDriver.name} is BLOCKED. Owes: ${Math.abs(balance.usd) > 0.01 ? `$${balance.usd.toFixed(2)}` : ''} ${Math.abs(balance.khr) > 1 ? `${balance.khr.toLocaleString()} KHR` : ''}`);
+            } else {
+                setSelectedDriver(matchedDriver.id);
+                toast.success(`Driver selected: ${matchedDriver.name}`);
+            }
+        } else {
+            toast.error(`Driver not found: ${cleanCode}`);
+        }
+        setIsDriverScanOpen(false);
+    };
+
+    // --- DRIVER QR CAMERA SCAN ---
+    useEffect(() => {
+        if (isDriverScanOpen) {
+            import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
+                const scanner = new Html5QrcodeScanner(
+                    "driver-qr-reader",
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    /* verbose= */ false
+                );
+
+                scanner.render(
+                    (decodedText) => {
+                        handleDriverScan(decodedText);
+                        scanner.clear();
+                    },
+                    (errorMessage) => { }
+                );
+
+                return () => {
+                    scanner.clear().catch(error => console.error("Failed to clear driver scanner", error));
+                };
+            });
+        }
+    }, [isDriverScanOpen, drivers]);
 
     // --- CAMERA SCAN LOGIC ---
     useEffect(() => {
@@ -561,7 +613,33 @@ export const DispatchConsole: React.FC = () => {
 
                                     {/* Driver List */}
                                     <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
-                                        <p className="text-xs font-bold text-gray-500 uppercase sticky top-0 bg-white pb-2">Available Drivers ({drivers.length})</p>
+                                        <div className="flex justify-between items-center sticky top-0 bg-white pb-2">
+                                            <p className="text-xs font-bold text-gray-500 uppercase">Available Drivers ({drivers.length})</p>
+                                            <div className="flex items-center gap-2">
+                                                {selectedDriver && (
+                                                    <button
+                                                        onClick={() => { setSelectedDriver(null); setSelectedWarehouseItem(null); }}
+                                                        className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                                                        title="Clear selected driver"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                        </svg>
+                                                        Reset
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => setIsDriverScanOpen(true)}
+                                                    className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                                                    title="Scan Driver QR Code"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                                    </svg>
+                                                    Scan Driver
+                                                </button>
+                                            </div>
+                                        </div>
                                         {drivers.map(driver => {
                                             const isEligible = isDriverEligible(driver);
                                             const balance = getDriverBalance(driver);
@@ -644,6 +722,32 @@ export const DispatchConsole: React.FC = () => {
                         </div>
                         <div className="p-4 bg-gray-50 text-center text-xs text-gray-500">
                             Point camera at the parcel barcode to assign instantly.
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Driver QR Scan Modal */}
+            {isDriverScanOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
+                        <div className="p-4 bg-indigo-600 flex justify-between items-center">
+                            <h3 className="font-bold text-white flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                Scan Driver Badge
+                            </h3>
+                            <button onClick={() => setIsDriverScanOpen(false)} className="text-white hover:text-indigo-200">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="p-4">
+                            <div id="driver-qr-reader" className="w-full"></div>
+                        </div>
+                        <div className="p-4 bg-indigo-50 text-center">
+                            <p className="text-xs text-indigo-600 font-medium">Point camera at driver's employee badge QR code</p>
+                            <p className="text-[10px] text-indigo-400 mt-1">Scans employeeCode to auto-select driver</p>
                         </div>
                     </div>
                 </div>
