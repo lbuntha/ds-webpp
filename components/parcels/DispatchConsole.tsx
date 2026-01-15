@@ -193,6 +193,7 @@ export const DispatchConsole: React.FC = () => {
 
     // --- DRIVER QR CAMERA SCAN (Safari/iOS Compatible) ---
     const driverScannerRef = React.useRef<any>(null);
+    const driverScannerRunningRef = React.useRef(false);
 
     useEffect(() => {
         if (!isDriverScanOpen) return;
@@ -224,7 +225,8 @@ export const DispatchConsole: React.FC = () => {
 
                 const onSuccess = (decodedText: string) => {
                     handleDriverScan(decodedText);
-                    scanner.stop().catch(console.error);
+                    driverScannerRunningRef.current = false;
+                    scanner.stop().catch(() => { });
                 };
 
                 const onError = () => { };
@@ -236,6 +238,7 @@ export const DispatchConsole: React.FC = () => {
                         onSuccess,
                         onError
                     );
+                    driverScannerRunningRef.current = true;
                 } catch (backCamError) {
                     console.warn('Back camera failed for driver scan:', backCamError);
                     try {
@@ -245,6 +248,7 @@ export const DispatchConsole: React.FC = () => {
                             onSuccess,
                             onError
                         );
+                        driverScannerRunningRef.current = true;
                     } catch (frontCamError) {
                         console.error('All cameras failed:', frontCamError);
                         toast.error('Camera access denied or not available');
@@ -262,17 +266,25 @@ export const DispatchConsole: React.FC = () => {
 
         return () => {
             isMounted = false;
-            if (driverScannerRef.current) {
+            if (driverScannerRef.current && driverScannerRunningRef.current) {
+                driverScannerRunningRef.current = false;
                 driverScannerRef.current.stop().then(() => {
-                    driverScannerRef.current.clear();
+                    if (driverScannerRef.current) {
+                        driverScannerRef.current.clear();
+                        driverScannerRef.current = null;
+                    }
+                }).catch(() => {
                     driverScannerRef.current = null;
-                }).catch(console.error);
+                });
+            } else {
+                driverScannerRef.current = null;
             }
         };
     }, [isDriverScanOpen, drivers]);
 
     // --- CAMERA SCAN LOGIC (Safari/iOS Compatible) ---
     const scannerRef = React.useRef<any>(null);
+    const scannerRunningRef = React.useRef(false);
 
     useEffect(() => {
         if (!isCameraScanOpen) return;
@@ -309,9 +321,10 @@ export const DispatchConsole: React.FC = () => {
                     handleScanLogic(decodedText);
 
                     // Stop scanner after successful scan
+                    scannerRunningRef.current = false;
                     scanner.stop().then(() => {
                         setIsCameraScanOpen(false);
-                    }).catch(console.error);
+                    }).catch(() => { });
                 };
 
                 const onError = () => { /* Ignore continuous scan errors */ };
@@ -324,6 +337,7 @@ export const DispatchConsole: React.FC = () => {
                         onSuccess,
                         onError
                     );
+                    scannerRunningRef.current = true;
                 } catch (backCamError) {
                     console.warn('Back camera failed, trying front camera:', backCamError);
                     try {
@@ -333,6 +347,7 @@ export const DispatchConsole: React.FC = () => {
                             onSuccess,
                             onError
                         );
+                        scannerRunningRef.current = true;
                     } catch (frontCamError) {
                         console.error('All cameras failed:', frontCamError);
                         toast.error('Camera access denied or not available');
@@ -351,13 +366,18 @@ export const DispatchConsole: React.FC = () => {
         // Cleanup
         return () => {
             isMounted = false;
-            if (scannerRef.current) {
+            if (scannerRef.current && scannerRunningRef.current) {
+                scannerRunningRef.current = false;
                 scannerRef.current.stop().then(() => {
-                    scannerRef.current.clear();
+                    if (scannerRef.current) {
+                        scannerRef.current.clear();
+                        scannerRef.current = null;
+                    }
+                }).catch(() => {
                     scannerRef.current = null;
-                }).catch((err: any) => {
-                    console.error('Failed to stop scanner:', err);
                 });
+            } else {
+                scannerRef.current = null;
             }
         };
     }, [isCameraScanOpen]);

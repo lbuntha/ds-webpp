@@ -196,6 +196,7 @@ export const WarehouseOperations: React.FC = () => {
 
     // --- CAMERA SCAN LOGIC (Safari/iOS Compatible) ---
     const scannerRef = useRef<any>(null);
+    const scannerRunningRef = useRef(false);
 
     useEffect(() => {
         if (!isCameraScanOpen) return;
@@ -227,9 +228,10 @@ export const WarehouseOperations: React.FC = () => {
 
                 const onSuccess = (decodedText: string) => {
                     handleQuickScan(decodedText);
+                    scannerRunningRef.current = false;
                     scanner.stop().then(() => {
                         setIsCameraScanOpen(false);
-                    }).catch(console.error);
+                    }).catch(() => { });
                 };
 
                 const onError = () => { };
@@ -241,6 +243,7 @@ export const WarehouseOperations: React.FC = () => {
                         onSuccess,
                         onError
                     );
+                    scannerRunningRef.current = true;
                 } catch (backCamError) {
                     console.warn('Back camera failed:', backCamError);
                     try {
@@ -250,6 +253,7 @@ export const WarehouseOperations: React.FC = () => {
                             onSuccess,
                             onError
                         );
+                        scannerRunningRef.current = true;
                     } catch (frontCamError) {
                         console.error('All cameras failed:', frontCamError);
                         toast.error('Camera access denied or not available');
@@ -267,11 +271,18 @@ export const WarehouseOperations: React.FC = () => {
 
         return () => {
             isMounted = false;
-            if (scannerRef.current) {
+            if (scannerRef.current && scannerRunningRef.current) {
+                scannerRunningRef.current = false;
                 scannerRef.current.stop().then(() => {
-                    scannerRef.current.clear();
+                    if (scannerRef.current) {
+                        scannerRef.current.clear();
+                        scannerRef.current = null;
+                    }
+                }).catch(() => {
                     scannerRef.current = null;
-                }).catch(console.error);
+                });
+            } else {
+                scannerRef.current = null;
             }
         };
     }, [isCameraScanOpen]);
