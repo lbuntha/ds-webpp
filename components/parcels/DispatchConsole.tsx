@@ -191,67 +191,176 @@ export const DispatchConsole: React.FC = () => {
         setIsDriverScanOpen(false);
     };
 
-    // --- DRIVER QR CAMERA SCAN ---
+    // --- DRIVER QR CAMERA SCAN (Safari/iOS Compatible) ---
+    const driverScannerRef = React.useRef<any>(null);
+
     useEffect(() => {
-        if (isDriverScanOpen) {
-            import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
-                const scanner = new Html5QrcodeScanner(
-                    "driver-qr-reader",
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
-                    /* verbose= */ false
-                );
+        if (!isDriverScanOpen) return;
 
-                scanner.render(
-                    (decodedText) => {
-                        handleDriverScan(decodedText);
-                        scanner.clear();
-                    },
-                    (errorMessage) => { }
-                );
+        let isMounted = true;
 
-                return () => {
-                    scanner.clear().catch(error => console.error("Failed to clear driver scanner", error));
+        const initDriverScanner = async () => {
+            try {
+                const { Html5Qrcode } = await import('html5-qrcode');
+
+                await new Promise(resolve => setTimeout(resolve, 150));
+
+                if (!isMounted) return;
+
+                const element = document.getElementById('driver-qr-reader');
+                if (!element) {
+                    console.error('Driver scanner element not found');
+                    return;
+                }
+
+                const scanner = new Html5Qrcode("driver-qr-reader");
+                driverScannerRef.current = scanner;
+
+                const config = {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0
                 };
-            });
-        }
+
+                const onSuccess = (decodedText: string) => {
+                    handleDriverScan(decodedText);
+                    scanner.stop().catch(console.error);
+                };
+
+                const onError = () => { };
+
+                try {
+                    await scanner.start(
+                        { facingMode: "environment" },
+                        config,
+                        onSuccess,
+                        onError
+                    );
+                } catch (backCamError) {
+                    console.warn('Back camera failed for driver scan:', backCamError);
+                    try {
+                        await scanner.start(
+                            { facingMode: "user" },
+                            config,
+                            onSuccess,
+                            onError
+                        );
+                    } catch (frontCamError) {
+                        console.error('All cameras failed:', frontCamError);
+                        toast.error('Camera access denied or not available');
+                        setIsDriverScanOpen(false);
+                    }
+                }
+            } catch (err) {
+                console.error('Driver scanner init failed:', err);
+                toast.error('Failed to start camera');
+                if (isMounted) setIsDriverScanOpen(false);
+            }
+        };
+
+        initDriverScanner();
+
+        return () => {
+            isMounted = false;
+            if (driverScannerRef.current) {
+                driverScannerRef.current.stop().then(() => {
+                    driverScannerRef.current.clear();
+                    driverScannerRef.current = null;
+                }).catch(console.error);
+            }
+        };
     }, [isDriverScanOpen, drivers]);
 
-    // --- CAMERA SCAN LOGIC ---
+    // --- CAMERA SCAN LOGIC (Safari/iOS Compatible) ---
+    const scannerRef = React.useRef<any>(null);
+
     useEffect(() => {
-        if (isCameraScanOpen) {
-            import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
-                const scanner = new Html5QrcodeScanner(
-                    "dispatch-reader",
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
-                    /* verbose= */ false
-                );
+        if (!isCameraScanOpen) return;
 
-                scanner.render(
-                    (decodedText) => {
-                        // Success callback
-                        // Simulate scan behavior
-                        setBarcode(decodedText);
-                        // Trigger logic
-                        // We need a slight delay or direct call because setBarcode is async
-                        // But handleScan reads state `barcode`.
-                        // Better to refactor handleScan or call logic directly.
-                        // Let's call a dedicated function or logic directly.
-                        handleScanLogic(decodedText);
+        let isMounted = true;
 
-                        scanner.clear();
-                        setIsCameraScanOpen(false);
-                    },
-                    (errorMessage) => {
-                    }
-                );
+        // Small delay to ensure DOM is ready (important for Safari)
+        const initScanner = async () => {
+            try {
+                const { Html5Qrcode } = await import('html5-qrcode');
 
-                // Cleanup
-                return () => {
-                    scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+                // Wait a bit for DOM element to be fully rendered
+                await new Promise(resolve => setTimeout(resolve, 150));
+
+                if (!isMounted) return;
+
+                const element = document.getElementById('dispatch-reader');
+                if (!element) {
+                    console.error('Scanner element not found');
+                    return;
+                }
+
+                const scanner = new Html5Qrcode("dispatch-reader");
+                scannerRef.current = scanner;
+
+                const config = {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0
                 };
-            });
-        }
-    }, [isCameraScanOpen]); // Dependencies need care to avoid stale closures if using handleScan
+
+                const onSuccess = (decodedText: string) => {
+                    setBarcode(decodedText);
+                    handleScanLogic(decodedText);
+
+                    // Stop scanner after successful scan
+                    scanner.stop().then(() => {
+                        setIsCameraScanOpen(false);
+                    }).catch(console.error);
+                };
+
+                const onError = () => { /* Ignore continuous scan errors */ };
+
+                // Try back camera first (environment), fallback to front camera (user)
+                try {
+                    await scanner.start(
+                        { facingMode: "environment" },
+                        config,
+                        onSuccess,
+                        onError
+                    );
+                } catch (backCamError) {
+                    console.warn('Back camera failed, trying front camera:', backCamError);
+                    try {
+                        await scanner.start(
+                            { facingMode: "user" },
+                            config,
+                            onSuccess,
+                            onError
+                        );
+                    } catch (frontCamError) {
+                        console.error('All cameras failed:', frontCamError);
+                        toast.error('Camera access denied or not available');
+                        setIsCameraScanOpen(false);
+                    }
+                }
+            } catch (err) {
+                console.error('Scanner initialization failed:', err);
+                toast.error('Failed to start camera');
+                if (isMounted) setIsCameraScanOpen(false);
+            }
+        };
+
+        initScanner();
+
+        // Cleanup
+        return () => {
+            isMounted = false;
+            if (scannerRef.current) {
+                scannerRef.current.stop().then(() => {
+                    scannerRef.current.clear();
+                    scannerRef.current = null;
+                }).catch((err: any) => {
+                    console.error('Failed to stop scanner:', err);
+                });
+            }
+        };
+    }, [isCameraScanOpen]);
 
     const assignItemToDriver = async (itemEntry: { bookingId: string, item: ParcelItem }, driverId: string) => {
         const driver = drivers.find(d => d.id === driverId);

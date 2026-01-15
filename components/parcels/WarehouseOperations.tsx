@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+// html5-qrcode imported dynamically for Safari compatibility
 import { ParcelBooking, ParcelItem, Employee, UserProfile, AppNotification } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -194,31 +194,86 @@ export const WarehouseOperations: React.FC = () => {
         }
     };
 
-    // --- CAMERA SCAN LOGIC ---
+    // --- CAMERA SCAN LOGIC (Safari/iOS Compatible) ---
+    const scannerRef = useRef<any>(null);
+
     useEffect(() => {
-        if (isCameraScanOpen) {
-            const scanner = new Html5QrcodeScanner(
-                "reader",
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                /* verbose= */ false
-            );
+        if (!isCameraScanOpen) return;
 
-            scanner.render(
-                (decodedText) => {
-                    // Success callback
-                    handleQuickScan(decodedText);
-                    scanner.clear();
-                    setIsCameraScanOpen(false);
-                },
-                (errorMessage) => {
-                    // Error callback (optional logging)
+        let isMounted = true;
+
+        const initScanner = async () => {
+            try {
+                const { Html5Qrcode } = await import('html5-qrcode');
+
+                await new Promise(resolve => setTimeout(resolve, 150));
+
+                if (!isMounted) return;
+
+                const element = document.getElementById('reader');
+                if (!element) {
+                    console.error('Scanner element not found');
+                    return;
                 }
-            );
 
-            return () => {
-                scanner.clear().catch(error => console.error("Failed to clear scanner", error));
-            };
-        }
+                const scanner = new Html5Qrcode("reader");
+                scannerRef.current = scanner;
+
+                const config = {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0
+                };
+
+                const onSuccess = (decodedText: string) => {
+                    handleQuickScan(decodedText);
+                    scanner.stop().then(() => {
+                        setIsCameraScanOpen(false);
+                    }).catch(console.error);
+                };
+
+                const onError = () => { };
+
+                try {
+                    await scanner.start(
+                        { facingMode: "environment" },
+                        config,
+                        onSuccess,
+                        onError
+                    );
+                } catch (backCamError) {
+                    console.warn('Back camera failed:', backCamError);
+                    try {
+                        await scanner.start(
+                            { facingMode: "user" },
+                            config,
+                            onSuccess,
+                            onError
+                        );
+                    } catch (frontCamError) {
+                        console.error('All cameras failed:', frontCamError);
+                        toast.error('Camera access denied or not available');
+                        setIsCameraScanOpen(false);
+                    }
+                }
+            } catch (err) {
+                console.error('Scanner init failed:', err);
+                toast.error('Failed to start camera');
+                if (isMounted) setIsCameraScanOpen(false);
+            }
+        };
+
+        initScanner();
+
+        return () => {
+            isMounted = false;
+            if (scannerRef.current) {
+                scannerRef.current.stop().then(() => {
+                    scannerRef.current.clear();
+                    scannerRef.current = null;
+                }).catch(console.error);
+            }
+        };
     }, [isCameraScanOpen]);
 
     // --- LOGIC: OUTBOUND (Warehouse -> Driver) ---
