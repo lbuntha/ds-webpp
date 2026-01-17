@@ -16,12 +16,30 @@ export const ParcelList: React.FC = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // Filters
+    // Helper to get today's date string YYYY-MM-DD
+    const getTodayString = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Filters (Input State)
     const [searchTerm, setSearchTerm] = useState('');
     const [customerFilter, setCustomerFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
+    const [dateFrom, setDateFrom] = useState(getTodayString());
+    const [dateTo, setDateTo] = useState(getTodayString());
+
+    // Active Filters (Applied State)
+    const [appliedFilters, setAppliedFilters] = useState({
+        searchTerm: '',
+        customerFilter: '',
+        statusFilter: '',
+        dateFrom: getTodayString(),
+        dateTo: getTodayString()
+    });
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -55,8 +73,41 @@ export const ParcelList: React.FC = () => {
         loadData();
     }, []);
 
+    const handleApplyFilters = async () => {
+        setAppliedFilters({
+            searchTerm,
+            customerFilter,
+            statusFilter,
+            dateFrom,
+            dateTo
+        });
+        setCurrentPage(1);
+        await loadData();
+    };
+
+    const handleResetFilters = () => {
+        const today = getTodayString();
+        // Reset inputs
+        setSearchTerm('');
+        setCustomerFilter('');
+        setStatusFilter('');
+        setDateFrom(today);
+        setDateTo(today);
+
+        // Reset applied filters
+        setAppliedFilters({
+            searchTerm: '',
+            customerFilter: '',
+            statusFilter: '',
+            dateFrom: today,
+            dateTo: today
+        });
+        setCurrentPage(1);
+    };
+
     const filteredBookings = useMemo(() => {
         let result = bookings;
+        const { searchTerm, customerFilter, statusFilter, dateFrom, dateTo } = appliedFilters;
 
         // 1. Text Search
         if (searchTerm) {
@@ -93,7 +144,7 @@ export const ParcelList: React.FC = () => {
 
         // Sort by date desc
         return result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    }, [bookings, searchTerm, customerFilter, statusFilter, dateFrom, dateTo]);
+    }, [bookings, appliedFilters]);
 
     // Pagination Logic
     const paginatedBookings = useMemo(() => {
@@ -142,8 +193,26 @@ export const ParcelList: React.FC = () => {
     };
 
     const renderStatus = (booking: ParcelBooking) => {
-        if (booking.statusId) {
-            const config = statuses.find(s => s.id === booking.statusId);
+        // Derive effective status from items if possible
+        let effectiveStatus = booking.status;
+        let effectiveStatusId = booking.statusId;
+
+        if (booking.items && booking.items.length > 0) {
+            // Get all unique item statuses
+            const itemStatuses = Array.from(new Set(booking.items.map(i => i.status || 'PENDING')));
+
+            // If all items have the same status, use that as the source of truth
+            if (itemStatuses.length === 1) {
+                effectiveStatus = itemStatuses[0];
+                // If we are overriding with item status, ignore the potentially stale statusId
+                if (effectiveStatus !== booking.status) {
+                    effectiveStatusId = undefined;
+                }
+            }
+        }
+
+        if (effectiveStatusId) {
+            const config = statuses.find(s => s.id === effectiveStatusId);
             if (config) {
                 return (
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${config.color}`}>
@@ -156,12 +225,22 @@ export const ParcelList: React.FC = () => {
         const colors: Record<string, string> = {
             'PENDING': 'bg-yellow-100 text-yellow-800',
             'CONFIRMED': 'bg-blue-100 text-blue-800',
+            'PICKED_UP': 'bg-purple-100 text-purple-800',
+            'AT_WAREHOUSE': 'bg-indigo-100 text-indigo-800',
+            'IN_TRANSIT': 'bg-orange-100 text-orange-800',
+            'OUT_FOR_DELIVERY': 'bg-teal-100 text-teal-800',
+            'DELIVERED': 'bg-green-100 text-green-800',
             'COMPLETED': 'bg-green-100 text-green-800',
-            'CANCELLED': 'bg-red-100 text-red-800'
+            'CANCELLED': 'bg-red-100 text-red-800',
+            'RETURN_TO_SENDER': 'bg-red-100 text-red-800'
         };
+
+        // Format status for display (replace underscores with spaces if no translation)
+        const displayLabel = effectiveStatus.replace(/_/g, ' ');
+
         return (
-            <span className={`px-2 py-1 rounded-full text-xs font-bold ${colors[booking.status] || 'bg-gray-100'}`}>
-                {booking.status}
+            <span className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap ${colors[effectiveStatus] || 'bg-gray-100'}`}>
+                {displayLabel}
             </span>
         );
     };
@@ -191,13 +270,7 @@ export const ParcelList: React.FC = () => {
         }
     };
 
-    const handleResetFilters = () => {
-        setSearchTerm('');
-        setCustomerFilter('');
-        setStatusFilter('');
-        setDateFrom('');
-        setDateTo('');
-    };
+
 
     return (
         <Card title={t('parcel_list')}>
@@ -277,12 +350,31 @@ export const ParcelList: React.FC = () => {
                     <p className="text-xs text-gray-500">
                         {t('showing')} {paginatedBookings.length} / {filteredBookings.length}
                     </p>
-                    <button
-                        onClick={handleResetFilters}
-                        className="text-xs text-red-600 hover:text-red-800 font-medium hover:underline"
-                    >
-                        {t('reset_filters')}
-                    </button>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={handleApplyFilters}
+                            disabled={loading}
+                            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-bold py-2 px-4 rounded transition-colors flex items-center gap-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Filtering...
+                                </>
+                            ) : (
+                                'Filter'
+                            )}
+                        </button>
+                        <button
+                            onClick={handleResetFilters}
+                            className="text-xs text-red-600 hover:text-red-800 font-medium hover:underline"
+                        >
+                            {t('reset_filters')}
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -339,19 +431,6 @@ export const ParcelList: React.FC = () => {
                                             >
                                                 {t('view')}
                                             </button>
-                                            {b.status !== 'COMPLETED' ? (
-                                                <button
-                                                    onClick={() => openUpdateModal(b)}
-                                                    className="text-indigo-600 hover:text-indigo-900 text-xs font-medium border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50"
-                                                >
-                                                    {t('status')}
-                                                </button>
-                                            ) : (
-                                                <span className="text-gray-400 text-xs font-medium flex items-center justify-end gap-1 px-2 py-1 cursor-not-allowed">
-                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                                                    Locked
-                                                </span>
-                                            )}
                                         </div>
                                     </td>
                                 </tr>
