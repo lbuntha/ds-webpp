@@ -156,113 +156,122 @@ export const ParcelOperations: React.FC = () => {
 
     const handleSaveVerify = async () => {
         if (!currentBookingId || !verifyItem) return;
-        const booking = bookings.find(b => b.id === currentBookingId);
-        if (!booking) return;
 
-        // Detect if this is a delivered item being edited
-        const isDelivered = verifyItem.status === 'DELIVERED';
-        const codChanged = verifyItem.productPrice !== editCodAmount;
-        const feeChanged = verifyItem.deliveryFee !== editDeliveryFee;
-        const currencyChanged = verifyItem.codCurrency !== editCodCurrency;
+        setProcessing(true);
+        try {
+            const booking = bookings.find(b => b.id === currentBookingId);
+            if (!booking) return;
 
-        // Calculate differences for adjustment transactions
-        const oldCOD = verifyItem.productPrice || 0;
-        const newCOD = editCodAmount || 0;
-        const oldFee = verifyItem.deliveryFee || 0;
-        const newFee = editDeliveryFee || 0;
-        const oldCurrency = verifyItem.codCurrency || 'USD';
-        const newCurrency = editCodCurrency || 'USD';
+            // Detect if this is a delivered item being edited
+            const isDelivered = verifyItem.status === 'DELIVERED';
+            const codChanged = verifyItem.productPrice !== editCodAmount;
+            const feeChanged = verifyItem.deliveryFee !== editDeliveryFee;
+            const currencyChanged = verifyItem.codCurrency !== editCodCurrency;
 
-        // Warehouse can only edit item details - NO status changes allowed
-        const updatedItems = (booking.items || []).map(i => {
-            if (i.id === verifyItem.id) {
-                return {
-                    ...i,
-                    weight: weightInput,
-                    receiverName: editReceiverName,
-                    receiverPhone: editReceiverPhone,
-                    productPrice: editCodAmount,
-                    codCurrency: editCodCurrency,
-                    deliveryFee: editDeliveryFee,
-                };
-            }
-            return i;
-        });
+            // Calculate differences for adjustment transactions
+            const oldCOD = verifyItem.productPrice || 0;
+            const newCOD = editCodAmount || 0;
+            const oldFee = verifyItem.deliveryFee || 0;
+            const newFee = editDeliveryFee || 0;
+            const oldCurrency = verifyItem.codCurrency || 'USD';
+            const newCurrency = editCodCurrency || 'USD';
 
-        // Don't change booking status - warehouse only edits data
-        const updatedBooking = { ...booking, items: updatedItems };
-
-        await firebaseService.saveParcelBooking(updatedBooking);
-
-        // --- WALLET ADJUSTMENT LOGIC FOR DELIVERED ITEMS ---
-        if (isDelivered && (codChanged || feeChanged || currencyChanged)) {
-            try {
-                // Note: Customer wallet entries (COD/Fee) are computed dynamically from booking items,
-                // so they will auto-update. However, we should log the adjustment for transparency.
-
-                // For driver commissions, we need to create adjustment transactions
-                // since commissions are stored as actual wallet_transactions
-
-                // Only process fee-based adjustments if fee changed and currency is same
-                // (cross-currency adjustments are complex and should be handled separately)
-                if (feeChanged && !currencyChanged) {
-                    const feeDifference = newFee - oldFee;
-
-                    // Adjust collector commission (if exists)
-                    if (verifyItem.collectorId && verifyItem.pickupCommission) {
-                        // Commission is typically a percentage of fee, so recalculate
-                        // For simplicity, we'll create a proportional adjustment
-                        const commissionRate = verifyItem.pickupCommission / oldFee;
-                        const commissionAdjustment = feeDifference * commissionRate;
-
-                        if (Math.abs(commissionAdjustment) > 0.01) {
-                            await firebaseService.processWalletTransaction(
-                                verifyItem.collectorId,
-                                commissionAdjustment,
-                                oldCurrency,
-                                'EARNING',
-                                '',
-                                `Pickup Commission Adjustment: ${verifyItem.receiverName} (${booking.id.slice(-4)}) - Fee ${oldFee} → ${newFee}`
-                            );
-                        }
-                    }
-
-                    // Adjust deliverer commission (if exists)
-                    if (verifyItem.delivererId && verifyItem.deliveryCommission) {
-                        const commissionRate = verifyItem.deliveryCommission / oldFee;
-                        const commissionAdjustment = feeDifference * commissionRate;
-
-                        if (Math.abs(commissionAdjustment) > 0.01) {
-                            await firebaseService.processWalletTransaction(
-                                verifyItem.delivererId,
-                                commissionAdjustment,
-                                oldCurrency,
-                                'EARNING',
-                                '',
-                                `Delivery Commission Adjustment: ${verifyItem.receiverName} (${booking.id.slice(-4)}) - Fee ${oldFee} → ${newFee}`
-                            );
-                        }
-                    }
+            // Warehouse can only edit item details - NO status changes allowed
+            const updatedItems = (booking.items || []).map(i => {
+                if (i.id === verifyItem.id) {
+                    return {
+                        ...i,
+                        weight: weightInput,
+                        receiverName: editReceiverName,
+                        receiverPhone: editReceiverPhone,
+                        productPrice: editCodAmount,
+                        codCurrency: editCodCurrency,
+                        deliveryFee: editDeliveryFee,
+                    };
                 }
+                return i;
+            });
 
-                console.log('✅ Wallet adjustments processed for delivered item edit:', {
-                    itemId: verifyItem.id,
-                    codChange: codChanged ? `${oldCOD} → ${newCOD}` : 'none',
-                    feeChange: feeChanged ? `${oldFee} → ${newFee}` : 'none',
-                    currencyChange: currencyChanged ? `${oldCurrency} → ${newCurrency}` : 'none'
-                });
-            } catch (error) {
-                console.error('Failed to process wallet adjustments:', error);
-                toast.error('Item updated but wallet adjustment failed. Please check manually.');
+            // Don't change booking status - warehouse only edits data
+            const updatedBooking = { ...booking, items: updatedItems };
+
+            await firebaseService.saveParcelBooking(updatedBooking);
+
+            // --- WALLET ADJUSTMENT LOGIC FOR DELIVERED ITEMS ---
+            if (isDelivered && (codChanged || feeChanged || currencyChanged)) {
+                try {
+                    // Note: Customer wallet entries (COD/Fee) are computed dynamically from booking items,
+                    // so they will auto-update. However, we should log the adjustment for transparency.
+
+                    // For driver commissions, we need to create adjustment transactions
+                    // since commissions are stored as actual wallet_transactions
+
+                    // Only process fee-based adjustments if fee changed and currency is same
+                    // (cross-currency adjustments are complex and should be handled separately)
+                    if (feeChanged && !currencyChanged) {
+                        const feeDifference = newFee - oldFee;
+
+                        // Adjust collector commission (if exists)
+                        if (verifyItem.collectorId && verifyItem.pickupCommission) {
+                            // Commission is typically a percentage of fee, so recalculate
+                            // For simplicity, we'll create a proportional adjustment
+                            const commissionRate = verifyItem.pickupCommission / oldFee;
+                            const commissionAdjustment = feeDifference * commissionRate;
+
+                            if (Math.abs(commissionAdjustment) > 0.01) {
+                                await firebaseService.processWalletTransaction(
+                                    verifyItem.collectorId,
+                                    commissionAdjustment,
+                                    oldCurrency,
+                                    'EARNING',
+                                    '',
+                                    `Pickup Commission Adjustment: ${verifyItem.receiverName} (${booking.id.slice(-4)}) - Fee ${oldFee} → ${newFee}`
+                                );
+                            }
+                        }
+
+                        // Adjust deliverer commission (if exists)
+                        if (verifyItem.delivererId && verifyItem.deliveryCommission) {
+                            const commissionRate = verifyItem.deliveryCommission / oldFee;
+                            const commissionAdjustment = feeDifference * commissionRate;
+
+                            if (Math.abs(commissionAdjustment) > 0.01) {
+                                await firebaseService.processWalletTransaction(
+                                    verifyItem.delivererId,
+                                    commissionAdjustment,
+                                    oldCurrency,
+                                    'EARNING',
+                                    '',
+                                    `Delivery Commission Adjustment: ${verifyItem.receiverName} (${booking.id.slice(-4)}) - Fee ${oldFee} → ${newFee}`
+                                );
+                            }
+                        }
+                    }
+
+                    console.log('✅ Wallet adjustments processed for delivered item edit:', {
+                        itemId: verifyItem.id,
+                        codChange: codChanged ? `${oldCOD} → ${newCOD}` : 'none',
+                        feeChange: feeChanged ? `${oldFee} → ${newFee}` : 'none',
+                        currencyChange: currencyChanged ? `${oldCurrency} → ${newCurrency}` : 'none'
+                    });
+                } catch (error) {
+                    console.error('Failed to process wallet adjustments:', error);
+                    toast.error('Item updated but wallet adjustment failed. Please check manually.');
+                }
             }
-        }
 
-        // Update local state
-        setBookings(prev => prev.map(b => b.id === currentBookingId ? updatedBooking : b));
-        setVerifyItem(null);
-        toast.success(isDelivered && (codChanged || feeChanged) ?
-            "Parcel details and wallet adjustments updated." :
-            "Parcel details updated.");
+            // Update local state
+            setBookings(prev => prev.map(b => b.id === currentBookingId ? updatedBooking : b));
+            setVerifyItem(null);
+            toast.success(isDelivered && (codChanged || feeChanged) ?
+                "Parcel details and wallet adjustments updated." :
+                "Parcel details updated.");
+        } catch (e) {
+            console.error("Failed to save changes", e);
+            toast.error("Failed to save changes");
+        } finally {
+            setProcessing(false);
+        }
     };
 
     const handleBulkTransfer = async () => {
@@ -754,6 +763,7 @@ export const ParcelOperations: React.FC = () => {
                             <Button variant="outline" onClick={() => setVerifyItem(null)}>Cancel</Button>
                             <Button
                                 onClick={handleSaveVerify}
+                                isLoading={processing}
                                 className="bg-green-600 hover:bg-green-700"
                             >
                                 Save Changes

@@ -49,7 +49,7 @@ const API_ID = Number(process.env.TELEGRAM_API_ID);
 const API_HASH = process.env.TELEGRAM_API_HASH;
 const SESSION_STRING = process.env.TELEGRAM_APP_SESSION;
 // PayWay sender names to match
-const PAYWAY_SENDER_NAMES = ['PayWay', 'PayWay by ABA'];
+const PAYWAY_SENDER_NAMES = ['PayWay by ABA'];
 exports.checkPayWayUpdates = functions.pubsub.schedule('every 1 minutes').onRun(async (context) => {
     console.log('[PayWay] Starting checkPayWayUpdates...');
     console.log('[PayWay] Credentials check:', {

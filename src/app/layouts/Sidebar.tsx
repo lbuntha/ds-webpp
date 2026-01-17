@@ -23,19 +23,20 @@ interface SidebarProps {
     menuItems: NavigationItem[];
     user: UserProfile;
     onLogout: () => void;
+    // New props for mobile handling
+    isMobileOpen?: boolean;
+    onMobileClose?: () => void;
 }
 
-export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
+export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMobileClose }: SidebarProps) {
     const location = useLocation();
     const { settings } = useData();
     const { t } = useLanguage();
     const userPermissions = useUserPermissions();
 
-    // Collapse state with localStorage persistence
+    // Collapse state with localStorage persistence (Desktop only)
     const [isCollapsed, setIsCollapsed] = useState(() => {
-        // Default to collapsed on mobile (< 768px) regardless of stored preference
-        if (window.innerWidth < 768) return true;
-
+        // Default to expanded on desktop, can be toggled
         const saved = localStorage.getItem('sidebar-collapsed');
         return saved === 'true';
     });
@@ -44,17 +45,9 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
         localStorage.setItem('sidebar-collapsed', String(isCollapsed));
     }, [isCollapsed]);
 
-    // Auto-collapse on resize
-    useEffect(() => {
-        const handleResize = () => {
-            if (window.innerWidth < 768 && !isCollapsed) {
-                setIsCollapsed(true);
-            }
-        };
-
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [isCollapsed]);
+    // Auto-collapse on resize logic is no longer needed as we have a different mobile designs
+    // But we can keep it for specific breakpoint adjustments if needed.
+    // Ideally, on mobile, isCollapsed is ignored and we use isMobileOpen.
 
     const toggleCollapse = () => setIsCollapsed(!isCollapsed);
 
@@ -142,12 +135,24 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
         return `/app/${item.viewId.toLowerCase().replace(/_/g, '/')}`;
     };
 
+    const handleItemClick = () => {
+        if (onMobileClose) onMobileClose();
+    };
+
     return (
-        <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-slate-900 text-white flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out shadow-xl z-20 relative`}>
-            {/* Toggle Button */}
+        <div
+            className={`
+                fixed inset-y-0 left-0 z-40 bg-slate-900 text-white flex-col shadow-xl transition-transform duration-300 ease-in-out
+                ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+                md:relative md:translate-x-0 md:flex md:flex-shrink-0
+                ${isCollapsed ? 'md:w-16' : 'md:w-64'}
+                w-64
+            `}
+        >
+            {/* Toggle Button (Desktop Only) */}
             <button
                 onClick={toggleCollapse}
-                className="absolute -right-3 top-6 w-6 h-6 bg-slate-700 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 border-2 border-slate-900 z-30"
+                className="hidden md:flex absolute -right-3 top-6 w-6 h-6 bg-slate-700 hover:bg-red-600 rounded-full items-center justify-center shadow-lg transition-all duration-200 border-2 border-slate-900 z-30"
                 title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
                 {isCollapsed ? (
@@ -158,13 +163,11 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
             </button>
 
             {/* Header */}
-            <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} border-b border-slate-800`}>
+            <div className={`p-4 flex items-center ${isCollapsed ? 'md:justify-center' : 'space-x-3'} border-b border-slate-800`}>
                 <img src="/logo/icon.png" alt="DoorStep Logo" className="h-8 w-8 object-contain flex-shrink-0" />
-                {!isCollapsed && (
-                    <span className="font-bold text-lg truncate tracking-tight transition-opacity duration-200">
-                        {settings.companyName || 'Doorstep'}
-                    </span>
-                )}
+                <span className={`font-bold text-lg truncate tracking-tight transition-opacity duration-200 ${isCollapsed ? 'md:hidden' : ''}`}>
+                    {settings.companyName || 'Doorstep'}
+                </span>
             </div>
 
             {/* Navigation */}
@@ -178,27 +181,31 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
 
                     return (
                         <div key={item.id}>
-                            {showSectionHeader && !isCollapsed && (
-                                <div className="pt-4 pb-2 px-6 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                            {showSectionHeader && (
+                                <div className={`pt-4 pb-2 px-6 text-xs text-slate-500 font-bold uppercase tracking-wider ${isCollapsed ? 'md:hidden' : ''}`}>
                                     {item.section?.toLowerCase() === 'system' ? t('system') : item.section}
                                 </div>
                             )}
                             {showSectionHeader && isCollapsed && (
-                                <div className="pt-4 pb-1 flex justify-center">
+                                <div className="hidden md:flex pt-4 pb-1 justify-center">
                                     <div className="w-6 h-px bg-slate-700"></div>
                                 </div>
                             )}
                             <Link
                                 to={routePath}
-                                className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-6'} py-3 text-sm font-medium transition-all duration-200 ${isItemActive ? 'bg-slate-800 border-l-4 border-red-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+                                onClick={handleItemClick}
+                                className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-all duration-200 
+                                    ${isItemActive ? 'bg-slate-800 border-l-4 border-red-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}
+                                    ${isCollapsed ? 'md:justify-center md:px-2' : ''}
+                                `}
                                 title={isCollapsed ? t(item.label as any) : undefined}
                             >
-                                <span className={isCollapsed ? '' : 'mr-3'}>
+                                <span className={isCollapsed ? 'md:mr-0 mr-3' : 'mr-3'}>
                                     <MenuIcon iconKey={item.iconKey} className="w-5 h-5" />
                                 </span>
-                                {!isCollapsed && (
-                                    <span className="truncate transition-opacity duration-200">{t(item.label as any)}</span>
-                                )}
+                                <span className={`truncate transition-opacity duration-200 ${isCollapsed ? 'md:hidden' : ''}`}>
+                                    {t(item.label as any)}
+                                </span>
                             </Link>
                         </div>
                     );
@@ -206,27 +213,30 @@ export function Sidebar({ menuItems, user, onLogout }: SidebarProps) {
             </nav>
 
             {/* Footer */}
-            <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-slate-800 bg-slate-900`}>
-                <Link to="/app/profile" className={`flex items-center w-full text-left group ${isCollapsed ? 'justify-center' : ''}`}>
+            <div className={`p-4 border-t border-slate-800 bg-slate-900 ${isCollapsed ? 'md:p-2' : ''}`}>
+                <Link
+                    to="/app/profile"
+                    onClick={handleItemClick}
+                    className={`flex items-center w-full text-left group ${isCollapsed ? 'md:justify-center' : ''}`}
+                >
                     <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center text-xs font-bold text-white group-hover:bg-red-500 transition-colors shadow-md flex-shrink-0">
                         {user.name.charAt(0)}
                     </div>
-                    {!isCollapsed && (
-                        <div className="ml-3 flex-1 overflow-hidden">
-                            <div className="text-sm font-medium truncate text-white group-hover:text-red-200 transition-colors">{user.name}</div>
-                            <div className="text-xs text-slate-400 truncate">{(user.role || '').replace('-', ' ')}</div>
-                        </div>
-                    )}
+                    <div className={`ml-3 flex-1 overflow-hidden ${isCollapsed ? 'md:hidden' : ''}`}>
+                        <div className="text-sm font-medium truncate text-white group-hover:text-red-200 transition-colors">{user.name}</div>
+                        <div className="text-xs text-slate-400 truncate">{(user.role || '').replace('-', ' ')}</div>
+                    </div>
                 </Link>
-                {!isCollapsed && (
+                <div className={`${isCollapsed ? 'md:hidden' : ''}`}>
                     <button onClick={onLogout} className="mt-3 w-full text-center text-xs text-slate-400 hover:text-white transition-colors py-1 hover:bg-slate-800 rounded">
                         {t('signOut')}
                     </button>
-                )}
+                </div>
+                {/* Collapsed Footer Button for Desktop */}
                 {isCollapsed && (
                     <button
                         onClick={onLogout}
-                        className="mt-2 w-full flex justify-center text-slate-400 hover:text-white transition-colors py-1 hover:bg-slate-800 rounded"
+                        className="hidden md:flex mt-2 w-full justify-center text-slate-400 hover:text-white transition-colors py-1 hover:bg-slate-800 rounded"
                         title={t('signOut')}
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

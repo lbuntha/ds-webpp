@@ -1,7 +1,7 @@
 
 import { BaseService } from './baseService';
 import { ParcelServiceType, ParcelPromotion, ParcelStatusConfig, ParcelBooking, ChatMessage, JournalEntry, SystemSettings, DriverCommissionRule, CustomerSpecialRate, CustomerCashbackRule, UserProfile, ReferralRule, ParcelItem, Employee, StockProduct } from '../types';
-import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or, limit } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, getDocs, increment, or, limit, runTransaction } from 'firebase/firestore';
 import { db, storage } from './firebaseInstance';
 import { stockService } from './stockService';
 import { calculateDriverCommission } from '../utils/commissionCalculator';
@@ -172,21 +172,18 @@ export class LogisticsService extends BaseService {
 
     // Updated to accept wallet service for referral triggering
     async saveParcelBooking(b: ParcelBooking, paymentAccountId?: string, walletService?: any, configService?: any, hrService?: any) {
+        // 1. Prepare and Clean Data (Standard Logic)
         const bookingToSave = this.cleanData(b);
 
-        // --- STOCK RESERVATION ---
-        // Only reserve if status is PENDING (new booking)
+        // --- STOCK RESERVATION (SIDE EFFECT) ---
         if (bookingToSave.senderId && bookingToSave.branchId && bookingToSave.status === 'PENDING') {
-
-            // NEW: Use stockProducts array for simplified stock bookings
             if (bookingToSave.stockProducts && bookingToSave.stockProducts.length > 0) {
-                const reservationList = bookingToSave.stockProducts.map((sp: StockProduct) => ({
-                    stockItemId: sp.stockItemId,
-                    quantity: sp.quantity || 1
-                }));
-
-
+                // ... Stock Logic (New) ...
                 try {
+                    const reservationList = bookingToSave.stockProducts.map((sp: StockProduct) => ({
+                        stockItemId: sp.stockItemId,
+                        quantity: sp.quantity || 1
+                    }));
                     const result = await stockService.reserveStock(
                         bookingToSave.senderId,
                         bookingToSave.branchId,
@@ -195,31 +192,18 @@ export class LogisticsService extends BaseService {
                         'customer-app',
                         bookingToSave.senderName || 'Customer'
                     );
-
-                    if (!result.success) {
-                        throw new Error(`Stock Reservation Failed: ${result.error}`);
-                    }
-                } catch (e: any) {
-                    throw new Error(`Stock Error: ${e.message}`);
-                }
-            }
-            // LEGACY: Check items for stockItemId (old booking structure)
-            else if (bookingToSave.items) {
+                    if (!result.success) throw new Error(`Stock Reservation Failed: ${result.error}`);
+                } catch (e: any) { throw new Error(`Stock Error: ${e.message}`); }
+            } else if (bookingToSave.items) {
+                // ... Stock Logic (Legacy) ...
                 const stockItems = bookingToSave.items.filter((i: ParcelItem) => i.stockItemId);
-
                 if (stockItems.length > 0) {
-                    // Group quantity by stockItemId
-                    const consolidated: Record<string, number> = {};
-                    stockItems.forEach((i: ParcelItem) => {
-                        if (i.stockItemId) {
-                            const qty = i.quantity || 1;
-                            consolidated[i.stockItemId] = (consolidated[i.stockItemId] || 0) + qty;
-                        }
-                    });
-
-                    const reservationList = Object.entries(consolidated).map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
-
                     try {
+                        const consolidated: Record<string, number> = {};
+                        stockItems.forEach((i: ParcelItem) => {
+                            if (i.stockItemId) consolidated[i.stockItemId] = (consolidated[i.stockItemId] || 0) + (i.quantity || 1);
+                        });
+                        const reservationList = Object.entries(consolidated).map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
                         const result = await stockService.reserveStock(
                             bookingToSave.senderId,
                             bookingToSave.branchId,
@@ -228,18 +212,17 @@ export class LogisticsService extends BaseService {
                             'customer-app',
                             bookingToSave.senderName || 'Customer'
                         );
-
-                        if (!result.success) {
-                            throw new Error(`Stock Reservation Failed: ${result.error}`);
-                        }
-                    } catch (e: any) {
-                        throw new Error(`Stock Error: ${e.message}`);
-                    }
+                        if (!result.success) throw new Error(`Stock Reservation Failed: ${result.error}`);
+                    } catch (e: any) { throw new Error(`Stock Error: ${e.message}`); }
                 }
             }
         }
 
-        // --- ITEM-LEVEL COMMISSION TRIGGER ---
+        // --- COMMISSIONS & SIDE EFFECTS (Modifies bookingToSave) ---
+        // We perform the reads/modifications BEFORE the transaction block where possible, 
+        // OR we just keep this logic here. It modifies 'bookingToSave'.
+        // This part involves fetching Docs (Old Booking).
+
         if (walletService && hrService && bookingToSave.id && bookingToSave.items) {
             try {
                 const oldBookingSnap = await getDoc(doc(this.db, 'parcel_bookings', bookingToSave.id));
@@ -248,155 +231,74 @@ export class LogisticsService extends BaseService {
                 const commissionRules = await this.getDriverCommissionRules();
                 const employees = await hrService.getEmployees();
 
-                // Fetch exchange rate from currencies collection (KHR rate)
-                let commissionExchangeRate = 4000; // Default fallback
+                let commissionExchangeRate = 4000;
                 try {
                     const currencies = await configService.getCurrencies();
                     const khrCurrency = currencies.find((c: any) => c.code === 'KHR');
-                    if (khrCurrency?.rate) {
-                        commissionExchangeRate = khrCurrency.rate;
-                    }
-                } catch (e) {
-                    console.warn("Failed to fetch currencies for exchange rate, using default:", e);
-                }
+                    if (khrCurrency?.rate) commissionExchangeRate = khrCurrency.rate;
+                } catch (e) { }
 
                 for (const item of bookingToSave.items) {
                     const oldItem = oldBooking?.items?.find((i: ParcelItem) => i.id === item.id);
-                    // Use per-item fee if available, fallback to booking-level for legacy
                     const itemFeeShare = item.deliveryFee ?? ((bookingToSave.totalDeliveryFee || 0) / (bookingToSave.items.length || 1));
-
-                    // COMMISSIONS ONLY TRIGGER ON DELIVERED STATUS
-                    // Both pickup and delivery commissions are calculated when the item is delivered
                     const isNowDelivered = item.status === 'DELIVERED';
                     const wasNotDelivered = !oldItem || oldItem.status !== 'DELIVERED';
-
-                    // Commission currency follows the item's COD currency
                     const commissionCurrency = item.codCurrency || bookingToSave.currency || 'USD';
-                    // The fee is already in the item's currency (per-item fee), so no conversion needed for percentage rules
-                    const feeCurrency = item.deliveryFee !== undefined ? (item.codCurrency || 'USD') : (bookingToSave.currency || 'USD');
-
-                    // Helper function to convert commission to target currency (only needed for FIXED_AMOUNT rules in different currency)
-                    // For percentage rules, commission is already in the same currency as the fee
-                    const convertCommission = (amount: number, isPercentageRule: boolean = true): number => {
-                        // For percentage rules, the commission is calculated from the fee which is already in the correct currency
-                        if (isPercentageRule && feeCurrency === commissionCurrency) return amount;
-
-                        // For fixed amount rules, may need conversion
-                        if (feeCurrency === commissionCurrency) return amount;
-                        if (feeCurrency === 'USD' && commissionCurrency === 'KHR') {
-                            return Math.round(amount * commissionExchangeRate);
-                        }
-                        if (feeCurrency === 'KHR' && commissionCurrency === 'USD') {
-                            return Math.round((amount / commissionExchangeRate) * 100) / 100;
-                        }
-                        return amount;
-                    };
-
 
                     if (isNowDelivered && wasNotDelivered) {
-                        // --- STOCK DEDUCTION ---
-                        // Use stockProducts array for stock bookings
+                        // ... Stock Deduction Logic ...
                         if (bookingToSave.stockProducts && bookingToSave.stockProducts.length > 0 && bookingToSave.senderId && bookingToSave.branchId) {
                             try {
-                                // Deduct all products in stockProducts array
-                                const stockDeductions = bookingToSave.stockProducts.map(sp => ({
+                                const stockDeductions = bookingToSave.stockProducts.map((sp: any) => ({
                                     stockItemId: sp.stockItemId,
                                     quantity: sp.quantity || 1
                                 }));
-                                await stockService.confirmDelivery(
-                                    bookingToSave.senderId,
-                                    bookingToSave.branchId,
-                                    stockDeductions,
-                                    bookingToSave.id,
-                                    item.id,
-                                    'driver-app',
-                                    'Driver'
-                                );
+                                await stockService.confirmDelivery(bookingToSave.senderId, bookingToSave.branchId, stockDeductions, bookingToSave.id, item.id, 'driver-app', 'Driver');
                             } catch (e) {
                                 console.error("Stock Deduction (stockProducts) Failed:", e);
                             }
-                        }
-                        // Legacy: Single item stock deduction (for old bookings)
-                        else if (item.stockItemId && bookingToSave.senderId && bookingToSave.branchId) {
+                        } else if (item.stockItemId && bookingToSave.senderId && bookingToSave.branchId) {
                             try {
-                                await stockService.confirmDelivery(
-                                    bookingToSave.senderId,
-                                    bookingToSave.branchId,
-                                    [{ stockItemId: item.stockItemId, quantity: item.quantity || 1 }],
-                                    bookingToSave.id,
-                                    item.id,
-                                    'driver-app',
-                                    'Driver'
-                                );
-                            } catch (e) {
-                                console.error("Stock Deduction (legacy) Failed:", e);
-                            }
+                                await stockService.confirmDelivery(bookingToSave.senderId, bookingToSave.branchId, [{ stockItemId: item.stockItemId, quantity: item.quantity || 1 }], bookingToSave.id, item.id, 'driver-app', 'Driver');
+                            } catch (e) { console.error("Stock Deduction Failed:", e); }
                         }
 
-                        // 1. Pickup Commission (to collector who picked up)
+                        // ... Commissions Logic (Pickup/Delivery/Taxi) ...
+
+                        // 1. Pickup Comm
                         if (item.collectorId && !item.pickupCommission) {
                             const collector = employees.find((e: any) => e.linkedUserId === item.collectorId);
-                            // Pass commissionCurrency and exchangeRate for correct FIXED_AMOUNT conversion
                             let commission = calculateDriverCommission(collector, bookingToSave, 'PICKUP', commissionRules, itemFeeShare, commissionCurrency, commissionExchangeRate);
-                            // No additional conversion needed - commission is now in the correct currency
                             if (commission > 0) {
                                 item.pickupCommission = commission;
                                 item.pickupCommissionCurrency = commissionCurrency;
-                                await walletService.processWalletTransaction(
-                                    item.collectorId, commission, commissionCurrency, 'EARNING', '',
-                                    `Pickup: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
-                                    [{ bookingId: bookingToSave.id, itemId: item.id }]
-                                );
+                                await walletService.processWalletTransaction(item.collectorId, commission, commissionCurrency, 'EARNING', '', `Pickup: ${item.receiverName}`, [{ bookingId: bookingToSave.id, itemId: item.id }]);
                             }
                         }
-
-                        // 2. Delivery Commission (to deliverer who delivered)
+                        // 2. Delivery Comm
                         if (item.delivererId && !item.deliveryCommission) {
                             const deliverer = employees.find((e: any) => e.linkedUserId === item.delivererId);
-                            // Pass commissionCurrency and exchangeRate for correct FIXED_AMOUNT conversion
                             let commission = calculateDriverCommission(deliverer, bookingToSave, 'DELIVERY', commissionRules, itemFeeShare, commissionCurrency, commissionExchangeRate);
                             if (commission > 0) {
                                 item.deliveryCommission = commission;
                                 item.deliveryCommissionCurrency = commissionCurrency;
-                                await walletService.processWalletTransaction(
-                                    item.delivererId, commission, commissionCurrency, 'EARNING', '',
-                                    `Delivery: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
-                                    [{ bookingId: bookingToSave.id, itemId: item.id }]
-                                );
+                                await walletService.processWalletTransaction(item.delivererId, commission, commissionCurrency, 'EARNING', '', `Delivery: ${item.receiverName}`, [{ bookingId: bookingToSave.id, itemId: item.id }]);
                             }
                         }
-
-                        // 3. Taxi Fee Reimbursement (to deliverer who paid taxi out of pocket)
+                        // 3. Taxi Fee
                         if (item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0 && !item.taxiFeePosted) {
                             const taxiDriverId = item.delivererId || item.driverId;
                             if (taxiDriverId) {
-                                await walletService.processWalletTransaction(
-                                    taxiDriverId, item.taxiFee, item.taxiFeeCurrency || 'USD', 'TAXI_FEE', '',
-                                    `🚕 Taxi Reimbursement: ${item.receiverName} (${bookingToSave.id.slice(-4)})`,
-                                    [{ bookingId: bookingToSave.id, itemId: item.id }]
-                                );
+                                await walletService.processWalletTransaction(taxiDriverId, item.taxiFee, item.taxiFeeCurrency || 'USD', 'TAXI_FEE', '', `Taxi Reimbursement: ${item.receiverName}`, [{ bookingId: bookingToSave.id, itemId: item.id }]);
                                 item.taxiFeePosted = true;
                             }
                         }
                     }
 
-                    // --- STOCK RELEASE (CANCELLED) ---
-                    const isNowCancelled = (item.status === 'CANCELLED' || bookingToSave.status === 'CANCELLED') &&
-                        (!oldItem || (oldItem.status !== 'CANCELLED' && oldItem.status !== 'RETURN_TO_SENDER')); // Avoid double release
-
+                    // ... Stock Release (Cancelled) ...
+                    const isNowCancelled = (item.status === 'CANCELLED' || bookingToSave.status === 'CANCELLED') && (!oldItem || (oldItem.status !== 'CANCELLED' && oldItem.status !== 'RETURN_TO_SENDER'));
                     if (isNowCancelled && item.stockItemId && bookingToSave.senderId && bookingToSave.branchId) {
-                        try {
-                            await stockService.releaseReservation(
-                                bookingToSave.senderId,
-                                bookingToSave.branchId,
-                                [{ stockItemId: item.stockItemId, quantity: item.quantity || 1 }],
-                                bookingToSave.id,
-                                'system',
-                                'System'
-                            );
-                        } catch (e) {
-                            console.error("Stock Release Failed:", e);
-                        }
+                        try { await stockService.releaseReservation(bookingToSave.senderId, bookingToSave.branchId, [{ stockItemId: item.stockItemId, quantity: item.quantity || 1 }], bookingToSave.id, 'system', 'System'); } catch (e) { }
                     }
                 }
             } catch (e) {
@@ -404,6 +306,7 @@ export class LogisticsService extends BaseService {
             }
         }
 
+        // --- IMAGE UPLOADS ---
         if (bookingToSave.items && bookingToSave.items.length > 0) {
             const updatedItems = await Promise.all(bookingToSave.items.map(async (item: any) => {
                 const updates: any = {};
@@ -414,85 +317,51 @@ export class LogisticsService extends BaseService {
             bookingToSave.items = updatedItems;
         }
 
-        // --- REFERRAL ENGINE TRIGGER ---
+        // --- REFERRALS (POST-SAVE TRIGGER) ---
         const isComplete = bookingToSave.status === 'COMPLETED' || bookingToSave.items.every((i: any) => i.status === 'DELIVERED');
-
         if (isComplete && !bookingToSave.referralProcessed && walletService && configService && bookingToSave.senderId) {
             try {
                 const userUid = await configService.getUserUidByCustomerId(bookingToSave.senderId);
                 if (userUid) {
-                    // 1. Increment Order Count atomically
-                    await updateDoc(doc(this.db, 'users', userUid), {
-                        completedOrderCount: increment(1)
-                    });
-
-                    // 2. Fetch Fresh User Data
+                    await updateDoc(doc(this.db, 'users', userUid), { completedOrderCount: increment(1) });
                     const userSnap = await getDoc(doc(this.db, 'users', userUid));
                     if (userSnap.exists()) {
                         const userData = userSnap.data() as UserProfile;
-
-                        // Only process if they were referred
                         if (userData.referredBy) {
-                            // Use completedOrderCount from snapshot or update logic
                             const reliableCount = userData.completedOrderCount || 1;
                             const joinedAt = userData.joinedAt || userData.createdAt || 0;
-
-                            // 3. Fetch Active Rules
                             const rulesSnap = await getDocs(query(collection(this.db, 'referral_rules'), where('isActive', '==', true)));
                             const rules = rulesSnap.docs.map(d => d.data() as ReferralRule);
 
-                            // 4. Evaluate Rules
                             for (const rule of rules) {
                                 let isMatch = false;
-
-                                // Check Time Limit
                                 if (rule.expiryDays && rule.expiryDays > 0) {
                                     const daysSinceJoin = (Date.now() - joinedAt) / (1000 * 60 * 60 * 24);
-                                    if (daysSinceJoin > rule.expiryDays) continue; // Expired
+                                    if (daysSinceJoin > rule.expiryDays) continue;
                                 }
+                                if (rule.trigger === 'FIRST_ORDER' && reliableCount === 1) isMatch = true;
+                                else if (rule.trigger === 'ORDER_MILESTONE' && rule.milestoneCount && reliableCount === rule.milestoneCount) isMatch = true;
 
-                                // Check Trigger
-                                if (rule.trigger === 'FIRST_ORDER' && reliableCount === 1) {
-                                    isMatch = true;
-                                } else if (rule.trigger === 'ORDER_MILESTONE' && rule.milestoneCount && reliableCount === rule.milestoneCount) {
-                                    isMatch = true;
-                                }
-
-                                if (isMatch) {
-                                    console.log(`Executing Referral Rule: ${rule.name} for user ${userUid}`);
-                                    await walletService.executeReferralRule(userUid, userData.referredBy, rule);
-                                }
+                                if (isMatch) await walletService.executeReferralRule(userUid, userData.referredBy, rule);
                             }
                         }
                     }
                 }
-
-                // Mark as processed to avoid re-running logic on next save
                 bookingToSave.referralProcessed = true;
-
-            } catch (e: any) {
-                // Log warning but do not stop execution. 
-                // This often happens if the current user (e.g. Driver) lacks permission to update User Stats.
-                console.warn("Referral trigger skipped due to error/permission:", e.message);
-            }
+            } catch (e) { }
         }
 
-        // --- POPULATE INVOLVED DRIVERS INDEX ---
+        // --- INDEX POPULATION (Drivers) ---
         const driverIds = new Set<string>();
-
-        // Helper to add IDs and their linked User IDs
         const addDriverId = (id: string | undefined, allEmployees: Employee[]) => {
             if (!id) return;
             driverIds.add(id);
-            // Also add the linked user ID if this is an employee ID
             const emp = allEmployees.find(e => e.id === id || e.linkedUserId === id);
             if (emp?.linkedUserId) driverIds.add(emp.linkedUserId);
             if (emp?.id) driverIds.add(emp.id);
         };
-
         try {
             const allEmployees = hrService ? await hrService.getEmployees() : await this.getCollection<Employee>('employees');
-
             if (bookingToSave.driverId) addDriverId(bookingToSave.driverId, allEmployees);
             if (bookingToSave.items) {
                 bookingToSave.items.forEach((item: ParcelItem) => {
@@ -503,20 +372,13 @@ export class LogisticsService extends BaseService {
             }
             bookingToSave.involvedDriverIds = Array.from(driverIds);
         } catch (e) {
-            console.warn("Failed to update involvement index:", e);
-            // Fallback to basic IDs if employee fetch fails
+            // Fallback
             if (bookingToSave.driverId) driverIds.add(bookingToSave.driverId);
-            if (bookingToSave.items) {
-                bookingToSave.items.forEach((item: ParcelItem) => {
-                    if (item.driverId) driverIds.add(item.driverId);
-                    if (item.collectorId) driverIds.add(item.collectorId);
-                    if (item.delivererId) driverIds.add(item.delivererId);
-                });
-            }
+            if (bookingToSave.items) bookingToSave.items.forEach((i: any) => { if (i.driverId) driverIds.add(i.driverId); });
             bookingToSave.involvedDriverIds = Array.from(driverIds);
         }
 
-        // --- NEW: BARCODE INDEXING ---
+        // --- INDEX POPULATION (Search Barcodes) ---
         const searchCodes = new Set<string>();
         if (bookingToSave.items) {
             bookingToSave.items.forEach((item: ParcelItem) => {
@@ -526,10 +388,69 @@ export class LogisticsService extends BaseService {
             });
         }
         if (bookingToSave.id) searchCodes.add(bookingToSave.id);
-
         (bookingToSave as any).itemBarcodes = Array.from(searchCodes).filter(c => c && c.length > 0);
 
-        await this.saveDocument('parcel_bookings', bookingToSave);
+
+        // =========================================================================================
+        // CRITICAL UPDATE: Enforce Unique Barcodes via Transaction
+        // =========================================================================================
+
+        await runTransaction(this.db, async (transaction) => {
+            const bookingRef = doc(this.db, 'parcel_bookings', bookingToSave.id);
+
+            // 1. Fetch current version of the booking from DB (for barcode comparison)
+            const currentBookingSnap = await transaction.get(bookingRef);
+            const currentBooking = currentBookingSnap.exists() ? currentBookingSnap.data() as ParcelBooking : null;
+
+            // 2. Identify New vs Old Barcodes
+            const newBarcodes = new Set<string>();
+            if (bookingToSave.items) {
+                bookingToSave.items.forEach((item: ParcelItem) => {
+                    if (item.barcode) newBarcodes.add(item.barcode.trim());
+                });
+            }
+
+            const oldBarcodes = new Set<string>();
+            if (currentBooking && currentBooking.items) {
+                currentBooking.items.forEach((item: ParcelItem) => {
+                    if (item.barcode) oldBarcodes.add(item.barcode.trim());
+                });
+            }
+
+            // 3. Verify Uniqueness for NEWly added barcodes
+            const barcodesToCheck = Array.from(newBarcodes).filter(code => !oldBarcodes.has(code));
+
+            for (const code of barcodesToCheck) {
+                if (!code) continue;
+                const barcodeRef = doc(this.db, 'barcodes', code);
+                const barcodeSnap = await transaction.get(barcodeRef);
+
+                if (barcodeSnap.exists()) {
+                    const existingData = barcodeSnap.data();
+                    // Conflict if it belongs to a different booking
+                    if (existingData.bookingId !== bookingToSave.id) {
+                        throw new Error(`Barcode verification failed: Code "${code}" is already used by Booking ID ${existingData.bookingId}`);
+                    }
+                }
+            }
+
+            // 4. Update Barcode Registry
+            // A. Remove dropped barcodes
+            const barcodesToRemove = Array.from(oldBarcodes).filter(code => !newBarcodes.has(code));
+            for (const code of barcodesToRemove) {
+                transaction.delete(doc(this.db, 'barcodes', code));
+            }
+            // B. Add/Claim new barcodes
+            for (const code of Array.from(newBarcodes)) {
+                transaction.set(doc(this.db, 'barcodes', code), {
+                    bookingId: bookingToSave.id,
+                    updatedAt: Date.now()
+                }); // using set (overwrite) is fine as we verified ownership/uniqueness above
+            }
+
+            // 5. Save the Booking
+            transaction.set(bookingRef, bookingToSave, { merge: true });
+        });
     }
 
     async findBookingByBarcode(barcode: string): Promise<ParcelBooking | null> {

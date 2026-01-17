@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParcelBooking, ParcelStatusConfig, ParcelItem, Customer, Employee } from '../../src/shared/types';
 import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
 import { ChatModal } from '../ui/ChatModal';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { TrackingTimeline } from '../customer/TrackingTimeline';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { toast } from '../../src/shared/utils/toast';
+import { AssignDriverModal } from './AssignDriverModal';
+import { StatusUpdateModal } from './StatusUpdateModal';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -64,10 +64,8 @@ export const ParcelList: React.FC = () => {
 
     // Status Update Modal
     const [updatingBooking, setUpdatingBooking] = useState<ParcelBooking | null>(null);
-    const [selectedStatusId, setSelectedStatusId] = useState('');
     const [activeChat, setActiveChat] = useState<{ itemId: string, bookingId: string, itemName: string, recipientName: string, recipientId?: string } | null>(null);
     const [assigningBooking, setAssigningBooking] = useState<ParcelBooking | null>(null);
-    const [selectedDriverId, setSelectedDriverId] = useState('');
 
     const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -254,27 +252,7 @@ export const ParcelList: React.FC = () => {
 
     const drivers = useMemo(() => employees.filter(e => e.isDriver), [employees]);
 
-    const handleAssignDriver = async () => {
-        if (!assigningBooking || !selectedDriverId) return;
-        const driver = employees.find(e => e.id === selectedDriverId);
 
-        if (!driver) return;
-        if (!driver.linkedUserId) {
-            toast.error("This driver does not have a linked user account (UID). Cannot assign jobs to them.");
-            return;
-        }
-
-        try {
-            await firebaseService.logisticsService.assignBookingDriver(assigningBooking.id, driver.linkedUserId, driver.name);
-            setAssigningBooking(null);
-            setSelectedDriverId('');
-            toast.success("Driver assigned successfully");
-            loadData();
-        } catch (e) {
-            console.error(e);
-            toast.error("Failed to assign driver");
-        }
-    };
 
     const renderStatus = (booking: ParcelBooking) => {
         // Derive effective status from items if possible
@@ -334,24 +312,6 @@ export const ParcelList: React.FC = () => {
             return;
         }
         setUpdatingBooking(booking);
-        setSelectedStatusId(booking.statusId || '');
-    };
-
-    const handleUpdateStatus = async () => {
-        if (!updatingBooking || !selectedStatusId) return;
-
-        const user = await firebaseService.getCurrentUser();
-        const userName = user?.name || 'Unknown Staff';
-        const userId = user?.uid || 'uid-unknown';
-
-        try {
-            await firebaseService.updateParcelStatus(updatingBooking.id, selectedStatusId, userId, userName);
-            setUpdatingBooking(null);
-            loadData();
-        } catch (e) {
-            console.error(e);
-            toast.error("Failed to update status.");
-        }
     };
 
 
@@ -540,7 +500,7 @@ export const ParcelList: React.FC = () => {
                                             <div className="text-xs text-gray-500">{b.senderPhone}</div>
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-700">
-                                            <div>{b.items?.[0]?.serviceName || 'Standard'}</div>
+                                            <div>{(b.items?.[0] as any)?.serviceName || 'Standard'}</div>
                                         </td>
                                         <td className="px-6 py-4 text-center text-sm text-gray-600">
                                             <div className="font-bold">{(b.items || []).length}</div>
@@ -574,7 +534,6 @@ export const ParcelList: React.FC = () => {
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             setAssigningBooking(b);
-                                                            setSelectedDriverId(b.driverId || '');
                                                         }}
                                                         className="text-indigo-600 hover:text-indigo-900 text-xs font-medium border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50"
                                                         title="Assign Driver"
@@ -678,8 +637,9 @@ export const ParcelList: React.FC = () => {
                                                                                             recipientId: item.driverId || undefined // Optional, if known
                                                                                         });
                                                                                     }}
-                                                                                    className="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded-full hover:bg-indigo-50"
-                                                                                    title="Chat / Comment"
+                                                                                    disabled={['DELIVERED', 'RETURN_TO_SENDER'].includes(item.status || '')}
+                                                                                    className={`transition-colors p-1 rounded-full ${['DELIVERED', 'RETURN_TO_SENDER'].includes(item.status || '') ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                                                                    title={['DELIVERED', 'RETURN_TO_SENDER'].includes(item.status || '') ? "Chat disabled for completed orders" : "Chat / Comment"}
                                                                                 >
                                                                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
                                                                                 </button>
@@ -728,40 +688,13 @@ export const ParcelList: React.FC = () => {
 
             {/* Status Update Modal */}
             {updatingBooking && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Update Delivery Status</h3>
-                        <div className="space-y-4">
-                            <p className="text-sm text-gray-600">
-                                Move <strong>{updatingBooking.senderName}'s</strong> parcel to:
-                            </p>
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                                {statuses.map(s => (
-                                    <label key={s.id} className={`flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${selectedStatusId === s.id ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50' : 'border-gray-200'}`}>
-                                        <input
-                                            type="radio"
-                                            name="status"
-                                            value={s.id}
-                                            checked={selectedStatusId === s.id}
-                                            onChange={() => setSelectedStatusId(s.id)}
-                                            className="text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <div className="ml-3 flex-1">
-                                            <span className="block text-sm font-medium text-gray-900">{s.label}</span>
-                                            {s.triggersRevenue && (
-                                                <span className="text-[10px] text-green-600 font-medium bg-green-50 px-1.5 rounded">Records Revenue</span>
-                                            )}
-                                        </div>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex justify-end space-x-3 mt-6">
-                            <Button variant="outline" onClick={() => setUpdatingBooking(null)}>{t('cancel')}</Button>
-                            <Button onClick={handleUpdateStatus}>{t('save')}</Button>
-                        </div>
-                    </div>
-                </div>
+                <StatusUpdateModal
+                    isOpen={!!updatingBooking}
+                    onClose={() => setUpdatingBooking(null)}
+                    booking={updatingBooking}
+                    statuses={statuses}
+                    onSuccess={loadData}
+                />
             )}
 
             {/* View Details Modal */}
@@ -785,52 +718,13 @@ export const ParcelList: React.FC = () => {
             )}
 
             {assigningBooking && (
-                <Modal
+                <AssignDriverModal
                     isOpen={!!assigningBooking}
                     onClose={() => setAssigningBooking(null)}
-                    title="Assign Driver"
-                    maxWidth="max-w-md"
-                >
-                    <div className="space-y-4">
-                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                            <div className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Booking Info</div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="font-mono">{assigningBooking.id.slice(-6).toUpperCase()}</span>
-                                <span className="text-gray-600">
-                                    {new Date(assigningBooking.createdAt || assigningBooking.bookingDate).toLocaleString()}
-                                </span>
-                            </div>
-                            <div className="text-sm mt-1">
-                                <span className="text-gray-500">Sender:</span> <span className="font-medium">{assigningBooking.senderName}</span>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Select Driver</label>
-                            <select
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                value={selectedDriverId}
-                                onChange={(e) => setSelectedDriverId(e.target.value)}
-                            >
-                                <option value="">-- Select Driver --</option>
-                                {drivers.map(driver => (
-                                    <option key={driver.id} value={driver.id}>
-                                        {driver.name} {driver.vehiclePlateNumber ? `(${driver.vehiclePlateNumber})` : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="flex justify-end gap-3 mt-6">
-                            <Button variant="secondary" onClick={() => setAssigningBooking(null)}>
-                                Cancel
-                            </Button>
-                            <Button variant="primary" onClick={handleAssignDriver} disabled={!selectedDriverId}>
-                                Confirm Assignment
-                            </Button>
-                        </div>
-                    </div>
-                </Modal>
+                    booking={assigningBooking}
+                    drivers={drivers}
+                    onSuccess={loadData}
+                />
             )}
         </Card>
     );
