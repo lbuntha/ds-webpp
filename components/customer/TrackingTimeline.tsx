@@ -269,7 +269,7 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
                                         <span className="bg-gray-800 text-white text-xs font-bold px-2 py-1 rounded">#{idx + 1}</span>
                                         <div>
                                             <p className="text-sm font-bold text-gray-900">{item.receiverName || 'Receiver'}</p>
-                                            <p className="text-[10px] text-gray-500 font-mono">{item.trackingCode}</p>
+                                            <p className="text-[10px] text-gray-500 font-mono">{item.barcode || item.trackingCode}</p>
                                             <p className="text-[10px] text-gray-400">
                                                 {history[0]?.date ? new Date(history[0].date).toLocaleString() : 'No updates'}
                                             </p>

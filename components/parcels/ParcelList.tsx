@@ -594,7 +594,7 @@ export const ParcelList: React.FC = () => {
                                                             <thead className="bg-gray-50">
                                                                 <tr>
                                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
-                                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking Code</th>
+                                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Barcode</th>
                                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
                                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
                                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
@@ -634,7 +634,7 @@ export const ParcelList: React.FC = () => {
                                                                             <td className="px-4 py-2 text-sm font-mono text-gray-600">
                                                                                 <span className="flex items-center gap-2">
                                                                                     <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                                                                    {item.trackingCode || '-'}
+                                                                                    {item.barcode || item.trackingCode || '-'}
                                                                                 </span>
                                                                             </td>
                                                                             <td className="px-4 py-2 text-sm text-gray-900">
@@ -651,7 +651,7 @@ export const ParcelList: React.FC = () => {
                                                                             <td className="px-4 py-2 text-center text-xs text-gray-500 whitespace-nowrap">
                                                                                 {(item.modifications && item.modifications.length > 0)
                                                                                     ? new Date(item.modifications[item.modifications.length - 1].timestamp).toLocaleString()
-                                                                                    : (b.updatedAt ? new Date(b.updatedAt).toLocaleString() : '-')}
+                                                                                    : ((b.statusHistory && b.statusHistory.length > 0) ? new Date(b.statusHistory[b.statusHistory.length - 1].timestamp).toLocaleString() : '-')}
                                                                             </td>
                                                                             <td className="px-4 py-2 text-center">
                                                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${(item.status || 'PENDING') === 'DELIVERED' ? 'bg-green-100 text-green-800' :
