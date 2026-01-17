@@ -16,7 +16,7 @@ const API_ID = Number(process.env.TELEGRAM_API_ID);
 const API_HASH = process.env.TELEGRAM_API_HASH;
 const SESSION_STRING = process.env.TELEGRAM_APP_SESSION;
 // PayWay sender names to match
-const PAYWAY_SENDER_NAMES = ['PayWay', 'PayWay by ABA'];
+const PAYWAY_SENDER_NAMES = ['PayWay by ABA'];
 
 // Interface for Telegram Group config
 interface TelegramGroupConfig {
