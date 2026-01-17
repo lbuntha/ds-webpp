@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import QRCode from 'react-qr-code';
 import { ParcelBooking, ParcelItem, UserProfile, ParcelModification } from '../../src/shared/types';
 import { Button } from '../ui/Button';
 import { firebaseService } from '../../src/shared/services/firebaseService';
@@ -269,6 +270,9 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
                                         <div>
                                             <p className="text-sm font-bold text-gray-900">{item.receiverName || 'Receiver'}</p>
                                             <p className="text-[10px] text-gray-500 font-mono">{item.trackingCode}</p>
+                                            <p className="text-[10px] text-gray-400">
+                                                {history[0]?.date ? new Date(history[0].date).toLocaleString() : 'No updates'}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="text-right">
@@ -358,9 +362,30 @@ export const TrackingTimeline: React.FC<Props> = ({ booking, currentUser, initia
 
                                     {/* Details Grid */}
                                     <div className="flex gap-4 mb-6">
-                                        <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 cursor-pointer" onClick={() => setZoomImage(item.image)}>
-                                            <img src={item.image} alt="Parcel" className="w-full h-full object-cover" />
+                                        <div className="flex gap-2">
+                                            {item.image && (
+                                                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setZoomImage(item.image)} title="View Parcel Image">
+                                                    <img src={item.image} alt="Parcel" className="w-full h-full object-cover" />
+                                                </div>
+                                            )}
+                                            {item.proofOfDelivery && (
+                                                <div className="w-20 h-20 bg-green-50 rounded-lg overflow-hidden border border-green-200 flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setZoomImage(item.proofOfDelivery)} title="View Proof of Delivery">
+                                                    <img src={item.proofOfDelivery} alt="POD" className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-x-0 bottom-0 bg-black/50 text-white text-[10px] text-center font-bold py-0.5">POD</div>
+                                                </div>
+                                            )}
                                         </div>
+
+                                        {/* QR Code */}
+                                        <div className="flex flex-col items-center justify-center p-2 bg-white rounded-lg border border-gray-100">
+                                            <div className="p-1 bg-white">
+                                                <QRCode value={item.barcode || item.trackingCode || item.id} size={64} />
+                                            </div>
+                                            <span className="text-[9px] font-mono mt-1 text-gray-400 max-w-[64px] truncate">
+                                                {item.barcode || 'SCAN'}
+                                            </span>
+                                        </div>
+
                                         <div className="flex-1 space-y-1 min-w-0">
                                             <div className="flex items-start text-sm text-gray-700">
                                                 <svg className="w-4 h-4 mr-2 text-gray-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>

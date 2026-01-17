@@ -589,6 +589,64 @@ export class LogisticsService extends BaseService {
         }
     }
 
+    async assignBookingDriver(bookingId: string, driverId: string, driverName: string) {
+        const ref = doc(this.db, 'parcel_bookings', bookingId);
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+            const booking = snap.data() as ParcelBooking;
+
+            // 1. Update Booking Level
+            const timestamp = Date.now();
+            const updates: any = {
+                driverId,
+                driverName,
+                status: 'CONFIRMED',
+                statusId: 'ps-pickup', // Matches 'handleAcceptJob' logic (Ready for Pickup)
+
+                // Locking fields (consistency with Driver App)
+                lockedByDriverId: driverId,
+                lockedByDriverName: driverName,
+                lockedAt: timestamp,
+                driverAcceptedAt: timestamp, // Match manual accept record
+                updatedAt: timestamp,
+
+                // Ensure involvedDriverIds includes the new driver
+                involvedDriverIds: Array.from(new Set([...(booking.involvedDriverIds || []), driverId])),
+
+                // Append to status history
+                statusHistory: [...(booking.statusHistory || []), {
+                    statusId: 'ps-pickup',
+                    statusLabel: 'Picked Up', // or 'Confirmed'/'Accepted' depending on label config, but sticking to ID
+                    timestamp,
+                    updatedBy: 'Dispatcher',
+                    notes: `Assigned to driver ${driverName}`
+                }]
+            };
+
+            // 2. Update Items Level
+            if (booking.items) {
+                const updatedItems = booking.items.map((item: any) => ({
+                    ...item,
+                    driverId,
+                    driverName,
+                    // Note: Item status usually stays PENDING until physically picked up, but Booking is CONFIRMED.
+                    modifications: [...(item.modifications || []), {
+                        timestamp: Date.now(),
+                        userId: 'system', // or passed in userId if available, but for now system/admin
+                        userName: 'Dispatcher',
+                        field: 'Driver Assignment',
+                        oldValue: item.driverName || 'Unassigned',
+                        newValue: driverName
+                    }]
+                }));
+                updates.items = updatedItems;
+            }
+
+            await updateDoc(ref, updates);
+        }
+    }
+
     async updateParcelItemCOD(bookingId: string, itemId: string, amount: number, currency: 'USD' | 'KHR') {
         const ref = doc(this.db, 'parcel_bookings', bookingId);
         const snap = await getDoc(ref);
