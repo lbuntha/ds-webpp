@@ -87,7 +87,7 @@ export const SettlementReportModal: React.FC<Props> = ({
                             setCustomerBankAccount(customer.bankAccounts[0]); // Use first bank account
                         }
                     } catch (e) {
-                        console.warn('Could not fetch customer bank account:', e);
+                        // console.warn('Could not fetch customer bank account:', e);
                     }
                 }
 
@@ -251,13 +251,13 @@ export const SettlementReportModal: React.FC<Props> = ({
                                 // And visually indicate it.
 
                                 // DEBUG TAXI FEE
-                                console.log('DEBUG TXN CURRENCY', transaction.currency);
-                                console.log('DEBUG TAXI', {
+                                // console.log('DEBUG TXN CURRENCY', transaction.currency);
+                                /* console.log('DEBUG TAXI', {
                                     id: parcelItem.id,
                                     fee: parcelItem.taxiFee,
                                     feeCurr: parcelItem.taxiFeeCurrency,
                                     targetCurr: targetCurrency
-                                });
+                                }); */
 
                                 // Fixed Taxi Fee Logic for Driver & Mixed Currency
                                 if ((parcelItem.taxiFee || 0) > 0) {
@@ -388,7 +388,7 @@ export const SettlementReportModal: React.FC<Props> = ({
                 }
                 setItems(reportItems);
             } catch (e) {
-                console.error(e);
+                // console.error(e);
             } finally {
                 setLoading(false);
             }
@@ -469,7 +469,7 @@ export const SettlementReportModal: React.FC<Props> = ({
                 setPreviewResult(result);
 
             } catch (e) {
-                console.error("Preview Generation Error", e);
+                // console.error("Preview Generation Error", e);
             } finally {
                 setPreviewLoading(false);
             }

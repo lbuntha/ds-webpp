@@ -98,7 +98,7 @@ export class OTPService {
 
             await setDoc(doc(this.db, 'otp_codes', normalizedPhone), otpRecord);
 
-            console.log(`[OTP] Generated code for ${phone}: ${code}`); // For development - remove in production
+            // console.log(`[OTP] Generated code for ${phone}: ${code}`); // For development - remove in production
 
             return {
                 success: true,
@@ -246,7 +246,7 @@ export class OTPService {
                 }
             }
 
-            console.log(`[OTP] Cleaned up ${deletedCount} expired codes`);
+            // console.log(`[OTP] Cleaned up ${deletedCount} expired codes`);
             return deletedCount;
         } catch (error) {
             console.error('[OTP] Cleanup error:', error);

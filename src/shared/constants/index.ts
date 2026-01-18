@@ -116,6 +116,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-parcels-operations', label: 'Operations', viewId: 'PARCELS_OPERATIONS', iconKey: 'operations', order: 12, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-parcels-warehouse', label: 'Warehouse', viewId: 'PARCELS_WAREHOUSE', iconKey: 'warehouse', order: 13, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-parcels-dispatch', label: 'Dispatch', viewId: 'PARCELS_DISPATCH', iconKey: 'dispatch', order: 14, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
+  { id: 'nav-delayed-chats', label: 'Delayed Chats', viewId: 'DELAYED_CHATS', iconKey: 'chat-delay', order: 14.5, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-stock-management', label: 'Stock Management', viewId: 'STOCK_MANAGEMENT', iconKey: 'package', order: 15, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-incoming-requests', label: 'Incoming Requests', viewId: 'STOCK_REQUESTS', iconKey: 'inbox', order: 15.5, allowedRoles: ['system-admin', 'warehouse'], section: 'warehouse' },
   { id: 'nav-parcels-places', label: 'Places', viewId: 'PARCELS_PLACES', iconKey: 'places', order: 16, allowedRoles: ['system-admin'], section: 'warehouse' },

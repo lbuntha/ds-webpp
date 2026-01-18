@@ -27,6 +27,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     const [searchTerm, setSearchTerm] = useState("");
     const wrapperRef = useRef<HTMLDivElement>(null);
 
+    const listRef = useRef<HTMLDivElement>(null);
+
     // Initial selected label
     const selectedOption = options.find(o => o.value === value);
 
@@ -40,9 +42,28 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Scroll to top when search changes
+    useEffect(() => {
+        if (listRef.current) {
+            listRef.current.scrollTop = 0;
+        }
+    }, [searchTerm]);
+
     const filteredOptions = options.filter(option =>
         option.label.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    ).sort((a, b) => {
+        const term = searchTerm.toLowerCase();
+        const aLabel = a.label.toLowerCase();
+        const bLabel = b.label.toLowerCase();
+
+        const aStarts = aLabel.startsWith(term);
+        const bStarts = bLabel.startsWith(term);
+
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+
+        return aLabel.localeCompare(bLabel);
+    });
 
     const handleSelect = (optionValue: string) => {
         onChange(optionValue);
@@ -77,7 +98,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                             autoFocus
                         />
                     </div>
-                    <div className="overflow-y-auto flex-1">
+                    <div className="overflow-y-auto flex-1" ref={listRef}>
                         {filteredOptions.length > 0 ? (
                             filteredOptions.map((option) => (
                                 <div

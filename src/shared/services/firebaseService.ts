@@ -286,7 +286,7 @@ export class FirebaseService {
             'referral_rules'
         ];
 
-        console.log("Starting data clear...");
+        // console.log("Starting data clear...");
 
         for (const colName of collections) {
             try {
@@ -298,7 +298,7 @@ export class FirebaseService {
 
                     if (snapshot.empty) break;
 
-                    console.log(`Clearing batch from ${colName}: ${snapshot.size} docs`);
+                    // console.log(`Clearing batch from ${colName}: ${snapshot.size} docs`);
 
                     const batch = writeBatch(db);
                     snapshot.docs.forEach((doc) => {
@@ -311,7 +311,7 @@ export class FirebaseService {
                 // Continue to next collection
             }
         }
-        console.log("Data clear complete.");
+        // console.log("Data clear complete.");
     }
 
     async initializeCompanyData(settings: any, accounts: any, branches: any, reset: boolean) {

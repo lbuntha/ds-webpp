@@ -63,7 +63,7 @@ export const ParcelOperations: React.FC = () => {
             setServices(sData);
             if (brData.length > 0) setTargetBranchId(brData[0].id);
         } catch (e) {
-            console.error("Failed to load data", e);
+            // console.error("Failed to load data", e);
         } finally {
             setLoading(false);
         }
@@ -248,14 +248,14 @@ export const ParcelOperations: React.FC = () => {
                         }
                     }
 
-                    console.log('✅ Wallet adjustments processed for delivered item edit:', {
+                    /* console.log('✅ Wallet adjustments processed for delivered item edit:', {
                         itemId: verifyItem.id,
                         codChange: codChanged ? `${oldCOD} → ${newCOD}` : 'none',
                         feeChange: feeChanged ? `${oldFee} → ${newFee}` : 'none',
                         currencyChange: currencyChanged ? `${oldCurrency} → ${newCurrency}` : 'none'
-                    });
+                    }); */
                 } catch (error) {
-                    console.error('Failed to process wallet adjustments:', error);
+                    // console.error('Failed to process wallet adjustments:', error);
                     toast.error('Item updated but wallet adjustment failed. Please check manually.');
                 }
             }
@@ -267,7 +267,7 @@ export const ParcelOperations: React.FC = () => {
                 "Parcel details and wallet adjustments updated." :
                 "Parcel details updated.");
         } catch (e) {
-            console.error("Failed to save changes", e);
+            // console.error("Failed to save changes", e);
             toast.error("Failed to save changes");
         } finally {
             setProcessing(false);

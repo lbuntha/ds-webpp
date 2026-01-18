@@ -82,7 +82,7 @@ export const TelegramBroadcast: React.FC = () => {
             setFilteredUsers(linked);
             setTotalCount(linked.length);
         } catch (e) {
-            console.error('Failed to load linked users:', e);
+            // console.error('Failed to load linked users:', e);
             toast.error('Failed to load users');
         } finally {
             setLoading(false);
@@ -218,7 +218,7 @@ export const TelegramBroadcast: React.FC = () => {
                 toast.error(data.error || 'Failed to send messages');
             }
         } catch (e: any) {
-            console.error('Broadcast error:', e);
+            // console.error('Broadcast error:', e);
             toast.error(e.message || 'Failed to send broadcast');
         } finally {
             setSending(false);
@@ -230,7 +230,7 @@ export const TelegramBroadcast: React.FC = () => {
             case 'COMPLETED': return 'bg-green-100 text-green-700';
             case 'PROCESSING': return 'bg-blue-100 text-blue-700';
             case 'FAILED': return 'bg-red-100 text-red-700';
-                console.log("No status change");
+            // console.log("No status change");
             default: return 'bg-gray-100 text-gray-700';
         }
     };

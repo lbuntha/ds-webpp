@@ -18,7 +18,7 @@ export default function AuthView() {
     // Redirect if already logged in or after successful login
     useEffect(() => {
         if (!loading && user) {
-            console.log('[AuthView] User authenticated, redirecting to /app');
+            // console.log('[AuthView] User authenticated, redirecting to /app');
             navigate('/app', { replace: true });
         }
     }, [user, loading, navigate]);

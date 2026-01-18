@@ -131,6 +131,7 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
 
         // Staff overrides
         if (item.viewId === 'STAFF_LOAN_ISSUE') return '/app/staff/issue-loan';
+        if (item.viewId === 'DELAYED_CHATS') return '/app/parcels/delayed-chats';
 
         return `/app/${item.viewId.toLowerCase().replace(/_/g, '/')}`;
     };

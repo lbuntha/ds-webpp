@@ -37,6 +37,7 @@ const ParcelsNewView = lazy(() => import('./views/ParcelsNewView'));
 const ParcelsOperationsView = lazy(() => import('./views/ParcelsOperationsView'));
 const ParcelsWarehouseView = lazy(() => import('./views/ParcelsWarehouseView'));
 const ParcelsDispatchView = lazy(() => import('./views/ParcelsDispatchView'));
+const DelayedChatsView = lazy(() => import('./views/DelayedChatsView'));
 const ParcelsFleetView = lazy(() => import('./views/ParcelsFleetView'));
 const ParcelsPlacesView = lazy(() => import('./views/ParcelsPlacesView'));
 const ParcelsProductsView = lazy(() => import('./views/ParcelsProductsView'));
@@ -300,6 +301,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_PARCEL_DISPATCH">
                         {withSuspense(ParcelsDispatchView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'parcels/delayed-chats',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_PARCEL_WAREHOUSE">
+                        {withSuspense(DelayedChatsView)}
                     </PermissionRoute>
                 ),
             },

@@ -12,7 +12,7 @@ export default function CustomerTrackingView() {
 
     const handleTrack = () => {
         // TODO: Implement tracking logic
-        console.log('Tracking:', trackingCode);
+        // console.log('Tracking:', trackingCode);
     };
 
     return (

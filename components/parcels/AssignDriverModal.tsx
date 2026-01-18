@@ -55,7 +55,7 @@ export const AssignDriverModal: React.FC<AssignDriverModalProps> = ({
             title="Assign Driver"
             maxWidth="max-w-lg"
         >
-            <div className="space-y-4 min-h-[400px]">
+            <div className="space-y-4">
                 <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
                     <div className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Booking Info</div>
                     <div className="flex justify-between items-center text-sm">
@@ -72,7 +72,7 @@ export const AssignDriverModal: React.FC<AssignDriverModalProps> = ({
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Select Driver</label>
                     <SearchableSelect
-                        options={drivers.map(d => ({
+                        options={drivers.sort((a, b) => a.name.localeCompare(b.name)).map(d => ({
                             value: d.id,
                             label: `${d.name} ${d.vehiclePlateNumber ? `(${d.vehiclePlateNumber})` : ''}`
                         }))}

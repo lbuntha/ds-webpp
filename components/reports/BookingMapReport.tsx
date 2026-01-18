@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { firebaseService } from '../../src/shared/services/firebaseService';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../src/shared/services/firebaseInstance'; // Ensure this path is correct
 import { ParcelBooking, UserProfile } from '../../src/shared/types';
 import { toast } from '../../src/shared/utils/toast';
 
@@ -19,40 +20,44 @@ export const BookingMapReport: React.FC = () => {
 
     const defaultCenter = { lat: 11.5564, lng: 104.9282 }; // Phnom Penh
 
+    // 1. Load Data Real-time
     useEffect(() => {
-        loadData();
+        setLoading(true);
+
+        // Listen to active bookings
+        // We listen to everything for now and filter client side to mirror previous logic but in real-time
+        const bookingsQuery = query(collection(db, 'parcel_bookings'));
+        const unsubscribeBookings = onSnapshot(bookingsQuery, (snapshot) => {
+            const fetchedBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ParcelBooking));
+            // Filter active ones
+            const active = fetchedBookings.filter(b => {
+                const s = (b.status || '').toUpperCase();
+                return !['COMPLETED', 'CANCELLED', 'RETURN_TO_SENDER', 'REJECTED'].includes(s);
+            });
+            setBookings(active);
+        }, (error) => {
+            console.error("Error watching bookings:", error);
+        });
+
+        // Listen to drivers
+        const usersQuery = query(collection(db, 'users'), where('role', 'in', ['driver', 'fleet-driver']));
+        const unsubscribeDrivers = onSnapshot(usersQuery, (snapshot) => {
+            const fetchedDrivers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+            setDrivers(fetchedDrivers);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error watching drivers:", error);
+            setLoading(false);
+        });
+
+        return () => {
+            unsubscribeBookings();
+            unsubscribeDrivers();
+        };
     }, []);
 
-    const loadData = async () => {
-        try {
-            const [allBookings, allUsers] = await Promise.all([
-                firebaseService.getParcelBookings(),
-                firebaseService.getUsers()
-            ]);
-
-            setBookings(allBookings);
-
-            // Filter drivers with location
-            const activeDrivers = allUsers.filter(u =>
-                (u.role === 'driver' || u.role === 'fleet-driver') &&
-                u.lastLocation &&
-                (u.lastLocation.lat || u.lastLocation.latitude) &&
-                (u.lastLocation.lng || u.lastLocation.longitude)
-            );
-            setDrivers(activeDrivers);
-
-        } catch (error) {
-            console.error("Error loading map data:", error);
-            toast.error("Failed to load map data");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // 1. Initialize Map Structure
+    // 2. Initialize Map Structure
     useEffect(() => {
-        if (loading) return;
-
         // Load Leaflet resources if not present
         if (!document.getElementById('leaflet-css')) {
             const link = document.createElement('link');
@@ -72,14 +77,13 @@ export const BookingMapReport: React.FC = () => {
             // Slight delay to ensure element is ready
             setTimeout(initMapInstance, 100);
         }
-    }, [loading]);
+    }, []);
 
     const initMapInstance = () => {
-        if (!mapContainerRef.current || map) return;
-        if ((mapContainerRef.current as any)._leaflet_id) return;
+        if (!mapContainerRef.current || (mapContainerRef.current as any)._leaflet_id) return;
 
         try {
-            const mapInstance = window.L.map(mapContainerRef.current).setView([defaultCenter.lat, defaultCenter.lng], 13);
+            const mapInstance = window.L.map(mapContainerRef.current).setView([defaultCenter.lat, defaultCenter.lng], 12);
 
             window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
@@ -93,16 +97,15 @@ export const BookingMapReport: React.FC = () => {
         }
     };
 
-    // 2. Update Markers when data or map changes
+    // 3. Update Markers when data or map changes
     useEffect(() => {
-        if (!map || !markerLayer || loading) return;
+        if (!map || !markerLayer) return;
 
         markerLayer.clearLayers();
         const boundsPoints: [number, number][] = [];
 
         const redIcon = window.L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-            iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
             shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
             iconSize: [25, 41],
             iconAnchor: [12, 41],
@@ -112,7 +115,6 @@ export const BookingMapReport: React.FC = () => {
 
         const greenIcon = window.L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-            iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
             shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
             iconSize: [25, 41],
             iconAnchor: [12, 41],
@@ -122,7 +124,6 @@ export const BookingMapReport: React.FC = () => {
 
         const blueIcon = window.L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-            iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
             shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
             iconSize: [25, 41],
             iconAnchor: [12, 41],
@@ -130,100 +131,105 @@ export const BookingMapReport: React.FC = () => {
             shadowSize: [41, 41]
         });
 
-        // Plot Bookings
-        let visibleOrders = 0;
+        // Plot Bookings - Only Pending/Confirmed (To Be Collected)
         bookings.forEach(booking => {
-            let maxStatus = (booking.status || '').toUpperCase();
-            // Map legacy status to clearer labels if needed, or just normalize
-            if (booking.statusId) maxStatus = booking.statusId.toUpperCase().replace('PS-', '');
+            const s = (booking.status || 'PENDING').toUpperCase();
 
+            // User Request: "display only status pending to be confirmed to collect"
+            // We interpret this as PENDING and CONFIRMED.
+            if (['PENDING', 'CONFIRMED'].includes(s)) {
 
-            // Define what is "Active"
-            // Exclude clearly final states
-            const isFinal = ['COMPLETED', 'CANCELLED', 'DELIVERED', 'RETURN_TO_SENDER', 'REJECTED'].includes(maxStatus);
+                // Safety check for invalid coords
+                const isValid = (lat: any, lng: any) =>
+                    !isNaN(Number(lat)) && !isNaN(Number(lng)) && Number(lat) !== 0 && Number(lng) !== 0;
 
-            if (!isFinal) {
-                const lat = Number(booking.pickupLocation?.lat);
-                const lng = Number(booking.pickupLocation?.lng);
+                const lat = booking.pickupLocation?.lat;
+                const lng = booking.pickupLocation?.lng;
 
-                if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-                    // Choose icon based on status
-                    let icon = redIcon; // Default Pending/Pickup
-                    // If it's already picked up or in transit, make it green
-                    if (['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'PICKED_UP', 'AT_WAREHOUSE'].some(s => maxStatus.includes(s))) {
-                        icon = greenIcon;
-                    }
-
-                    const marker = window.L.marker([lat, lng], { icon });
-
+                if (isValid(lat, lng)) {
+                    // Scaling marker size based on parcel count could be a nice touch, but for now just count.
                     const itemCount = booking.items ? booking.items.length : 0;
-                    const popupContent = `
-                        <div class="p-2">
-                            <p class="font-bold text-sm mb-1">${booking.senderName || 'Unknown Customer'}</p>
-                            <p class="text-xs text-gray-600 mb-1">Items: ${itemCount}</p>
-                            <p class="text-xs text-gray-600 mb-1">Booking: ${booking.id.slice(0, 8)}...</p>
-                            <p class="text-xs">Status: <span class="font-medium">${booking.status}</span></p>
-                            <p class="text-xs italic mt-1">${booking.pickupAddress}</p>
-                        </div>
-                    `;
 
-                    marker.bindPopup(popupContent);
+                    // Use Red Icon for Pickup
+                    const marker = window.L.marker([lat, lng], { icon: redIcon });
+                    marker.bindPopup(`
+                         <div class="p-2 min-w-[150px]">
+                             <strong class="text-red-700 text-lg">${itemCount} Parcel${itemCount !== 1 ? 's' : ''}</strong><br/>
+                             <div class="mt-1 font-medium">${booking.senderName || 'Unknown Sender'}</div>
+                             <div class="text-xs text-gray-500 mb-1">${booking.senderPhone}</div>
+                             <div class="text-xs text-gray-600 mb-1">Booking: ${booking.id.slice(-6)}</div>
+                             <div class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                ${s}
+                             </div>
+                             <p class="text-xs italic mt-2 border-t pt-1 border-gray-100">${booking.pickupAddress || ''}</p>
+                         </div>
+                     `);
                     markerLayer.addLayer(marker);
                     boundsPoints.push([lat, lng]);
-                    visibleOrders++;
                 }
             }
         });
 
         // Plot Drivers
-        drivers.forEach(driver => {
-            const lat = Number(driver.lastLocation?.lat || driver.lastLocation?.latitude);
-            const lng = Number(driver.lastLocation?.lng || driver.lastLocation?.longitude);
+        const activeDriversWithLocation = drivers.filter(u =>
+            u.lastLocation &&
+            ((u.lastLocation.lat !== undefined && u.lastLocation.lng !== undefined) ||
+                (u.lastLocation.latitude !== undefined && u.lastLocation.longitude !== undefined))
+        );
+
+        activeDriversWithLocation.forEach(driver => {
+            const loc = driver.lastLocation;
+            // Handle both structure types
+            const lat = Number(loc?.lat ?? loc?.latitude);
+            const lng = Number(loc?.lng ?? loc?.longitude);
 
             if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
                 const marker = window.L.marker([lat, lng], { icon: blueIcon });
+                const timeStr = loc?.timestamp
+                    ? new Date(loc.timestamp).toLocaleTimeString()
+                    : '?';
 
-                // Format timestamp
-                const timeStr = driver.lastLocation?.timestamp
-                    ? new Date(driver.lastLocation.timestamp).toLocaleTimeString()
-                    : 'Unknown Time';
-
-                const popupContent = `
+                marker.bindPopup(`
                     <div class="p-2">
-                        <p class="font-bold text-sm mb-1 text-blue-700">DRIVER: ${driver.name}</p>
-                        <p class="text-xs text-gray-600 mb-1">Phone: ${driver.phone || 'N/A'}</p>
-                        <p class="text-xs text-gray-600 mb-1">Last Active: ${timeStr}</p>
+                        <strong class="text-blue-700">DRIVER: ${driver.name}</strong><br/>
+                        <span class="text-xs text-gray-500">Phone: ${driver.phone || 'N/A'}</span><br/>
+                        <span class="text-xs">Last Active: ${timeStr}</span>
                     </div>
-                `;
-
-                marker.bindPopup(popupContent);
+                `);
                 markerLayer.addLayer(marker);
                 boundsPoints.push([lat, lng]);
             }
         });
 
         // Fit bounds
-        if (boundsPoints.length > 0) {
-            const bounds = window.L.latLngBounds(boundsPoints);
-            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-        } else {
-            // Fallback center if no points
-            map.setView([defaultCenter.lat, defaultCenter.lng], 13);
+        if (boundsPoints.length > 0 && map) {
+            try {
+                const bounds = window.L.latLngBounds(boundsPoints);
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+                } else {
+                    console.warn("Invalid bounds generated from points:", boundsPoints);
+                }
+            } catch (e) {
+                console.error("Error fitting bounds:", e);
+            }
+        } else if (map && boundsPoints.length === 0) {
+            // map.setView([defaultCenter.lat, defaultCenter.lng], 12);
         }
 
-    }, [map, markerLayer, bookings, drivers, loading]);
+    }, [map, markerLayer, bookings, drivers]);
 
     return (
         <div className="flex flex-col h-full bg-white rounded-lg shadow-sm">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-                <h2 className="text-lg font-bold text-gray-800">Booking Map Report</h2>
+                <h2 className="text-lg font-bold text-gray-800">Booking Map Report (Live)</h2>
                 <div className="text-sm text-gray-500">
-                    {drivers.length} Drivers | {bookings.length} Total Orders
+                    {drivers.length} Drivers Found | {bookings.length} Active Orders
                 </div>
             </div>
 
             <div className="flex-1 relative min-h-[500px]">
-                {loading && (
+                {loading && bookings.length === 0 && drivers.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                     </div>

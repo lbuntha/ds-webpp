@@ -106,10 +106,10 @@ export const ClosingDashboard: React.FC<Props> = ({
                     if (result.processed > 0) {
                         toast.success(`Successfully depreciated ${result.processed} assets. Total: $${result.totalAmount.toFixed(2)}.`);
                     } else {
-                        console.log("No assets required depreciation for this month.");
+                        // console.log("No assets required depreciation for this month.");
                     }
                 } catch (depError: any) {
-                    console.error("Depreciation failed during closing:", depError);
+                    // console.error("Depreciation failed during closing:", depError);
                     toast.warning(`Warning: Depreciation failed (${depError.message}). The period has NOT been locked. Please fix the error and try again.`);
                     setMonthLoading(false);
                     return; // Stop closing if depreciation fails
@@ -149,7 +149,7 @@ export const ClosingDashboard: React.FC<Props> = ({
             await onUpdateSettings({ ...settings, lockDate: lockDate });
             toast.success("Period lock date updated successfully.");
         } catch (e: any) {
-            console.error(e);
+            // console.error(e);
             toast.error(`Failed to update lock date: ${e.message}`);
         } finally {
             setMonthLoading(false);
@@ -190,7 +190,7 @@ export const ClosingDashboard: React.FC<Props> = ({
             setShowConfirmation(false);
             setLockDate(yearEndDate); // Update local state to reflect change
         } catch (e) {
-            console.error(e);
+            // console.error(e);
             toast.error("Failed to close fiscal year.");
         } finally {
             setYearLoading(false);
@@ -216,7 +216,7 @@ export const ClosingDashboard: React.FC<Props> = ({
             toast.success("Adjustment posted successfully. Period has been re-locked.");
             setActiveTab('MONTH_END'); // Go back to main screen
         } catch (e: any) {
-            console.error(e);
+            // console.error(e);
             toast.error(`Error during adjustment process: ${e.message}. Check if period is locked.`);
             // Attempt to restore lock if it failed halfway
             try { await onUpdateSettings({ ...settings, lockDate: currentLockDate }); } catch (e2) { }

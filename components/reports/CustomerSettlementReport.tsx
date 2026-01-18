@@ -22,7 +22,7 @@ interface CustomerSummary {
 // Customer Settlement Report Component
 // Handles wallet balance display and settlement payouts with GL preview
 export const CustomerSettlementReport: React.FC = () => {
-    console.log('✅ CustomerSettlementReport component initialized');
+    // console.log('✅ CustomerSettlementReport component initialized');
 
     const [bookings, setBookings] = useState<ParcelBooking[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -54,7 +54,7 @@ export const CustomerSettlementReport: React.FC = () => {
                 setAccounts(accountsData);
                 setSettings(settingsData);
             } catch (e) {
-                console.error(e);
+                // console.error(e);
                 toast.error("Failed to load data");
             } finally {
                 setLoading(false);
@@ -308,7 +308,7 @@ export const CustomerSettlementReport: React.FC = () => {
 
                         setLiveBalance({ usd, khr });
                     } catch (e) {
-                        console.error("Failed to load wallet balance", e);
+                        // console.error("Failed to load wallet balance", e);
                     }
                 } else {
                     setLiveBalance(null);
@@ -498,7 +498,7 @@ export const CustomerSettlementReport: React.FC = () => {
             setBookings(updatedBookings);
 
         } catch (e: any) {
-            console.error(e);
+            // console.error(e);
             toast.error("Failed to initiate payout: " + e.message);
         } finally {
             setProcessing(false);
