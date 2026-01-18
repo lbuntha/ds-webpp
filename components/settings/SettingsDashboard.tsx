@@ -14,6 +14,7 @@ import { RolePermissionManagement } from './RolePermissionManagement';
 import { RouteManagement } from './RouteManagement';
 import { CompanyProfileSettings } from './CompanyProfileSettings'; // Import
 import { TransactionDefinitions } from './TransactionDefinitions'; // Import
+import { SuggestionListEditor } from './SuggestionListEditor'; // Import
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { MASTER_COA_DATA } from '../../src/shared/constants';
 import { toast } from '../../src/shared/utils/toast';
@@ -102,6 +103,10 @@ export const SettingsDashboard: React.FC<Props> = ({
     const [defaultTaxUSD, setDefaultTaxUSD] = useState(settings?.defaultTaxAccountUSD || '');
     const [defaultTaxKHR, setDefaultTaxKHR] = useState(settings?.defaultTaxAccountKHR || '');
 
+    // Suggestions State
+    const [cusSuggestions, setCusSuggestions] = useState<string[]>(settings?.cus_suggestion || []);
+    const [drvSuggestions, setDrvSuggestions] = useState<string[]>(settings?.drv_suggestion || []);
+
     const [savingGeneral, setSavingGeneral] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [cleaningUpUsers, setCleaningUpUsers] = useState(false);
@@ -127,7 +132,10 @@ export const SettingsDashboard: React.FC<Props> = ({
             setDefaultRevenueUSD(settings.defaultRevenueAccountUSD || '');
             setDefaultRevenueKHR(settings.defaultRevenueAccountKHR || '');
             setDefaultTaxUSD(settings.defaultTaxAccountUSD || '');
+            setDefaultTaxUSD(settings.defaultTaxAccountUSD || '');
             setDefaultTaxKHR(settings.defaultTaxAccountKHR || '');
+            setCusSuggestions(settings.cus_suggestion || []);
+            setDrvSuggestions(settings.drv_suggestion || []);
         }
     }, [settings]);
 
@@ -335,7 +343,12 @@ export const SettingsDashboard: React.FC<Props> = ({
                 defaultRevenueAccountUSD: defaultRevenueUSD,
                 defaultRevenueAccountKHR: defaultRevenueKHR,
                 defaultTaxAccountUSD: defaultTaxUSD,
-                defaultTaxAccountKHR: defaultTaxKHR
+
+                defaultTaxAccountKHR: defaultTaxKHR,
+
+                // Suggestions
+                cus_suggestion: cusSuggestions,
+                drv_suggestion: drvSuggestions
             });
             toast.success("Configuration saved successfully.");
         } catch (e) {
@@ -603,6 +616,22 @@ export const SettingsDashboard: React.FC<Props> = ({
                                         </div>
                                     </div>
                                     <p className="text-[10px] text-gray-500 mt-2 italic">Separating Bank/Settlement from Cash Handover allows tracking where the money is currently held.</p>
+                                </div>
+
+                                {/* Suggestion Settings */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <SuggestionListEditor
+                                        title="Customer Suggestions"
+                                        description="Quick replies for customer interactions"
+                                        items={cusSuggestions}
+                                        onItemsChange={setCusSuggestions}
+                                    />
+                                    <SuggestionListEditor
+                                        title="Driver Suggestions"
+                                        description="Quick replies for driver interactions"
+                                        items={drvSuggestions}
+                                        onItemsChange={setDrvSuggestions}
+                                    />
                                 </div>
                             </div>
 

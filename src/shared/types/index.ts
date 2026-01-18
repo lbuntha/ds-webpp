@@ -859,6 +859,9 @@ export interface SystemSettings {
 
   // Commission Exchange Rate (for converting USD commissions to KHR)
   commissionExchangeRate?: number; // Defaults to 4100 if not set
+  // Suggestions for chat/notes
+  cus_suggestion?: string[];
+  drv_suggestion?: string[];
 }
 
 export interface ParcelServiceType {
