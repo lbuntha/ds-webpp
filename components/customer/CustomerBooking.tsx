@@ -486,9 +486,11 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete, initialMode
             // If subtotal is 0 (shouldn't happen), factor is 1
             const discountFactor = pricing.subtotal > 0 ? (pricing.total / pricing.subtotal) : 1;
 
-            const totalDeliveryFee = standardTotalFee * discountFactor;
-            const totalDeliveryFeeUSD = standardTotalFeeUSD * discountFactor;
-            const totalDeliveryFeeKHR = standardTotalFeeKHR * discountFactor;
+            const totalDeliveryFeeUSD = Number((standardTotalFeeUSD * discountFactor).toFixed(2));
+            const totalDeliveryFeeKHR = Math.round(standardTotalFeeKHR * discountFactor);
+
+            // For the primary generic fee, follow the currency of the item
+            const totalDeliveryFee = (items[0]?.codCurrency === 'KHR') ? totalDeliveryFeeKHR : totalDeliveryFeeUSD;
 
             // Distribute fee per item for internal record consistency
             const itemCount = Math.max(items.length, 1);

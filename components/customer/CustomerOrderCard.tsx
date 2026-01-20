@@ -126,11 +126,17 @@ export const CustomerOrderCard: React.FC<Props> = ({ booking, derivedStatus, onC
                         let khrFee = 0;
 
                         items.forEach(item => {
-                            const itemFee = Number(item.deliveryFee) || 0;
-                            if (item.codCurrency === 'KHR') {
-                                khrFee += itemFee;
+                            // Robust fallbacks for legacy/mixed data
+                            const isKHR = item.codCurrency === 'KHR';
+
+                            if (isKHR) {
+                                // If KHR, prefer KHR fee, fallback to converted USD fee or standard fee
+                                const val = Number(item.deliveryFeeKHR) || (Number(item.deliveryFeeUSD || item.deliveryFee) * 4100);
+                                khrFee += val;
                             } else {
-                                usdFee += itemFee;
+                                // If USD, prefer USD fee, fallback to converted KHR fee or standard fee
+                                const val = Number(item.deliveryFeeUSD) || (Number(item.deliveryFeeKHR || item.deliveryFee) / 4100);
+                                usdFee += val;
                             }
                         });
 
