@@ -476,10 +476,19 @@ export const CustomerBooking: React.FC<Props> = ({ user, onComplete, initialMode
                 specialRates
             });
 
-            // Total fee for the booking
-            const totalDeliveryFee = singleFeeResult.totalPrice || (singleFeeResult.pricePerItem * feeItemCount);
-            const totalDeliveryFeeUSD = singleFeeResult.totalPriceUSD || (singleFeeResult.pricePerItemUSD * feeItemCount);
-            const totalDeliveryFeeKHR = singleFeeResult.totalPriceKHR || (singleFeeResult.pricePerItemKHR * feeItemCount);
+            // Total fee for the booking (Standard Price)
+            const standardTotalFee = singleFeeResult.totalPrice || (singleFeeResult.pricePerItem * feeItemCount);
+            const standardTotalFeeUSD = singleFeeResult.totalPriceUSD || (singleFeeResult.pricePerItemUSD * feeItemCount);
+            const standardTotalFeeKHR = singleFeeResult.totalPriceKHR || (singleFeeResult.pricePerItemKHR * feeItemCount);
+
+            // Apply Discount Factor
+            // We use pricing.total (displayed to user) / pricing.subtotal (calculated standard)
+            // If subtotal is 0 (shouldn't happen), factor is 1
+            const discountFactor = pricing.subtotal > 0 ? (pricing.total / pricing.subtotal) : 1;
+
+            const totalDeliveryFee = standardTotalFee * discountFactor;
+            const totalDeliveryFeeUSD = standardTotalFeeUSD * discountFactor;
+            const totalDeliveryFeeKHR = standardTotalFeeKHR * discountFactor;
 
             // Distribute fee per item for internal record consistency
             const itemCount = Math.max(items.length, 1);
