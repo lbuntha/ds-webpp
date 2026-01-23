@@ -116,6 +116,7 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
         if (item.viewId === 'CASHBACK') return '/app/cashback';
         if (item.viewId === 'CASHBACK_REPORT') return '/app/cashback-report';
         if (item.viewId === 'BOOKING_MAP') return '/app/reports/booking-map';
+        if (item.viewId === 'BOOKING_STATUS_DRIVER') return '/app/reports/booking-status-driver';
 
         // Stock Management routes
         if (item.viewId === 'STOCK_MANAGEMENT') return '/app/stock';
@@ -147,7 +148,7 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
                 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
                 md:relative md:translate-x-0 md:flex md:flex-shrink-0
                 ${isCollapsed ? 'md:w-16' : 'md:w-64'}
-                w-64
+                w-64 h-[100dvh] md:h-auto
             `}
         >
             {/* Toggle Button (Desktop Only) */}
@@ -172,7 +173,7 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto py-4 space-y-1">
+            <nav className="flex-1 overflow-y-auto py-4 space-y-1 sidebar-scroll">
                 {filteredMenuItems.map((item, index) => {
                     const routePath = getRoutePath(item);
                     const isItemActive = isActive(item.viewId);

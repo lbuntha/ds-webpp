@@ -64,6 +64,7 @@ const SettingsView = lazy(() => import('./views/SettingsView'));
 const UsersView = lazy(() => import('./views/UsersView'));
 const CustomersView = lazy(() => import('./views/CustomersView'));
 const BookingMapReport = lazy(() => import('../../components/reports/BookingMapReport').then(m => ({ default: m.BookingMapReport })));
+const BookingStatusByDriverReport = lazy(() => import('../../components/reports/BookingStatusByDriverReport').then(m => ({ default: m.BookingStatusByDriverReport })));
 const UserProfileView = lazy(() => import('./views/UserProfileView'));
 const UserManualView = lazy(() => import('./views/UserManualView'));
 const SeedPermissionsView = lazy(() => import('./views/SeedPermissionsView'));
@@ -447,6 +448,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="VIEW_REPORTS">
                         {withSuspense(BookingMapReport)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'reports/booking-status-driver',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_REPORTS">
+                        {withSuspense(BookingStatusByDriverReport)}
                     </PermissionRoute>
                 ),
             },

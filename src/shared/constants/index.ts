@@ -175,6 +175,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-parcels-aging', label: 'Aging Report', viewId: 'PARCELS_AGING', iconKey: 'aging', order: 42, allowedRoles: ['system-admin', 'accountant'], section: 'reports' },
   { id: 'nav-stock-alerts', label: 'Stock Alerts', viewId: 'STOCK_ALERTS', iconKey: 'alert', order: 43, allowedRoles: ['system-admin', 'warehouse'], section: 'reports' },
   { id: 'nav-booking-map', label: 'Booking Map', viewId: 'BOOKING_MAP', iconKey: 'places', order: 44, allowedRoles: ['system-admin', 'accountant'], section: 'reports' },
+  { id: 'nav-booking-status-driver', label: 'Booking Status by Driver', viewId: 'BOOKING_STATUS_DRIVER', iconKey: 'driver', order: 45, allowedRoles: ['system-admin', 'accountant'], section: 'reports' },
 
   // ==============================
   // SYSTEM / ADMIN ONLY

@@ -337,7 +337,7 @@ export const DispatchConsole: React.FC = () => {
             if (i.id === itemEntry.item.id) {
                 return {
                     ...i,
-                    status: 'IN_TRANSIT' as const,
+                    status: 'OUT_FOR_DELIVERY' as const,
                     driverId: targetDriverId,
                     driverName: driver.name,
                     targetBranchId: null as any
@@ -451,10 +451,17 @@ export const DispatchConsole: React.FC = () => {
                 if (foundStatus === 'AT_WAREHOUSE') {
                     await assignItemToDriver({ bookingId: foundBooking.id, item: foundItem }, selectedDriver);
                     setBarcode('');
-                } else if (foundStatus === 'IN_TRANSIT') toast.error(`Parcel is already Out for Delivery.`);
-                else if (foundStatus === 'DELIVERED') toast.error(`Parcel is already Delivered.`);
-                else if (foundStatus === 'PENDING') toast.error(`Parcel is PENDING (Not picked up yet).`);
-                else toast.error(`Parcel status is ${foundStatus}. Must be AT_WAREHOUSE.`);
+                } else if (foundStatus === 'OUT_FOR_DELIVERY') {
+                    toast.error(`Parcel is already Out for Delivery.`);
+                } else if (foundStatus === 'IN_TRANSIT') {
+                    toast.error(`Parcel is In Transit.`);
+                } else if (foundStatus === 'DELIVERED') {
+                    toast.error(`Parcel is already Delivered.`);
+                } else if (foundStatus === 'PENDING') {
+                    toast.error(`Parcel is PENDING (Not picked up yet).`);
+                } else {
+                    toast.error(`Parcel status is ${foundStatus}. Must be AT_WAREHOUSE.`);
+                }
             } else {
                 toast.error(`Parcel not found: ${cleanCode}`);
             }
@@ -657,11 +664,11 @@ export const DispatchConsole: React.FC = () => {
                                                 <div className="flex justify-between items-center mb-2">
                                                     <p className="text-xs font-bold text-gray-500 uppercase">
                                                         Assigned to {drivers.find(d => d.id === selectedDriver)?.name.split(' ')[0]}
-                                                        ({bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'IN_TRANSIT')).length})
+                                                        ({bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'OUT_FOR_DELIVERY')).length})
                                                     </p>
                                                 </div>
                                                 <div className="bg-gray-50 rounded-lg border border-gray-200 max-h-[200px] overflow-y-auto divide-y divide-gray-100">
-                                                    {bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'IN_TRANSIT').map(i => ({ ...i, bookingRef: b.id })))
+                                                    {bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'OUT_FOR_DELIVERY').map(i => ({ ...i, bookingRef: b.id })))
                                                         .map(item => (
                                                             <div key={item.id} className="p-2 flex justify-between items-center text-sm">
                                                                 <div className="flex items-center gap-2 overflow-hidden">
@@ -675,7 +682,7 @@ export const DispatchConsole: React.FC = () => {
                                                             </div>
                                                         ))
                                                     }
-                                                    {bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'IN_TRANSIT')).length === 0 && (
+                                                    {bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'OUT_FOR_DELIVERY')).length === 0 && (
                                                         <p className="text-xs text-gray-400 text-center py-4">No parcels assigned yet.</p>
                                                     )}
                                                 </div>
