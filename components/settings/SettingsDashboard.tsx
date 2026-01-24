@@ -11,10 +11,10 @@ import { DriverCommissionSetup } from './DriverCommissionSetup';
 import { ReferralSettings } from './ReferralSettings';
 import { MenuManagement } from './MenuManagement';
 import { RolePermissionManagement } from './RolePermissionManagement';
-import { RouteManagement } from './RouteManagement';
 import { CompanyProfileSettings } from './CompanyProfileSettings'; // Import
 import { TransactionDefinitions } from './TransactionDefinitions'; // Import
 import { SuggestionListEditor } from './SuggestionListEditor'; // Import
+import { Modal } from '../ui/Modal';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { MASTER_COA_DATA } from '../../src/shared/constants';
 import { toast } from '../../src/shared/utils/toast';
@@ -52,7 +52,7 @@ export const SettingsDashboard: React.FC<Props> = ({
     onRunSetup, onUpdateSettings, onClearData, onMenuUpdate
 }) => {
     const { t } = useLanguage();
-    const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMPANY' | 'COA' | 'BRANCHES' | 'CURRENCIES' | 'TAXES' | 'COMMISSIONS' | 'REFERRAL' | 'MENU' | 'RULES' | 'PERMISSIONS' | 'ROUTES'>('GENERAL');
+    const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMPANY' | 'COA' | 'BRANCHES' | 'CURRENCIES' | 'TAXES' | 'COMMISSIONS' | 'REFERRAL' | 'MENU' | 'RULES' | 'PERMISSIONS'>('GENERAL');
 
     // Account State
     const [accountFormOpen, setAccountFormOpen] = useState(false);
@@ -70,6 +70,11 @@ export const SettingsDashboard: React.FC<Props> = ({
     // Tax State
     const [taxFormOpen, setTaxFormOpen] = useState(false);
     const [editingTax, setEditingTax] = useState<TaxRate | undefined>(undefined);
+
+    // Delete Branch Confirmation State
+    const [branchToDelete, setBranchToDelete] = useState<Branch | undefined>(undefined);
+    const [isDeletingBranch, setIsDeletingBranch] = useState(false);
+
 
     // General Config State - Customer Wallets
     const [custWalletUSD, setCustWalletUSD] = useState(settings?.customerWalletAccountUSD || settings?.defaultCustomerWalletAccountId || '');
@@ -438,7 +443,6 @@ export const SettingsDashboard: React.FC<Props> = ({
                 <button onClick={() => setActiveTab('GENERAL')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'GENERAL' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>{t('general_config')}</button>
                 <button onClick={() => setActiveTab('COMPANY')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'COMPANY' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Company Profile</button>
                 <button onClick={() => setActiveTab('PERMISSIONS')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'PERMISSIONS' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Role Permissions</button>
-                <button onClick={() => setActiveTab('ROUTES')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'ROUTES' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Routes</button>
                 <button onClick={() => setActiveTab('COA')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'COA' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>{t('chart_of_accounts')}</button>
                 <button onClick={() => setActiveTab('RULES')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'RULES' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Posting Rules</button>
                 <button onClick={() => setActiveTab('BRANCHES')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'BRANCHES' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>{t('branches')}</button>
@@ -452,7 +456,6 @@ export const SettingsDashboard: React.FC<Props> = ({
             {/* --- GENERAL VIEW --- */}
             {activeTab === 'COMPANY' && <CompanyProfileSettings />}
             {activeTab === 'PERMISSIONS' && <RolePermissionManagement />}
-            {activeTab === 'ROUTES' && <RouteManagement />}
             {activeTab === 'GENERAL' && (
                 <Card title={t('general_config')}>
                     <div className="space-y-6">
@@ -749,11 +752,7 @@ export const SettingsDashboard: React.FC<Props> = ({
                                             <button onClick={() => { setEditingBranch(b); setBranchFormOpen(true); }} className="text-indigo-600 hover:text-indigo-900">Edit</button>
                                             {onDeleteBranch && (
                                                 <button
-                                                    onClick={async () => {
-                                                        if (confirm(`Delete branch ${b.name}?`)) {
-                                                            await onDeleteBranch(b.id);
-                                                        }
-                                                    }}
+                                                    onClick={() => setBranchToDelete(b)}
                                                     className="text-red-600 hover:text-red-900"
                                                 >
                                                     Delete
@@ -771,133 +770,183 @@ export const SettingsDashboard: React.FC<Props> = ({
                 </Card>
             )}
 
-            {activeTab === 'CURRENCIES' && (
-                <Card title={t('currencies')} action={
-                    <Button variant="secondary" onClick={() => { setEditingCurrency(undefined); setCurrencyFormOpen(true); }} className="text-xs">+ Add Currency</Button>
-                }>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {currencies.map(c => (
-                                    <tr key={c.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-bold text-gray-900">{c.code}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">{c.name}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">{c.symbol}</td>
-                                        <td className="px-6 py-4 text-right text-sm text-gray-900">{c.exchangeRate}</td>
-                                        <td className="px-6 py-4 text-right text-sm font-medium">
-                                            <button onClick={() => { setEditingCurrency(c); setCurrencyFormOpen(true); }} className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            )}
 
-            {activeTab === 'TAXES' && (
-                <Card title={t('taxes')} action={
-                    <Button variant="secondary" onClick={() => { setEditingTax(undefined); setTaxFormOpen(true); }} className="text-xs">+ Add Tax Rate</Button>
-                }>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {taxRates.map(t => (
-                                    <tr key={t.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm text-gray-900">{t.name}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">{t.code}</td>
-                                        <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">{t.rate}%</td>
-                                        <td className="px-6 py-4 text-right text-sm font-medium">
-                                            <button onClick={() => { setEditingTax(t); setTaxFormOpen(true); }} className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {taxRates.length === 0 && (
-                                    <tr><td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">No tax rates defined.</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            )}
 
-            {/* Confirmation Modal for Clear Data */}
-            {showClearConfirm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
-                    {/* ... (Existing modal content) ... */}
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 animate-fade-in-up">
-                        <div className="flex justify-center mb-4">
-                            <div className="bg-red-100 p-3 rounded-full">
-                                <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                        </div>
 
-                        <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Delete All Operational Data?</h3>
-                        <p className="text-center text-gray-500 mb-6 text-sm">
-                            This action allows you to restart operations while keeping your system configuration intact.
-                            <br />
-                            <strong>This action cannot be undone.</strong>
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                            <div className="bg-red-50 p-3 rounded-lg border border-red-100">
-                                <h4 className="font-bold text-red-800 mb-2 uppercase text-xs">⚠️ Will Be Deleted</h4>
-                                <ul className="space-y-1 text-red-700 list-disc list-inside text-xs">
-                                    <li>All Financial Transactions</li>
-                                    <li>Invoices & Bills</li>
-                                    <li>Parcel Bookings & History</li>
-                                    <li>Wallet Transactions</li>
-                                    <li>Chat & Notifications</li>
-                                </ul>
-                            </div>
-                            <div className="bg-green-50 p-3 rounded-lg border border-green-100">
-                                <h4 className="font-bold text-green-800 mb-2 uppercase text-xs">✅ Will Remain Safe</h4>
-                                <ul className="space-y-1 text-green-700 list-disc list-inside text-xs">
-                                    <li>User Accounts (Logins)</li>
-                                    <li>Customers & Vendors</li>
-                                    <li>Chart of Accounts</li>
-                                    <li>Employee/Driver Profiles</li>
-                                    <li>Branch Configurations</li>
-                                    <li>Tax & Currency Settings</li>
-                                    <li>Parcel Services & Prices</li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div className="flex space-x-3">
-                            <Button variant="outline" onClick={() => setShowClearConfirm(false)} className="w-full justify-center">
-                                Cancel
-                            </Button>
-                            <Button
-                                variant="danger"
-                                onClick={executeClearData}
-                                className="w-full justify-center bg-red-600 hover:bg-red-700 text-white"
-                            >
-                                Confirm Reset
-                            </Button>
-                        </div>
+            {/* Delete Branch Confirmation Modal */}
+            <Modal
+                isOpen={!!branchToDelete}
+                onClose={() => !isDeletingBranch && setBranchToDelete(undefined)}
+                title="Delete Branch"
+                maxWidth="max-w-md"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-500">
+                        Are you sure you want to delete branch <span className="font-bold text-gray-900">{branchToDelete?.name}</span>?
+                        This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end space-x-3 pt-4">
+                        <Button
+                            variant="secondary"
+                            onClick={() => setBranchToDelete(undefined)}
+                            disabled={isDeletingBranch}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="danger"
+                            isLoading={isDeletingBranch}
+                            onClick={async () => {
+                                if (branchToDelete && onDeleteBranch) {
+                                    setIsDeletingBranch(true);
+                                    try {
+                                        await onDeleteBranch(branchToDelete.id);
+                                        setBranchToDelete(undefined);
+                                    } finally {
+                                        setIsDeletingBranch(false);
+                                    }
+                                }
+                            }}
+                        >
+                            Delete
+                        </Button>
                     </div>
                 </div>
-            )}
-        </div>
+            </Modal>
+
+            {
+                activeTab === 'CURRENCIES' && (
+                    <Card title={t('currencies')} action={
+                        <Button variant="secondary" onClick={() => { setEditingCurrency(undefined); setCurrencyFormOpen(true); }} className="text-xs">+ Add Currency</Button>
+                    }>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {currencies.map(c => (
+                                        <tr key={c.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 text-sm font-bold text-gray-900">{c.code}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">{c.name}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-500">{c.symbol}</td>
+                                            <td className="px-6 py-4 text-right text-sm text-gray-900">{c.exchangeRate}</td>
+                                            <td className="px-6 py-4 text-right text-sm font-medium">
+                                                <button onClick={() => { setEditingCurrency(c); setCurrencyFormOpen(true); }} className="text-indigo-600 hover:text-indigo-900">Edit</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                )
+            }
+
+            {
+                activeTab === 'TAXES' && (
+                    <Card title={t('taxes')} action={
+                        <Button variant="secondary" onClick={() => { setEditingTax(undefined); setTaxFormOpen(true); }} className="text-xs">+ Add Tax Rate</Button>
+                    }>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {taxRates.map(t => (
+                                        <tr key={t.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 text-sm text-gray-900">{t.name}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-500">{t.code}</td>
+                                            <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">{t.rate}%</td>
+                                            <td className="px-6 py-4 text-right text-sm font-medium">
+                                                <button onClick={() => { setEditingTax(t); setTaxFormOpen(true); }} className="text-indigo-600 hover:text-indigo-900">Edit</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {taxRates.length === 0 && (
+                                        <tr><td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">No tax rates defined.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                )
+            }
+
+            {/* Confirmation Modal for Clear Data */}
+            {
+                showClearConfirm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4">
+                        {/* ... (Existing modal content) ... */}
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 animate-fade-in-up">
+                            <div className="flex justify-center mb-4">
+                                <div className="bg-red-100 p-3 rounded-full">
+                                    <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                            </div>
+
+                            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Delete All Operational Data?</h3>
+                            <p className="text-center text-gray-500 mb-6 text-sm">
+                                This action allows you to restart operations while keeping your system configuration intact.
+                                <br />
+                                <strong>This action cannot be undone.</strong>
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                                <div className="bg-red-50 p-3 rounded-lg border border-red-100">
+                                    <h4 className="font-bold text-red-800 mb-2 uppercase text-xs">⚠️ Will Be Deleted</h4>
+                                    <ul className="space-y-1 text-red-700 list-disc list-inside text-xs">
+                                        <li>All Financial Transactions</li>
+                                        <li>Invoices & Bills</li>
+                                        <li>Parcel Bookings & History</li>
+                                        <li>Wallet Transactions</li>
+                                        <li>Chat & Notifications</li>
+                                    </ul>
+                                </div>
+                                <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                                    <h4 className="font-bold text-green-800 mb-2 uppercase text-xs">✅ Will Remain Safe</h4>
+                                    <ul className="space-y-1 text-green-700 list-disc list-inside text-xs">
+                                        <li>User Accounts (Logins)</li>
+                                        <li>Customers & Vendors</li>
+                                        <li>Chart of Accounts</li>
+                                        <li>Employee/Driver Profiles</li>
+                                        <li>Branch Configurations</li>
+                                        <li>Tax & Currency Settings</li>
+                                        <li>Parcel Services & Prices</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="flex space-x-3">
+                                <Button variant="outline" onClick={() => setShowClearConfirm(false)} className="w-full justify-center">
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    onClick={executeClearData}
+                                    className="w-full justify-center bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                    Confirm Reset
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };

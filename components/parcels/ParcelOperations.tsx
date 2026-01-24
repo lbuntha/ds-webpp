@@ -361,9 +361,24 @@ export const ParcelOperations: React.FC = () => {
         let usd = 0;
         let khr = 0;
         items.forEach(i => {
-            const fee = Number(i.deliveryFee) || 0;
-            if (i.codCurrency === 'KHR') khr += fee;
-            else usd += fee;
+            // Use explicit fields if available
+            if (i.deliveryFeeUSD && i.deliveryFeeUSD > 0) {
+                usd += Number(i.deliveryFeeUSD);
+            } else if (i.deliveryFeeKHR && i.deliveryFeeKHR > 0) {
+                khr += Number(i.deliveryFeeKHR);
+            } else {
+                // Heuristic for legacy 'deliveryFee' field or when explicit fields are missing
+                const fee = Number(i.deliveryFee) || 0;
+                if (fee > 0) {
+                    // If fee >= 100, assume KHR (since $100 delivery fee is unlikely for a parcel)
+                    // If fee < 100, assume USD
+                    if (fee >= 100) {
+                        khr += fee;
+                    } else {
+                        usd += fee;
+                    }
+                }
+            }
         });
         if (usd > 0 && khr > 0) return `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛`;
         if (khr > 0) return `${khr.toLocaleString()} ៛`;

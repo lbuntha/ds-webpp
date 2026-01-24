@@ -67,7 +67,7 @@ export default function MainLayout() {
                     </div>
                 </header>
 
-                <div className="flex-1 overflow-auto p-4 sm:p-8">
+                <div className={`flex-1 p-4 sm:p-8 ${isMobileSidebarOpen ? 'overflow-hidden' : 'overflow-auto'}`}>
                     <Outlet />
                 </div>
             </div>

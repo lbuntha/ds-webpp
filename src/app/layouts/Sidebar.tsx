@@ -173,7 +173,7 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto py-4 space-y-1 sidebar-scroll">
+            <nav className="flex-1 overflow-y-auto py-4 space-y-1 sidebar-scroll overscroll-y-contain">
                 {filteredMenuItems.map((item, index) => {
                     const routePath = getRoutePath(item);
                     const isItemActive = isActive(item.viewId);

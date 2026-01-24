@@ -25,6 +25,7 @@ interface Props {
 
 export const UserList: React.FC<Props> = ({ users, branches = [], rolePermissions, onUpdateRole, onUpdateStatus, onUpdateProfile, onUpdatePermissions, onSyncProfile, onDeleteUser }) => {
     const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PENDING' | 'ACCESS'>('ACTIVE');
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Edit State
     const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -133,8 +134,21 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
         }));
     }, [users]);
 
-    const pendingUsers = useMemo(() => normalizedUsers.filter(u => u.status === 'PENDING'), [normalizedUsers]);
-    const activeUsers = useMemo(() => normalizedUsers.filter(u => u.status === 'APPROVED' || u.status === 'INACTIVE'), [normalizedUsers]);
+    const filteredUsers = useMemo(() => {
+        let list = normalizedUsers;
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase();
+            list = list.filter(u =>
+                u.name.toLowerCase().includes(lower) ||
+                (u.email && u.email.toLowerCase().includes(lower)) ||
+                (u.phone && u.phone.includes(lower))
+            );
+        }
+        return list;
+    }, [normalizedUsers, searchTerm]);
+
+    const pendingUsers = useMemo(() => filteredUsers.filter(u => u.status === 'PENDING'), [filteredUsers]);
+    const activeUsers = useMemo(() => filteredUsers.filter(u => u.status === 'APPROVED' || u.status === 'INACTIVE'), [filteredUsers]);
 
     const displayedUsers = activeTab === 'ACTIVE' ? activeUsers : pendingUsers;
 
@@ -630,31 +644,45 @@ export const UserList: React.FC<Props> = ({ users, branches = [], rolePermission
     return (
         <div className="space-y-6 relative">
 
-            <div className="flex space-x-1 bg-white p-1 rounded-xl shadow-sm border border-gray-100 max-w-fit overflow-x-auto">
-                <button
-                    onClick={() => handleTabChange('ACTIVE')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'ACTIVE' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}
-                >
-                    User Accounts ({activeUsers.length})
-                </button>
-                <button
-                    onClick={() => handleTabChange('PENDING')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center whitespace-nowrap ${activeTab === 'PENDING' ? 'bg-yellow-50 text-yellow-700' : 'text-gray-600 hover:bg-gray-50'}`}
-                >
-                    Pending Approval
-                    {pendingUsers.length > 0 && (
-                        <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                            {pendingUsers.length}
-                        </span>
-                    )}
-                </button>
-                {rolePermissions && onUpdatePermissions && (
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex space-x-1 bg-white p-1 rounded-xl shadow-sm border border-gray-100 max-w-fit overflow-x-auto">
                     <button
-                        onClick={() => handleTabChange('ACCESS')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'ACCESS' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                        onClick={() => handleTabChange('ACTIVE')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'ACTIVE' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}
                     >
-                        Role Permissions
+                        User Accounts ({activeUsers.length})
                     </button>
+                    <button
+                        onClick={() => handleTabChange('PENDING')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center whitespace-nowrap ${activeTab === 'PENDING' ? 'bg-yellow-50 text-yellow-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                    >
+                        Pending Approval
+                        {pendingUsers.length > 0 && (
+                            <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                                {pendingUsers.length}
+                            </span>
+                        )}
+                    </button>
+                    {rolePermissions && onUpdatePermissions && (
+                        <button
+                            onClick={() => handleTabChange('ACCESS')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'ACCESS' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            Role Permissions
+                        </button>
+                    )}
+                </div>
+
+                {activeTab !== 'ACCESS' && (
+                    <div className="w-full sm:w-64">
+                        <Input
+                            placeholder="Search user..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-white"
+                        />
+                    </div>
                 )}
             </div>
 

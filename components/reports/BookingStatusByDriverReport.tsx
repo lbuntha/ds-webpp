@@ -100,8 +100,8 @@ export const BookingStatusByDriverReport: React.FC = () => {
         window.print();
     };
 
-    // Aggregation Logic
-    const driverSummary = useMemo(() => {
+    // Aggregation Logic (Parcel Level)
+    const { driverSummary, flattenedItems } = useMemo(() => {
         const summary: Record<string, {
             driverName: string;
             total: number;
@@ -113,42 +113,94 @@ export const BookingStatusByDriverReport: React.FC = () => {
             returned: number;
         }> = {};
 
-        bookings.forEach(b => {
-            const dId = b.driverId || 'unassigned';
-            if (!summary[dId]) {
-                summary[dId] = {
-                    driverName: b.driverId ? (b.driverName || 'Unknown Driver') : 'Unassigned',
-                    total: 0,
-                    pending: 0,
-                    pickup: 0,
-                    outForDelivery: 0,
-                    delivered: 0,
-                    cancelled: 0,
-                    returned: 0
-                };
-            }
-            summary[dId].total++;
+        const items: any[] = [];
 
-            const s = (b.statusId || b.status || '').toLowerCase();
-            // Map statuses loosely to categories
-            if (s.includes('pending')) summary[dId].pending++;
-            else if (s.includes('pickup') || s.includes('picked')) summary[dId].pickup++;
-            else if (s.includes('out') || s.includes('transit')) summary[dId].outForDelivery++;
-            else if (s.includes('delivered') || s.includes('complete')) summary[dId].delivered++;
-            else if (s.includes('cancel')) summary[dId].cancelled++;
-            else if (s.includes('return')) summary[dId].returned++;
-            else summary[dId].pending++; // Fallback or 'other'
+        bookings.forEach(b => {
+            // If no items, skip or count as 1? Usually bookings have items.
+            // If legacy booking without items, fall back to booking status.
+            const bookingItems = b.items && b.items.length > 0 ? b.items : [];
+
+            if (bookingItems.length === 0) {
+                // Push a placeholder if needed, or ignore. 
+                // Assuming data integrity:
+                return;
+            }
+
+            bookingItems.forEach((item, idx) => {
+                // Filter Logic applied at Item Level? 
+                // The parent filter already filtered by Date (Booking Date) and Driver (Booking Driver).
+                // However, items might have different drivers if re-assigned? 
+                // For this report, we usually look at the CURRENT driver of the item or the Booking driver.
+                // Let's rely on Item Driver if present, else Booking Driver.
+
+                const dId = item.driverId || b.driverId || 'unassigned';
+                const dName = item.driverName || b.driverName || 'Unknown Driver';
+
+                // Filter by Selected Driver (Strict Check on Item Driver if selected)
+                if (selectedDriverId && dId !== selectedDriverId) return;
+
+                // Flatten for Table
+                items.push({
+                    ...item,
+                    bookingId: b.id,
+                    bookingDate: b.createdAt,
+                    senderName: b.senderName,
+                    senderPhone: b.senderPhone,
+                    currency: b.currency,
+                    // For item status, use item.status. If missing, fallback to booking.status
+                    displayStatus: item.status || b.status
+                });
+
+                // Summary Aggregation
+                if (!summary[dId]) {
+                    summary[dId] = {
+                        driverName: dName,
+                        total: 0,
+                        pending: 0,
+                        pickup: 0,
+                        outForDelivery: 0,
+                        delivered: 0,
+                        cancelled: 0,
+                        returned: 0
+                    };
+                }
+                summary[dId].total++;
+
+                const s = (item.status || b.status || '').toLowerCase();
+                // Map statuses loosely to categories
+                if (s.includes('pending') || s === 'confirmed') summary[dId].pending++;
+                else if (s.includes('pickup') || s.includes('picked') || s === 'at_warehouse') summary[dId].pickup++;
+                else if (s.includes('out') || s.includes('transit')) summary[dId].outForDelivery++;
+                else if (s.includes('delivered') || s.includes('complete')) summary[dId].delivered++;
+                else if (s.includes('cancel')) summary[dId].cancelled++;
+                else if (s.includes('return')) summary[dId].returned++;
+                else summary[dId].pending++;
+            });
         });
 
-        return Object.values(summary).sort((a, b) => b.total - a.total);
-    }, [bookings]);
+        return {
+            driverSummary: Object.values(summary).sort((a, b) => b.total - a.total),
+            flattenedItems: items.sort((a, b) => (b.bookingDate || 0) - (a.bookingDate || 0))
+        };
+    }, [bookings, selectedDriverId]);
+
+    // Apply filtering on flattened items for Status Filter (if needed per item)
+    // The previous fetchBookings filtered by Booking Status. 
+    // If we want accurate Item Status filtering, we should do it here.
+    const displayedItems = useMemo(() => {
+        if (statusFilter === 'ALL') return flattenedItems;
+        return flattenedItems.filter(i => {
+            const s = (i.displayStatus || '').toLowerCase();
+            return s === statusFilter.toLowerCase() || i.displayStatus === statusFilter;
+        });
+    }, [flattenedItems, statusFilter]);
 
     return (
         <div className="space-y-6">
             <Card>
                 <div className="flex flex-col space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                        <h2 className="text-xl font-bold text-gray-800">Booking Status by Driver</h2>
+                        <h2 className="text-xl font-bold text-gray-800">Booking Status by Driver (Parcel Level)</h2>
                         <div className="flex space-x-2">
                             <Button variant="outline" onClick={handlePrint} className="print:hidden">
                                 <Download className="w-4 h-4 mr-2" />
@@ -180,13 +232,13 @@ export const BookingStatusByDriverReport: React.FC = () => {
                                 onChange={(e) => setStatusFilter(e.target.value)}
                             >
                                 <option value="ALL">All Statuses</option>
-                                <option value="ps-pending">Pending</option>
-                                <option value="ps-pickup">Picked Up</option>
-                                <option value="ps-transit">In Transit</option>
-                                <option value="ps-out-for-delivery">Out for Delivery</option>
-                                <option value="ps-delivered">Delivered</option>
-                                <option value="ps-returned">Returned</option>
-                                <option value="ps-cancelled">Cancelled</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="PICKED_UP">Picked Up</option>
+                                <option value="IN_TRANSIT">In Transit</option>
+                                <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
+                                <option value="DELIVERED">Delivered</option>
+                                <option value="RETURN_TO_SENDER">Returned</option>
+                                <option value="CANCELLED">Cancelled</option>
                             </select>
                         </div>
                         <div>
@@ -226,10 +278,10 @@ export const BookingStatusByDriverReport: React.FC = () => {
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver Name</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Parcels</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-yellow-600">Pending</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-blue-600">Picked Up</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-purple-600">Delivery</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-purple-600">Transit/Out</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-green-600">Delivered</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-red-600">Cancelled</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-orange-600">Returned</th>
@@ -260,75 +312,70 @@ export const BookingStatusByDriverReport: React.FC = () => {
 
             <Card>
                 <div className="mb-4">
-                    <h3 className="text-lg font-bold text-gray-800">Detailed Booking List</h3>
+                    <h3 className="text-lg font-bold text-gray-800">Detailed Parcel List</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking ID</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking / Parcel</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fee</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">COD</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price (COD)</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200 text-sm">
-                            {bookings.length === 0 && (
+                            {displayedItems.length === 0 && (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                                        No bookings found matching filters.
+                                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                        No parcels found matching filters.
                                     </td>
                                 </tr>
                             )}
-                            {bookings.map((booking) => (
+                            {displayedItems.map((item, idx) => (
                                 <tr
-                                    key={booking.id}
+                                    key={`${item.id}-${idx}`}
                                     className="hover:bg-gray-50 cursor-pointer transition-colors"
-                                    onClick={() => setViewingBooking(booking)}
+                                    onClick={() => {
+                                        // Find original booking
+                                        const original = bookings.find(b => b.id === item.bookingId);
+                                        if (original) setViewingBooking(original);
+                                    }}
                                 >
                                     <td className="px-6 py-4 whitespace-nowrap text-gray-900">
-                                        {new Date(booking.createdAt || 0).toLocaleDateString()}
+                                        {new Date(item.bookingDate || 0).toLocaleDateString()}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-indigo-600">
-                                        {booking.id}
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="font-medium text-indigo-600">{item.bookingId}</div>
+                                        <div className="text-xs text-gray-500 font-mono mt-1">{item.barcode || item.trackingCode || 'No Barcode'}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-gray-900">
-                                        {booking.driverName || '-'}
+                                        {item.driverName || '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                                        <div className="text-gray-900">{booking.senderName}</div>
-                                        <div className="text-xs">{booking.senderPhone}</div>
+                                        <div className="text-gray-900">{item.senderName}</div>
+                                        <div className="text-xs">{item.senderPhone}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                                        {booking.items && booking.items.length > 0 ? (
-                                            <div>
-                                                <div className="text-gray-900">{booking.items[0].receiverName}</div>
-                                                <div className="text-xs">{booking.items[0].receiverPhone}</div>
-                                                {booking.items.length > 1 && <span className="text-xs text-gray-400">+{booking.items.length - 1} more</span>}
-                                            </div>
-                                        ) : '-'}
+                                        <div className="text-gray-900">{item.receiverName}</div>
+                                        <div className="text-xs">{item.receiverPhone}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                         <span className={`px-2 py-1 rounded-full text-xs font-medium 
-                                            ${booking.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                                                booking.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                    booking.status === 'PENDING' ? 'bg-gray-100 text-gray-800' : 'bg-blue-100 text-blue-800'}`}>
-                                            {booking.status || booking.statusId}
+                                            ${item.displayStatus === 'DELIVERED' ? 'bg-green-100 text-green-800' :
+                                                item.displayStatus === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                                    item.displayStatus === 'PENDING' ? 'bg-gray-100 text-gray-800' : 'bg-blue-100 text-blue-800'}`}>
+                                            {item.displayStatus}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-gray-900">
-                                        {formatCurrency(booking.totalDeliveryFee || 0, booking.currency)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-900">
-                                        {/* Sum COD of items */}
-                                        {formatCurrency(
-                                            (booking.items || []).reduce((acc, item) => acc + (item.productPrice || 0), 0),
-                                            booking.currency // Assuming COD matches booking currency for simplicity, or we can check item.codCurrency
-                                        )}
+                                        {item.productPrice > 0
+                                            ? (item.codCurrency === 'KHR' ? `${item.productPrice.toLocaleString()} ៛` : `$${item.productPrice.toFixed(2)}`)
+                                            : '-'
+                                        }
                                     </td>
                                 </tr>
                             ))}
