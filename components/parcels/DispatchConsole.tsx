@@ -575,29 +575,31 @@ export const DispatchConsole: React.FC = () => {
                     <div className="h-full pt-16 lg:pt-0 overflow-y-auto lg:overflow-visible px-4 lg:px-0 bg-white lg:bg-transparent">
                         <Card title="Assign Driver" className="h-fit min-h-[50vh] lg:min-h-0 lg:max-h-[85vh] flex flex-col shadow-none border-0 lg:border lg:shadow-sm lg:sticky lg:top-6">
                             <div className="space-y-4 flex-1 flex flex-col">
-                                {(!selectedWarehouseItem) ? (
-                                    <div className="text-center py-8 text-gray-400 flex flex-col items-center">
-                                        <svg className="w-10 h-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
-                                        <p className="text-sm">Select an item to assign.</p>
+                                {(!selectedWarehouseItem && !selectedDriver) ? (
+                                    <div className="text-center py-6 text-gray-400 flex flex-col items-center bg-gray-50 rounded-xl border border-dashed border-gray-300 mb-4">
+                                        <svg className="w-12 h-12 mb-2 opacity-50 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                        <p className="text-sm font-medium text-gray-600">Select a driver to start dispatching</p>
+                                        <p className="text-xs text-gray-400 mt-1">Scan driver QR or select from list below</p>
 
-                                        {/* Mobile: Provide Scan Driver Shortcut even if no item selected */}
-                                        <div className="lg:hidden mt-6 w-full px-8">
+                                        <div className="mt-4">
                                             <Button
                                                 variant="outline"
-                                                className="w-full"
+                                                size="sm"
                                                 onClick={() => setIsDriverScanOpen(true)}
+                                                className="bg-white"
                                             >
+                                                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
                                                 Scan Driver QR
                                             </Button>
                                         </div>
                                     </div>
                                 ) : (
                                     <>
-                                        {/* Scan Input OR Blocked Message */}
+                                        {/* ONE ACTIVE DRIVER SELECTED */}
                                         {selectedDriver && (
                                             <>
                                                 {isDriverEligible(drivers.find(d => d.id === selectedDriver)!) ? (
-                                                    <div className="bg-indigo-50 p-4 rounded-lg border-2 border-indigo-200 mb-2">
+                                                    <div className="bg-indigo-50 p-4 rounded-lg border-2 border-indigo-200 mb-2 animate-fade-in-up">
                                                         <label className="block text-xs font-bold uppercase text-indigo-700 mb-1">
                                                             SCAN PARCEL FOR {drivers.find(d => d.id === selectedDriver)?.name}
                                                         </label>
@@ -647,12 +649,6 @@ export const DispatchConsole: React.FC = () => {
                                                         <p className="text-xs text-red-600 mt-1">
                                                             {drivers.find(d => d.id === selectedDriver)?.name} has an unsettled wallet balance.
                                                         </p>
-                                                        <p className="text-sm font-bold text-red-700 mt-2">
-                                                            Owes:
-                                                            {Math.abs(getDriverBalance(drivers.find(d => d.id === selectedDriver)!).usd) > 0.01 && ` $${getDriverBalance(drivers.find(d => d.id === selectedDriver)!).usd.toFixed(2)}`}
-                                                            {Math.abs(getDriverBalance(drivers.find(d => d.id === selectedDriver)!).khr) > 1 && ` ${getDriverBalance(drivers.find(d => d.id === selectedDriver)!).khr.toLocaleString()} KHR`}
-                                                        </p>
-                                                        <p className="text-[10px] text-red-400 mt-2">Clear balance to resume assignment.</p>
                                                     </div>
                                                 )}
                                             </>
@@ -667,7 +663,7 @@ export const DispatchConsole: React.FC = () => {
                                                         ({bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'OUT_FOR_DELIVERY')).length})
                                                     </p>
                                                 </div>
-                                                <div className="bg-gray-50 rounded-lg border border-gray-200 max-h-[200px] overflow-y-auto divide-y divide-gray-100">
+                                                <div className="bg-gray-50 rounded-lg border border-gray-200 max-h-[150px] overflow-y-auto divide-y divide-gray-100">
                                                     {bookings.flatMap(b => (b.items || []).filter(i => i.driverId === selectedDriver && i.status === 'OUT_FOR_DELIVERY').map(i => ({ ...i, bookingRef: b.id })))
                                                         .map(item => (
                                                             <div key={item.id} className="p-2 flex justify-between items-center text-sm">
@@ -689,167 +685,167 @@ export const DispatchConsole: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Task Info */}
+                                        {/* Task Info (If warehouse item also selected) */}
                                         {(selectedWarehouseItem) && (
                                             <div className="bg-indigo-50 p-3 rounded-lg text-sm text-indigo-800 border border-indigo-100 mb-2">
-                                                <span className="block text-xs font-bold uppercase text-indigo-400 mb-1">Selected Task</span>
+                                                <span className="block text-xs font-bold uppercase text-indigo-400 mb-1">Selected Parcel</span>
                                                 {`Deliver ${selectedWarehouseItem?.item.receiverName}'s parcel`}
                                             </div>
                                         )}
-
-                                        {/* Driver List */}
-                                        <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[300px]">
-                                            <div className="flex justify-between items-center sticky top-0 bg-white pb-2">
-                                                <p className="text-xs font-bold text-gray-500 uppercase">Available Drivers ({drivers.length})</p>
-                                                <div className="flex items-center gap-2">
-                                                    {selectedDriver && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedDriver(null);
-                                                                // Don't clear warehouse item on reset, just driver
-                                                            }}
-                                                            className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                                                            title="Clear selected driver"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                            </svg>
-                                                            Reset
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        onClick={() => setIsDriverScanOpen(true)}
-                                                        className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
-                                                        title="Scan Driver QR Code"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                                                        </svg>
-                                                        Scan Driver
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            {drivers.map(driver => {
-                                                const isEligible = isDriverEligible(driver);
-                                                const balance = getDriverBalance(driver);
-                                                return (
-                                                    <div
-                                                        key={driver.id}
-                                                        onClick={() => setSelectedDriver(driver.id)}
-                                                        className={`p-3 rounded-lg border flex items-center space-x-3 transition-all cursor-pointer ${selectedDriver === driver.id
-                                                            ? 'bg-green-50 border-green-500 ring-1 ring-green-500'
-                                                            : isEligible
-                                                                ? 'bg-white border-gray-200 hover:bg-gray-50'
-                                                                : 'bg-red-50 border-red-200 opacity-80'
-                                                            }`}
-                                                    >
-                                                        <div className="h-9 w-9 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 relative">
-                                                            {driver.name.charAt(0)}
-                                                            {driver.linkedUserId && (
-                                                                <span className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 border-2 border-white rounded-full" title="App Connected"></span>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <div className="flex justify-between items-start">
-                                                                <p className="text-sm font-medium text-gray-900">{driver.name}</p>
-                                                                {!isEligible && (
-                                                                    <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 rounded">BLOCKED</span>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex flex-col gap-1 mt-1">
-                                                                <div className="flex gap-2">
-                                                                    <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded">{driver.vehicleType}</span>
-                                                                    {driver.zone && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 rounded">{driver.zone}</span>}
-                                                                </div>
-                                                                {!isEligible && (
-                                                                    <p className="text-[10px] text-red-600 font-medium">
-                                                                        Owes:
-                                                                        {Math.abs(balance.usd) > 0.01 && ` $${balance.usd.toFixed(2)}`}
-                                                                        {Math.abs(balance.khr) > 1 && ` ${balance.khr.toLocaleString()} KHR`}
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {selectedDriver === driver.id && (
-                                                            <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                            {drivers.length === 0 && <p className="text-xs text-red-500 text-center py-4">No active drivers found.</p>}
-                                        </div>
-
-                                        {/* Confirmation Button */}
-                                        {(selectedWarehouseItem) && (
-                                            <Button
-                                                className="w-full mt-4"
-                                                disabled={!selectedDriver}
-                                                onClick={() => {
-                                                    handleAssignWarehouseItem();
-                                                    // Close mobile panel after assignment if logic succeeds (handled inside func?) 
-                                                    // Actually handleAssignWarehouseItem clears selection, which will clear the header text, 
-                                                    // but we might want to close the panel or keep it open for next? 
-                                                    // Let's close it on mobile for better UX.
-                                                    if (window.innerWidth < 1024) setIsMobilePanelOpen(false);
-                                                }}
-                                            >
-                                                Confirm Assignment
-                                            </Button>
-                                        )}
                                     </>
                                 )}
+
+                                {/* Driver List - ALWAYS VISIBLE */}
+                                <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[400px]">
+                                    <div className="flex justify-between items-center sticky top-0 bg-white pb-2 z-10">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Available Drivers ({drivers.length})</p>
+                                        <div className="flex items-center gap-2">
+                                            {selectedDriver && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedDriver(null);
+                                                    }}
+                                                    className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                                                    title="Clear selected driver"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                    Reset
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setIsDriverScanOpen(true)}
+                                                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                                                title="Scan Driver QR Code"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                                </svg>
+                                                Scan Driver
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {drivers.map(driver => {
+                                        const isEligible = isDriverEligible(driver);
+                                        const balance = getDriverBalance(driver);
+                                        return (
+                                            <div
+                                                key={driver.id}
+                                                onClick={() => setSelectedDriver(driver.id)}
+                                                className={`p-3 rounded-lg border flex items-center space-x-3 transition-all cursor-pointer ${selectedDriver === driver.id
+                                                    ? 'bg-green-50 border-green-500 ring-1 ring-green-500'
+                                                    : isEligible
+                                                        ? 'bg-white border-gray-200 hover:bg-gray-50'
+                                                        : 'bg-red-50 border-red-200 opacity-80'
+                                                    }`}
+                                            >
+                                                <div className="h-9 w-9 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 relative">
+                                                    {driver.name.charAt(0)}
+                                                    {driver.linkedUserId && (
+                                                        <span className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 border-2 border-white rounded-full" title="App Connected"></span>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <p className="text-sm font-medium text-gray-900">{driver.name}</p>
+                                                        {!isEligible && (
+                                                            <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 rounded">BLOCKED</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-1 mt-1">
+                                                        <div className="flex gap-2">
+                                                            <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded">{driver.vehicleType}</span>
+                                                            {driver.zone && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 rounded">{driver.zone}</span>}
+                                                        </div>
+                                                        {!isEligible && (
+                                                            <p className="text-[10px] text-red-600 font-medium">
+                                                                Owes:
+                                                                {Math.abs(balance.usd) > 0.01 && ` $${balance.usd.toFixed(2)}`}
+                                                                {Math.abs(balance.khr) > 1 && ` ${balance.khr.toLocaleString()} KHR`}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {selectedDriver === driver.id && (
+                                                    <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    {drivers.length === 0 && <p className="text-xs text-red-500 text-center py-4">No active drivers found.</p>}
+                                </div>
+
+                                {/* Confirmation Button (Only if Item Selected & Driver Selected) */}
+                                {(selectedWarehouseItem) && (
+                                    <Button
+                                        className="w-full mt-4"
+                                        disabled={!selectedDriver}
+                                        onClick={() => {
+                                            handleAssignWarehouseItem();
+                                            if (window.innerWidth < 1024) setIsMobilePanelOpen(false);
+                                        }}
+                                    >
+                                        Confirm Assignment
+                                    </Button>
+                                )}
+
                             </div>
                         </Card>
                     </div>
                 </div>
-            </div>
+            </div >
 
             {/* Camera Scan Modal */}
-            {isCameraScanOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
-                        <div className="p-4 bg-gray-100 flex justify-between items-center border-b border-gray-200">
-                            <h3 className="font-bold text-gray-800">Scan Barcode / QR</h3>
-                            <button onClick={() => setIsCameraScanOpen(false)} className="text-gray-500 hover:text-gray-700">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <div className="p-4">
-                            <div id="dispatch-reader" className="w-full"></div>
-                        </div>
-                        <div className="p-4 bg-gray-50 text-center text-xs text-gray-500">
-                            Point camera at the parcel barcode to assign instantly.
+            {
+                isCameraScanOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
+                            <div className="p-4 bg-gray-100 flex justify-between items-center border-b border-gray-200">
+                                <h3 className="font-bold text-gray-800">Scan Barcode / QR</h3>
+                                <button onClick={() => setIsCameraScanOpen(false)} className="text-gray-500 hover:text-gray-700">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-4">
+                                <div id="dispatch-reader" className="w-full"></div>
+                            </div>
+                            <div className="p-4 bg-gray-50 text-center text-xs text-gray-500">
+                                Point camera at the parcel barcode to assign instantly.
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Driver QR Scan Modal */}
-            {isDriverScanOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
-                        <div className="p-4 bg-indigo-600 flex justify-between items-center">
-                            <h3 className="font-bold text-white flex items-center gap-2">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                                Scan Driver Badge
-                            </h3>
-                            <button onClick={() => setIsDriverScanOpen(false)} className="text-white hover:text-indigo-200">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <div className="p-4">
-                            <div id="driver-qr-reader" className="w-full"></div>
-                        </div>
-                        <div className="p-4 bg-indigo-50 text-center">
-                            <p className="text-xs text-indigo-600 font-medium">Point camera at driver's employee badge QR code</p>
-                            <p className="text-[10px] text-indigo-400 mt-1">Scans employeeCode to auto-select driver</p>
+            {
+                isDriverScanOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative">
+                            <div className="p-4 bg-indigo-600 flex justify-between items-center">
+                                <h3 className="font-bold text-white flex items-center gap-2">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    Scan Driver Badge
+                                </h3>
+                                <button onClick={() => setIsDriverScanOpen(false)} className="text-white hover:text-indigo-200">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-4">
+                                <div id="driver-qr-reader" className="w-full"></div>
+                            </div>
+                            <div className="p-4 bg-indigo-50 text-center">
+                                <p className="text-xs text-indigo-600 font-medium">Point camera at driver's employee badge QR code</p>
+                                <p className="text-[10px] text-indigo-400 mt-1">Scans employeeCode to auto-select driver</p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };

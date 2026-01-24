@@ -234,20 +234,34 @@ export const ParcelList: React.FC = () => {
     };
 
     // Calculate total fee split by currency (using per-item fees)
+    // Calculate total fee split by currency (using per-item fees)
     const calculateTotalFee = (items: ParcelItem[]) => {
-        if (!items) return '-';
+        if (!items || items.length === 0) return '-';
         let usd = 0;
         let khr = 0;
         items.forEach(i => {
-            const fee = Number(i.deliveryFee) || 0;
-            if (i.codCurrency === 'KHR') khr += fee;
-            else usd += fee;
+            const item = i as any;
+            if (item.deliveryFeeUSD && Number(item.deliveryFeeUSD) > 0) {
+                usd += Number(item.deliveryFeeUSD);
+            } else if (item.deliveryFeeKHR && Number(item.deliveryFeeKHR) > 0) {
+                khr += Number(item.deliveryFeeKHR);
+            } else {
+                const fee = Number(i.deliveryFee) || 0;
+                if (fee > 0) {
+                    // Heuristic: If fee >= 100, assume KHR. Else USD.
+                    if (fee >= 100) {
+                        khr += fee;
+                    } else {
+                        usd += fee;
+                    }
+                }
+            }
         });
 
         if (usd === 0 && khr === 0) return '-';
         if (usd > 0 && khr > 0) return `$${usd.toFixed(2)} + ${khr.toLocaleString()}៛`;
         if (khr > 0) return `${khr.toLocaleString()} ៛`;
-        return `$${usd.toFixed(2)} `;
+        return `$${usd.toFixed(2)}`;
     };
 
     const drivers = useMemo(() => employees.filter(e => e.isDriver), [employees]);
