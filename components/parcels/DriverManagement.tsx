@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Employee, UserProfile, Branch } from '../../src/shared/types';
+import { Employee, UserProfile, Branch, DriverCommissionRule } from '../../src/shared/types';
+import { logisticsService } from '../../src/shared/services/logisticsService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -13,6 +14,7 @@ interface Props {
 export const DriverManagement: React.FC<Props> = ({ branches = [] }) => {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [users, setUsers] = useState<UserProfile[]>([]);
+    const [commissionRules, setCommissionRules] = useState<DriverCommissionRule[]>([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -32,12 +34,14 @@ export const DriverManagement: React.FC<Props> = ({ branches = [] }) => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [empData, userData] = await Promise.all([
+            const [empData, userData, rulesData] = await Promise.all([
                 firebaseService.getEmployees(),
-                firebaseService.getUsers()
+                firebaseService.getUsers(),
+                logisticsService.getDriverCommissionRules()
             ]);
             setEmployees(empData.filter(e => e.isDriver));
             setUsers(userData.filter(u => u.role === 'driver'));
+            setCommissionRules(rulesData || []);
         } catch (e) {
             console.error("Load data failed", e);
         } finally {
@@ -162,76 +166,93 @@ export const DriverManagement: React.FC<Props> = ({ branches = [] }) => {
             </div>
 
             {isFormOpen && (
-                <Card title={editingId ? "Edit Driver" : "New Driver Profile"}>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-
-                        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                            <label className="block text-sm font-bold text-indigo-900 mb-1">Link to System User (App Login)</label>
-                            <select
-                                className="block w-full px-3 py-2 border border-indigo-300 rounded-lg shadow-sm focus:ring-indigo-500 sm:text-sm"
-                                value={linkedUserId}
-                                onChange={handleUserLinkChange}
-                            >
-                                <option value="">-- No App Login (Manual Record Only) --</option>
-                                {users.map(u => (
-                                    <option key={u.uid} value={u.uid}>
-                                        {u.name} ({u.email})
-                                    </option>
-                                ))}
-                            </select>
-                            <p className="text-xs text-indigo-700 mt-1">
-                                Linking enables this driver to log in to the Driver App and receive jobs.
-                            </p>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl transform transition-all scale-100 my-8">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-gray-900">{editingId ? "Edit Driver" : "New Driver Profile"}</h3>
+                            <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                         </div>
+                        <div className="p-6">
+                            <form onSubmit={handleSubmit} className="space-y-4">
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Input label="Driver Name" value={name} onChange={e => setName(e.target.value)} required />
-                            <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} required />
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
-                                <select
-                                    className="block w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-indigo-500"
-                                    value={vehicleType}
-                                    onChange={e => setVehicleType(e.target.value)}
-                                >
-                                    <option value="MOTO">Motorbike</option>
-                                    <option value="TUKTUK">Tuktuk</option>
-                                    <option value="CAR">Car/Sedan</option>
-                                    <option value="TRUCK">Truck/Van</option>
-                                </select>
-                            </div>
-                            <Input label="License Plate" value={plateNumber} onChange={e => setPlateNumber(e.target.value)} required placeholder="e.g. 1A-1234" />
+                                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                    <label className="block text-sm font-bold text-indigo-900 mb-1">Link to System User (App Login)</label>
+                                    <select
+                                        className="block w-full px-3 py-2 border border-indigo-300 rounded-lg shadow-sm focus:ring-indigo-500 sm:text-sm"
+                                        value={linkedUserId}
+                                        onChange={handleUserLinkChange}
+                                    >
+                                        <option value="">-- No App Login (Manual Record Only) --</option>
+                                        {users.map(u => (
+                                            <option key={u.uid} value={u.uid}>
+                                                {u.name} ({u.email})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-indigo-700 mt-1">
+                                        Linking enables this driver to log in to the Driver App and receive jobs.
+                                    </p>
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Home Branch (Warehouse)</label>
-                                <select
-                                    className="block w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-indigo-500"
-                                    value={branchId}
-                                    onChange={e => setBranchId(e.target.value)}
-                                >
-                                    <option value="">-- None / Roaming --</option>
-                                    {branches.map(b => (
-                                        <option key={b.id} value={b.id}>{b.name}</option>
-                                    ))}
-                                </select>
-                            </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <Input label="Driver Name" value={name} onChange={e => setName(e.target.value)} required />
+                                    <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} required />
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
+                                        <select
+                                            className="block w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-indigo-500"
+                                            value={vehicleType}
+                                            onChange={e => setVehicleType(e.target.value)}
+                                        >
+                                            <option value="MOTO">Motorbike</option>
+                                            <option value="TUKTUK">Tuktuk</option>
+                                            <option value="CAR">Car/Sedan</option>
+                                            <option value="TRUCK">Truck/Van</option>
+                                        </select>
+                                    </div>
+                                    <Input label="License Plate" value={plateNumber} onChange={e => setPlateNumber(e.target.value)} required placeholder="e.g. 1A-1234" />
 
-                            <div>
-                                <Input
-                                    label="Zone / Commission Rule"
-                                    value={zone}
-                                    onChange={e => setZone(e.target.value)}
-                                    placeholder="e.g. Phnom Penh Standard"
-                                />
-                                <p className="text-[10px] text-gray-500 mt-1">Enter the exact name of a Commission Rule (see Settings).</p>
-                            </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Home Branch (Warehouse)</label>
+                                        <select
+                                            className="block w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-indigo-500"
+                                            value={branchId}
+                                            onChange={e => setBranchId(e.target.value)}
+                                        >
+                                            <option value="">-- None / Roaming --</option>
+                                            {branches.map(b => (
+                                                <option key={b.id} value={b.id}>{b.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Zone / Commission Rule</label>
+                                        <select
+                                            className="block w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-indigo-500"
+                                            value={zone}
+                                            onChange={e => setZone(e.target.value)}
+                                        >
+                                            <option value="">-- Select Rule --</option>
+                                            {Array.from(new Set(commissionRules.map(r => r.zoneName).filter(Boolean))).map((z, idx) => (
+                                                <option key={idx} value={z as string}>
+                                                    {z as string}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[10px] text-gray-500 mt-1">Select a Commission Rule defined in Settings.</p>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end space-x-2 pt-6 border-t border-gray-100 mt-4">
+                                    <Button variant="outline" type="button" onClick={() => setIsFormOpen(false)}>Cancel</Button>
+                                    <Button type="submit" isLoading={loading}>Save Profile</Button>
+                                </div>
+                            </form>
                         </div>
-                        <div className="flex justify-end space-x-2 pt-4">
-                            <Button variant="outline" type="button" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-                            <Button type="submit" isLoading={loading}>Save Profile</Button>
-                        </div>
-                    </form>
-                </Card>
+                    </div>
+                </div>
             )}
 
             <Card>
