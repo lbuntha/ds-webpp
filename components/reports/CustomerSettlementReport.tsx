@@ -666,19 +666,11 @@ export const CustomerSettlementReport: React.FC = () => {
                                     type="checkbox"
                                     id="excludeFees"
                                     checked={excludeFees}
-                                    onChange={e => {
-                                        // Only allow changes if NOT set from profile, OR allow unchecking
-                                        if (!excludeFeesFromProfile || !e.target.checked) {
-                                            setExcludeFees(e.target.checked);
-                                        }
-                                    }}
-                                    disabled={excludeFeesFromProfile && excludeFees} // Disable if already ticked from profile
-                                    className={`w-4 h-4 text-green-600 rounded ${excludeFeesFromProfile && excludeFees ? 'cursor-not-allowed' : 'cursor-pointer'
-                                        }`}
+                                    onChange={e => setExcludeFees(e.target.checked)}
+                                    className="w-4 h-4 text-green-600 rounded cursor-pointer"
                                 />
-                                <label htmlFor="excludeFees" className={`text-sm font-medium select-none ${excludeFeesFromProfile && excludeFees ? 'cursor-not-allowed text-green-700' : 'cursor-pointer text-gray-700'
-                                    } ${excludeFees ? 'font-bold' : ''}`}>
-                                    Exclude Fees (Pay Gross) {excludeFeesFromProfile && excludeFees ? '(Admin Set)' : ''}
+                                <label htmlFor="excludeFees" className={`text-sm font-medium select-none cursor-pointer text-gray-700 ${excludeFees ? 'font-bold' : ''}`}>
+                                    Exclude Fees (Pay Gross) {excludeFeesFromProfile ? '(Default)' : ''}
                                 </label>
                             </div>
                             {liveBalance && (
