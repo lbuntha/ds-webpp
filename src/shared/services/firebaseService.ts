@@ -162,6 +162,7 @@ export class FirebaseService {
     getEmployees() { return this.hrService.getEmployees(); }
     addEmployee(e: any) { return this.hrService.addEmployee(e); }
     updateEmployee(e: any) { return this.hrService.updateEmployee(e); }
+    deleteEmployee(id: string) { return this.hrService.deleteEmployee(id); }
     getStaffLoans() { return this.hrService.getStaffLoans(); }
     createStaffLoan(l: any) { return this.hrService.createStaffLoan(l); }
     recordStaffLoanRepayment(r: any) { return this.hrService.recordStaffLoanRepayment(r); }
@@ -251,7 +252,7 @@ export class FirebaseService {
     requestWithdrawal(uid: string, name: string, amt: number, curr: string, bid: string, desc: string, items?: any[]) { return this.walletService.requestWithdrawal(uid, name, amt, curr, bid, desc, items); }
     processWalletTransaction(uid: string, amt: number, curr: string, type: string, bid: string, desc: string, items?: { bookingId: string, itemId: string }[]) { return this.walletService.processWalletTransaction(uid, amt, curr, type, bid, desc, items); }
     getPendingWalletTransactions() { return this.walletService.getPendingWalletTransactions(); }
-    approveWalletTransaction(id: string, uid: string, journalEntryId?: string) { return this.walletService.approveWalletTransaction(id, uid, journalEntryId); }
+    approveWalletTransaction(id: string, uid: string, journalEntryId?: string, approvalNote?: string) { return this.walletService.approveWalletTransaction(id, uid, journalEntryId, approvalNote); }
     rejectWalletTransaction(id: string, reason: string) { return this.walletService.rejectWalletTransaction(id, reason); }
     processReferralReward(refereeUid: string, referrerCode: string) { return this.walletService.processReferralReward(refereeUid, referrerCode); }
 

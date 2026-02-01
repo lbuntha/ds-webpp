@@ -990,10 +990,13 @@ export interface WalletTransaction {
   description?: string;
   bankAccountId?: string;
   attachment?: string;
+  attachments?: string[];
   rejectionReason?: string;
   journalEntryId?: string;
   relatedItems?: { bookingId: string, itemId: string }[];
   taxiFeeSettled?: boolean; // True when taxi fee has been reimbursed via settlement
+  approvalNote?: string; // Note added by approver during settlement authorization
+  excludeFees?: boolean; // True if this settlement excludes fee deductions (gross payout)
 
   // Payroll Settlement
   isSettled?: boolean;

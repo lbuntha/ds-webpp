@@ -18,6 +18,10 @@ export default function EmployeeManagementView() {
                     await firebaseService.updateEmployee(e);
                     await refreshData();
                 }}
+                onDeleteEmployee={async (id) => {
+                    await firebaseService.deleteEmployee(id);
+                    await refreshData();
+                }}
             />
         </div>
     );

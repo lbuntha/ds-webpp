@@ -111,13 +111,15 @@ class TelegramService {
             return null;
         }
     }
-    async sendSettlementReport(chatId, txn, customerName, statusOverride, excelBuffer, breakdown) {
+    async sendSettlementReport(chatId, txn, customerName, statusOverride, excelBuffer, breakdown, note, excludeFees) {
         var _a;
-        const isUSD = txn.currency === 'USD';
-        const symbol = isUSD ? '$' : '៛';
-        const fmt = (val) => isUSD
-            ? `${symbol}${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-            : `${val.toLocaleString()} ${symbol}`;
+        const fmt = (val, currency) => {
+            const cur = currency || txn.currency;
+            const sym = cur === 'USD' ? '$' : '៛';
+            return cur === 'USD'
+                ? `${sym}${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                : `${val.toLocaleString()} ${sym}`;
+        };
         const amountStr = fmt(txn.amount);
         const title = statusOverride === 'APPROVED' ? '*Settlement Payout Approved & Sent*' : '*Settlement Payout Initiated*';
         const bodyText = statusOverride === 'APPROVED'
@@ -125,13 +127,46 @@ class TelegramService {
             : `A settlement payout has been initiated for your account.`;
         let summaryLines = [];
         if (breakdown) {
-            summaryLines = [
-                `*Summary Breakdown:*`,
-                `• Total COD: ${fmt(breakdown.totalCOD)}`,
-                `• Total Delivery Fees: -${fmt(breakdown.totalDeliveryFee)}`,
-                `• *Net Payout: ${fmt(breakdown.netPayout)}*`
-            ];
+            const codCurrency = breakdown.codCurrency || txn.currency;
+            if (excludeFees) {
+                // Gross Payout - Fees owed separately by customer
+                const feeOwed = (breakdown.deliveryFeeUSD || 0) + (breakdown.deliveryFeeKHR || 0) > 0
+                    ? (breakdown.deliveryFeeUSD && breakdown.deliveryFeeUSD > 0 ? fmt(breakdown.deliveryFeeUSD, 'USD') : '') +
+                        (breakdown.deliveryFeeUSD && breakdown.deliveryFeeKHR ? ' + ' : '') +
+                        (breakdown.deliveryFeeKHR && breakdown.deliveryFeeKHR > 0 ? fmt(breakdown.deliveryFeeKHR, 'KHR') : '')
+                    : fmt(breakdown.totalDeliveryFee || 0);
+                summaryLines = [
+                    `*Summary Breakdown (Gross Payout):*`,
+                    `• Total COD: ${fmt(breakdown.totalCOD, codCurrency)}`,
+                    `• Delivery Fees: ${feeOwed} _(owed to Doorstep)_`,
+                    `• *Net Payout: ${fmt(breakdown.totalCOD, codCurrency)}*` // Net = COD when fees excluded
+                ];
+            }
+            else {
+                // Normal Payout - With fee deductions
+                // Build delivery fee lines
+                const feeLines = [];
+                if (breakdown.deliveryFeeUSD && breakdown.deliveryFeeUSD > 0) {
+                    feeLines.push(`• Total Delivery Fees (USD): -${fmt(breakdown.deliveryFeeUSD, 'USD')}`);
+                }
+                if (breakdown.deliveryFeeKHR && breakdown.deliveryFeeKHR > 0) {
+                    feeLines.push(`• Total Delivery Fees (KHR): -${fmt(breakdown.deliveryFeeKHR, 'KHR')}`);
+                }
+                // Fallback for legacy
+                if (feeLines.length === 0 && breakdown.totalDeliveryFee) {
+                    // Try to guess or just use txn currency
+                    feeLines.push(`• Total Delivery Fees: -${fmt(breakdown.totalDeliveryFee)}`);
+                }
+                summaryLines = [
+                    `*Summary Breakdown:*`,
+                    `• Total COD: ${fmt(breakdown.totalCOD, codCurrency)}`,
+                    ...feeLines,
+                    `• *Net Payout: ${fmt(breakdown.netPayout)}*` // Net payout is always in txn currency
+                ];
+            }
         }
+        // Terms and Conditions Footer
+        const termsAndConditions = `⚠️ _Please confirm the settlement amount within 7 days. After 7 days, Doorstep is not responsible for any discrepancies._`;
         const lines = [
             title,
             `--------------------------------`,
@@ -145,10 +180,15 @@ class TelegramService {
             `*Date:* ${txn.date}`,
             `*Parcels Included:* ${((_a = txn.relatedItems) === null || _a === void 0 ? void 0 : _a.length) || 0}`,
             ``,
+            // Approval Note (if present)
+            note ? `📝 *Note from Admin:* ${note}` : '',
+            ``,
             statusOverride === 'APPROVED' ? `_See attached Excel file for detailed breakdown._` : '',
             ``,
             `This amount will be transferred to your registered bank account shortly.`,
-            `Please check your banking app for receipt.`
+            `Please check your banking app for receipt.`,
+            ``,
+            termsAndConditions
         ].filter(l => l !== '');
         const caption = lines.join('\n');
         // If we have an Excel buffer, send as document

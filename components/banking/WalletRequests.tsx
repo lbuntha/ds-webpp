@@ -19,6 +19,7 @@ export const WalletRequests: React.FC = () => {
     const [viewTransaction, setViewTransaction] = useState<WalletTransaction | null>(null);
     const [confirmAction, setConfirmAction] = useState<{ type: 'APPROVE' | 'REJECT', txn: WalletTransaction } | null>(null);
     const [rejectReason, setRejectReason] = useState('');
+    const [pendingApprovalNote, setPendingApprovalNote] = useState<string | undefined>(undefined);
 
     // Data for JE creation context
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -91,8 +92,9 @@ export const WalletRequests: React.FC = () => {
         setViewTransaction(txn);
     };
 
-    const confirmApprovalFromModal = () => {
+    const confirmApprovalFromModal = (note?: string) => {
         if (viewTransaction) {
+            setPendingApprovalNote(note);
             setConfirmAction({ type: 'APPROVE', txn: viewTransaction });
             setViewTransaction(null);
         }
@@ -178,8 +180,8 @@ export const WalletRequests: React.FC = () => {
             // 1. Save Journal Entry to Firestore
             await firebaseService.addTransaction(entry);
 
-            // 2. Update Transaction Status & Link JE
-            await firebaseService.approveWalletTransaction(txn.id, currentUser.uid, entry.id);
+            // 2. Update Transaction Status & Link JE (and optionally save approval note)
+            await firebaseService.approveWalletTransaction(txn.id, currentUser.uid, entry.id, pendingApprovalNote);
 
             // 3. Mark related items as SETTLED (for SETTLEMENT transactions)
             if (txn.type === 'SETTLEMENT' && txn.relatedItems && txn.relatedItems.length > 0) {
@@ -217,6 +219,7 @@ export const WalletRequests: React.FC = () => {
             await firebaseService.sendNotification(notif);
 
             setConfirmAction(null);
+            setPendingApprovalNote(undefined);
             await loadRequests();
             toast.success("Transaction Approved & Posted to GL");
         } catch (e: any) {

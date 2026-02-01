@@ -478,6 +478,7 @@ export const ParcelList: React.FC = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('date')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('sender')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('service')}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('notes') || 'Notes'}</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('items')}</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">COD</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('fee')}</th>
@@ -515,6 +516,9 @@ export const ParcelList: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-700">
                                             <div>{(b.items?.[0] as any)?.serviceName || 'Standard'}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500 max-w-[150px] truncate" title={b.notes}>
+                                            {b.notes || '-'}
                                         </td>
                                         <td className="px-6 py-4 text-center text-sm text-gray-600">
                                             <div className="font-bold">{(b.items || []).length}</div>

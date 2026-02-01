@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Modal } from '../ui/Modal';
 import { Employee } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -10,9 +11,10 @@ interface Props {
   employees: Employee[];
   onAddEmployee: (employee: Employee) => Promise<void>;
   onUpdateEmployee: (employee: Employee) => Promise<void>;
+  onDeleteEmployee: (id: string) => Promise<void>;
 }
 
-export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpdateEmployee }) => {
+export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpdateEmployee, onDeleteEmployee }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -39,6 +41,8 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
   const [taxStatus, setTaxStatus] = useState<'RESIDENT' | 'NON_RESIDENT'>('RESIDENT');
   const [numberOfDependents, setNumberOfDependents] = useState(0);
   const [employeeCode, setEmployeeCode] = useState(''); // Employee Code for QR scanning
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string, name: string } | null>(null);
 
   const [loading, setLoading] = useState(false);
 
@@ -142,6 +146,25 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
       toast.error("Failed to save employee record");
     } finally {
       setLoading(false);
+    }
+  };
+
+
+
+  const handleDeleteClick = (id: string, name: string) => {
+    setDeleteConfirmation({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmation) return;
+    try {
+      await onDeleteEmployee(deleteConfirmation.id);
+      toast.success("Employee deleted successfully");
+    } catch (e) {
+      console.error("Failed to delete", e);
+      toast.error("Failed to delete employee");
+    } finally {
+      setDeleteConfirmation(null);
     }
   };
 
@@ -397,6 +420,15 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
                       </svg>
                       Edit
                     </button>
+                    <button
+                      onClick={() => handleDeleteClick(e.id, e.name)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-red-100 rounded-xl text-xs font-bold text-red-600 shadow-sm hover:shadow-md hover:border-red-200 hover:bg-red-50 transition-all active:scale-90"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -418,6 +450,35 @@ export const EmployeeList: React.FC<Props> = ({ employees, onAddEmployee, onUpda
             </tbody>
           </table>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          isOpen={!!deleteConfirmation}
+          onClose={() => setDeleteConfirmation(null)}
+          title="Confirm Deletion"
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Are you sure you want to delete <span className="font-bold text-gray-900">{deleteConfirmation?.name}</span>?
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button
+                onClick={() => setDeleteConfirmation(null)}
+                className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-100"
+              >
+                Delete Employee
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
   );

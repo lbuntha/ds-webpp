@@ -182,8 +182,16 @@ export const CustomerSettlementReport: React.FC = () => {
 
             if (linkedUser) {
                 if (s.name.includes('(Unregistered)')) {
-                    s.name = linkedUser.name;
-                    s.id = linkedUser.linkedCustomerId || s.id;
+                    // Try to resolve to the official Customer Profile first
+                    const officialCustomer = linkedUser.linkedCustomerId ? customers.find(c => c.id === linkedUser.linkedCustomerId) : null;
+
+                    if (officialCustomer) {
+                        s.name = officialCustomer.name;
+                        s.id = officialCustomer.id;
+                    } else {
+                        s.name = linkedUser.name;
+                        s.id = linkedUser.linkedCustomerId || s.id;
+                    }
                 }
             }
             s.netUSD = s.totalCodUSD - s.totalFeeUSD;
@@ -477,7 +485,8 @@ export const CustomerSettlementReport: React.FC = () => {
                     'system',
                     '',
                     description,
-                    itemsToSettle
+                    itemsToSettle,
+                    excludeFees
                 );
             } else if (targetCurrency === 'KHR' && Math.abs(netAmount) > 0.1) {
                 await firebaseService.walletService.requestSettlement(
@@ -488,7 +497,8 @@ export const CustomerSettlementReport: React.FC = () => {
                     'system',
                     '',
                     description,
-                    itemsToSettle
+                    itemsToSettle,
+                    excludeFees
                 );
             }
 

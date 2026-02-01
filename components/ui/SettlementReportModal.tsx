@@ -7,7 +7,7 @@ import { Button } from './Button';
 interface Props {
     transaction: WalletTransaction;
     onClose: () => void;
-    onConfirm?: () => void; // Optional: If used for approval
+    onConfirm?: (note?: string) => void; // Optional: If used for approval, now accepts note
     isApproving?: boolean;
     // Context for calculating estimates
     bookings?: ParcelBooking[];
@@ -55,12 +55,15 @@ export const SettlementReportModal: React.FC<Props> = ({
     const [items, setItems] = useState<ReportLineItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [journalEntry, setJournalEntry] = useState<JournalEntry | null>(null);
-    const [customerBankAccount, setCustomerBankAccount] = useState<BankAccountDetails | null>(null);
+    const [customerBankAccounts, setCustomerBankAccounts] = useState<BankAccountDetails[]>([]);
+    const [approvalNote, setApprovalNote] = useState('');
 
     // Find the target bank account if available
     const bankAccount = useMemo(() => {
         if (!transaction.bankAccountId || !accounts) return null;
-        return accounts.find(a => a.id === transaction.bankAccountId);
+        // Try exact ID match first, then Fallback to Code match (if ID stored is actually a Code)
+        return accounts.find(a => a.id === transaction.bankAccountId) ||
+            accounts.find(a => a.code === transaction.bankAccountId);
     }, [transaction.bankAccountId, accounts]);
 
     const getAccountName = (id: string) => {
@@ -82,10 +85,64 @@ export const SettlementReportModal: React.FC<Props> = ({
                 if (transaction.userId) {
                     try {
                         const customers = await firebaseService.getCustomers() as Customer[];
-                        const customer = customers.find(c => c.linkedUserId === transaction.userId);
-                        if (customer && customer.bankAccounts && customer.bankAccounts.length > 0) {
-                            setCustomerBankAccount(customer.bankAccounts[0]); // Use first bank account
+
+                        // Find ALL customers linked to this user
+                        const matchingCustomers = customers.filter(c => c.linkedUserId === transaction.userId);
+
+                        let banks: BankAccountDetails[] = [];
+
+                        matchingCustomers.forEach((c) => {
+                            const rawC = c as any;
+
+                            // 1. Check Standard Array (if migrated)
+                            if (c.bankAccounts && c.bankAccounts.length > 0) {
+                                banks = [...banks, ...c.bankAccounts];
+                            }
+
+                            // 2. Check Specific 'bank_account' Map (USD/KHR keys)
+                            if (rawC.bank_account) {
+                                // USD Account
+                                if (rawC.bank_account.usd) {
+                                    const b = rawC.bank_account.usd;
+                                    banks.push({
+                                        bankName: b.bank_name ? `${b.bank_name} (USD)` : 'USD Account',
+                                        accountNumber: b.account_number,
+                                        accountName: c.name,
+                                        qrCode: b.qr_code_url,
+                                        id: 'usd-main'
+                                    });
+                                }
+                                // KHR Account
+                                if (rawC.bank_account.khr) {
+                                    const b = rawC.bank_account.khr;
+                                    banks.push({
+                                        bankName: b.bank_name ? `${b.bank_name} (KHR)` : 'KHR Account',
+                                        accountNumber: b.account_number,
+                                        accountName: c.name,
+                                        qrCode: b.qr_code_url,
+                                        id: 'khr-main'
+                                    });
+                                }
+                            }
+
+                            // 3. Fallback: Legacy flat fields
+                            if (banks.length === 0 && c.bankName && c.bankAccountNumber) {
+                                banks.push({
+                                    bankName: c.bankName,
+                                    accountNumber: c.bankAccountNumber,
+                                    accountName: c.name,
+                                    id: 'legacy'
+                                });
+                            }
+                        });
+
+                        // Deduplicate by account number just in case
+                        const uniqueBanks = banks.filter((v, i, a) => a.findIndex(t => t.accountNumber === v.accountNumber) === i);
+
+                        if (uniqueBanks.length > 0) {
+                            setCustomerBankAccounts(uniqueBanks);
                         }
+
                     } catch (e) {
                         // console.warn('Could not fetch customer bank account:', e);
                     }
@@ -421,32 +478,46 @@ export const SettlementReportModal: React.FC<Props> = ({
                 // Simple resolution just for the preview call
                 // Note: The service might error if bank ID is missing, which is fine (shows in errors)
                 if (!settlementBankId || settlementBankId === 'system' || settlementBankId === 'system-payout') {
-                    // Check user role from somewhere? We don't have user profile here easily unless we fetch or infer.
-                    // We can infer from transaction type or passed props?
-                    // Transaction doesn't explicit have role. But we can guess.
-                    // If Transaction Type is WITHDRAWAL -> Likely Customer Payout? 
-                    // Actually, Driver Withdrawal exists too? Unlikely in this system context (Drivers settle/Deposit).
-
-                    // Best effort guess or fetch? 
-                    // To avoid async fetch inside this effect which might be heavy, lets try to reuse knowns.
-                    // But actually, WalletRequests passed 'employees' list. If userId is in employees, likely driver.
-
                     const isDriver = employees.some(e => e.linkedUserId === transaction.userId);
 
                     if (isDriver) {
                         if (rule4AccId) {
                             settlementBankId = rule4AccId;
                         } else {
+                            // 1. Try Default Settlement Bank (Usually Bank)
                             settlementBankId = isUSD
                                 ? (settings.defaultDriverSettlementBankIdUSD || settings.defaultDriverSettlementBankId)
                                 : (settings.defaultDriverSettlementBankIdKHR || settings.defaultDriverSettlementBankId);
+
+                            // 2. Fallback to Cash Account (If Bank not set, assume Cash settlement)
+                            if (!settlementBankId) {
+                                settlementBankId = isUSD
+                                    ? settings.defaultDriverCashAccountIdUSD
+                                    : settings.defaultDriverCashAccountIdKHR;
+                            }
                         }
                     } else {
                         // Customer
                         settlementBankId = isUSD
                             ? (settings.defaultCustomerSettlementBankIdUSD || settings.defaultCustomerSettlementBankId)
                             : (settings.defaultCustomerSettlementBankIdKHR || settings.defaultCustomerSettlementBankId);
+
+                        // Fallback: If Customer specific setting is missing, try generic Driver Cash Account
+                        // (Often Cash on Hand is a single shared account 111100X)
+                        if (!settlementBankId) {
+                            settlementBankId = isUSD
+                                ? settings.defaultDriverCashAccountIdUSD
+                                : settings.defaultDriverCashAccountIdKHR;
+                        }
                     }
+
+                    console.log('DEBUG: Resolved Preview Bank ID:', settlementBankId, { isDriver, isUSD });
+                    console.log('DEBUG: Settings Snap:', {
+                        custUSD: settings.defaultCustomerSettlementBankIdUSD,
+                        custKHR: settings.defaultCustomerSettlementBankIdKHR,
+                        drvCashUSD: settings.defaultDriverCashAccountIdUSD,
+                        drvCashKHR: settings.defaultDriverCashAccountIdKHR
+                    });
                 }
 
                 // Import Service dynamically to ensure clean load
@@ -570,14 +641,42 @@ export const SettlementReportModal: React.FC<Props> = ({
                     </div>
 
                     {/* Proof of Transfer */}
-                    {transaction.attachment && (
-                        <div className="mb-6">
-                            <p className="text-xs text-gray-500 uppercase font-bold mb-2">Proof of Transfer</p>
-                            <div className="h-48 w-full bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
-                                <img src={transaction.attachment} alt="Transfer Proof" className="h-full object-contain" />
+                    {/* Proof of Transfer */}
+                    {(() => {
+                        const rawAttachments = transaction.attachments || [];
+                        const legacyAttachment = transaction.attachment || '';
+
+                        // Merge and cleanup
+                        let allAttachments = [...rawAttachments];
+                        if (legacyAttachment) {
+                            // Handle comma-separated values in the legacy string field
+                            const parts = legacyAttachment.split(',').map(s => s.trim()).filter(Boolean);
+                            allAttachments = [...allAttachments, ...parts];
+                        }
+
+                        // Deduplicate
+                        allAttachments = Array.from(new Set(allAttachments));
+
+                        if (allAttachments.length === 0) return null;
+
+                        return (
+                            <div className="mb-6">
+                                <p className="text-xs text-gray-500 uppercase font-bold mb-2">Proof of Transfer ({allAttachments.length})</p>
+                                <div className={`grid ${allAttachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                                    {allAttachments.map((url, index) => (
+                                        <div key={index} className="h-48 w-full bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden relative group">
+                                            <img src={url} alt={`Transfer Proof ${index + 1}`} className="h-full object-contain cursor-pointer" onClick={() => window.open(url, '_blank')} />
+                                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center pointer-events-none">
+                                                <span className="opacity-0 group-hover:opacity-100 bg-white text-xs px-2 py-1 rounded shadow pointer-events-auto">View</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
+
+
 
                     {bankAccount && (
                         <div className="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
@@ -613,38 +712,42 @@ export const SettlementReportModal: React.FC<Props> = ({
                         </div>
                     )}
 
-                    {/* Customer Bank Account (from customers collection) */}
-                    {customerBankAccount && (
-                        <div className="mb-6 bg-green-50 p-4 rounded-lg border border-green-200">
-                            <div className="flex items-start gap-4">
-                                {/* QR Code */}
-                                {customerBankAccount.qrCode && (
-                                    <div className="flex-shrink-0">
-                                        <img
-                                            src={customerBankAccount.qrCode}
-                                            alt="Customer QR Code"
-                                            className="w-24 h-24 object-contain bg-white p-1 rounded-lg border border-gray-200"
-                                        />
-                                    </div>
-                                )}
-                                {/* Bank Details */}
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="p-2 bg-white rounded-full text-green-600">
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                    {/* Customer Bank Accounts (from customers collection) */}
+                    {customerBankAccounts.length > 0 && (
+                        <div className="mb-6 space-y-4">
+                            {customerBankAccounts.map((acc, idx) => (
+                                <div key={idx} className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                    <div className="flex items-start gap-4">
+                                        {/* QR Code */}
+                                        {acc.qrCode && (
+                                            <div className="flex-shrink-0">
+                                                <img
+                                                    src={acc.qrCode}
+                                                    alt="Customer QR Code"
+                                                    className="w-24 h-24 object-contain bg-white p-1 rounded-lg border border-gray-200"
+                                                />
+                                            </div>
+                                        )}
+                                        {/* Bank Details */}
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="p-2 bg-white rounded-full text-green-600">
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                                </div>
+                                                <p className="text-xs text-green-800 font-bold uppercase">Pay To Customer ({acc.bankName})</p>
+                                            </div>
+                                            <p className="text-lg font-semibold text-gray-900">{acc.bankName}</p>
+                                            {acc.accountName && (
+                                                <p className="text-sm text-gray-600">{acc.accountName}</p>
+                                            )}
+                                            <div className="mt-2 pt-2 border-t border-green-200">
+                                                <p className="text-xs text-gray-500">Account Number</p>
+                                                <p className="text-base font-mono font-bold text-gray-900 tracking-wider">{acc.accountNumber}</p>
+                                            </div>
                                         </div>
-                                        <p className="text-xs text-green-800 font-bold uppercase">Pay To Customer Bank</p>
-                                    </div>
-                                    <p className="text-lg font-semibold text-gray-900">{customerBankAccount.bankName}</p>
-                                    {customerBankAccount.accountName && (
-                                        <p className="text-sm text-gray-600">{customerBankAccount.accountName}</p>
-                                    )}
-                                    <div className="mt-2 pt-2 border-t border-green-200">
-                                        <p className="text-xs text-gray-500">Account Number</p>
-                                        <p className="text-base font-mono font-bold text-gray-900 tracking-wider">{customerBankAccount.accountNumber}</p>
                                     </div>
                                 </div>
-                            </div>
+                            ))}
                         </div>
                     )}
 
@@ -800,17 +903,31 @@ export const SettlementReportModal: React.FC<Props> = ({
                 </div>
 
                 {/* Actions */}
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
-                    <Button variant="outline" onClick={onClose}>Close</Button>
-                    {isApproving && onConfirm && (
-                        <Button
-                            onClick={onConfirm}
-                            className="bg-green-600 hover:bg-green-700"
-                            disabled={hasErrors} // Prevent approval if missing config
-                        >
-                            Confirm Approval
-                        </Button>
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col space-y-3">
+                    {isApproving && (
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Approval Note (Optional)</label>
+                            <textarea
+                                value={approvalNote}
+                                onChange={(e) => setApprovalNote(e.target.value)}
+                                placeholder="Add a note for the customer (e.g., thank you message, discrepancy explanation)..."
+                                className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                rows={2}
+                            />
+                        </div>
                     )}
+                    <div className="flex justify-end space-x-3">
+                        <Button variant="outline" onClick={onClose}>Close</Button>
+                        {isApproving && onConfirm && (
+                            <Button
+                                onClick={() => onConfirm(approvalNote || undefined)}
+                                className="bg-green-600 hover:bg-green-700"
+                                disabled={hasErrors} // Prevent approval if missing config
+                            >
+                                Confirm Approval
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

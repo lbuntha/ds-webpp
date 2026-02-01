@@ -57,7 +57,7 @@ export class WalletService extends BaseService {
         await this.saveDocument('wallet_transactions', txn);
     }
 
-    async requestSettlement(uid: string, userName: string, amount: number, currency: string, bankId: string, attachment: string, desc: string, items?: { bookingId: string, itemId: string }[]) {
+    async requestSettlement(uid: string, userName: string, amount: number, currency: string, bankId: string, attachment: string, desc: string, items?: { bookingId: string, itemId: string }[], excludeFees?: boolean) {
         if (attachment && attachment.startsWith('data:')) attachment = await this.uploadAttachment(attachment);
         const txn: WalletTransaction = {
             id: `wtxn-stl-${Date.now()}`,
@@ -71,7 +71,8 @@ export class WalletService extends BaseService {
             description: desc,
             bankAccountId: bankId,
             attachment,
-            relatedItems: items
+            relatedItems: items,
+            excludeFees: excludeFees || false
         };
         await this.saveDocument('wallet_transactions', txn);
     }
@@ -98,9 +99,10 @@ export class WalletService extends BaseService {
         return snap.docs.map(d => d.data() as WalletTransaction);
     }
 
-    async approveWalletTransaction(id: string, approverId: string, journalEntryId?: string) {
+    async approveWalletTransaction(id: string, approverId: string, journalEntryId?: string, approvalNote?: string) {
         const updates: any = { status: 'APPROVED' };
         if (journalEntryId) updates.journalEntryId = journalEntryId;
+        if (approvalNote) updates.approvalNote = approvalNote;
         await updateDoc(doc(this.db, 'wallet_transactions', id), updates);
     }
 

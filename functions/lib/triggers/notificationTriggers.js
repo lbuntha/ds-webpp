@@ -42,11 +42,12 @@ const ExcelJS = __importStar(require("exceljs"));
 if (admin.apps.length === 0) {
     admin.initializeApp();
 }
-const telegramService = new telegramService_1.TelegramService();
 const db = admin.firestore();
 exports.onWalletTransactionWritten = functions.firestore
     .document('wallet_transactions/{txnId}')
     .onWrite(async (change, context) => {
+    // Instantiate here to ensure process.env is ready
+    const telegramService = new telegramService_1.TelegramService();
     const newData = change.after.exists ? change.after.data() : null;
     const oldData = change.before.exists ? change.before.data() : null;
     if (!newData)
@@ -133,8 +134,11 @@ exports.onWalletTransactionWritten = functions.firestore
                 }
             }
             let totalCOD = 0;
-            let totalDeliveryFee = 0;
+            let totalDeliveryFee = 0; // Keep for legacy/backward compat
+            let totalDeliveryFeeUSD = 0;
+            let totalDeliveryFeeKHR = 0;
             let totalNet = 0;
+            let breakdownCODCurrency = newData.currency || 'USD'; // Default to txn currency
             for (const item of items) {
                 const booking = bookingsMap[item.bookingId];
                 if (!booking)
@@ -143,9 +147,45 @@ exports.onWalletTransactionWritten = functions.firestore
                 if (!parcelItem)
                     continue;
                 const cod = parcelItem.productPrice || 0;
-                const delFee = parcelItem.deliveryFee || 0;
+                // Determine currencies
+                const itemCODCurrency = parcelItem.codCurrency || breakdownCODCurrency;
+                if (item === items[0])
+                    breakdownCODCurrency = itemCODCurrency; // Set main currency based on first item if not set
+                // Fee Logic - Normalize to COD Currency
+                let delFee = 0;
+                const RATE = 4000;
+                if (itemCODCurrency === 'KHR') {
+                    // Target KHR
+                    if (parcelItem.deliveryFeeKHR && parcelItem.deliveryFeeKHR > 0) {
+                        delFee = parcelItem.deliveryFeeKHR;
+                    }
+                    else if (parcelItem.deliveryFeeUSD && parcelItem.deliveryFeeUSD > 0) {
+                        delFee = parcelItem.deliveryFeeUSD * RATE;
+                    }
+                    else {
+                        // Legacy fallback (assume USD default if not specified, convert to KHR)
+                        delFee = (parcelItem.deliveryFee || 0) * RATE;
+                    }
+                    totalDeliveryFeeKHR += delFee;
+                }
+                else {
+                    // Target USD
+                    if (parcelItem.deliveryFeeUSD && parcelItem.deliveryFeeUSD > 0) {
+                        delFee = parcelItem.deliveryFeeUSD;
+                    }
+                    else if (parcelItem.deliveryFeeKHR && parcelItem.deliveryFeeKHR > 0) {
+                        delFee = parcelItem.deliveryFeeKHR / RATE;
+                    }
+                    else {
+                        // Legacy fallback (assume USD)
+                        delFee = parcelItem.deliveryFee || 0;
+                    }
+                    totalDeliveryFeeUSD += delFee;
+                }
+                // Net Calculation
                 const net = cod - delFee;
                 totalCOD += cod;
+                // totalDeliveryFee legacy accumulator (approximate or mixed)
                 totalDeliveryFee += delFee;
                 totalNet += net;
                 rows.push({
@@ -164,12 +204,17 @@ exports.onWalletTransactionWritten = functions.firestore
             breakdown = {
                 totalCOD,
                 totalDeliveryFee,
-                netPayout: totalNet
+                netPayout: totalNet,
+                codCurrency: breakdownCODCurrency,
+                deliveryFeeUSD: totalDeliveryFeeUSD,
+                deliveryFeeKHR: totalDeliveryFeeKHR
             };
         }
         // 4. Send Notification
         if (eventType === 'APPROVED') {
-            await telegramService.sendSettlementReport(telegramChatId, newData, (userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer', 'APPROVED', excelBuffer, breakdown);
+            const approvalNote = newData.approvalNote;
+            const excludeFees = newData.excludeFees || false;
+            await telegramService.sendSettlementReport(telegramChatId, newData, (userData === null || userData === void 0 ? void 0 : userData.name) || 'Customer', 'APPROVED', excelBuffer, breakdown, approvalNote, excludeFees);
         }
     }
     catch (error) {
