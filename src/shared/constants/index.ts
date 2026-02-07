@@ -155,6 +155,8 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-customer-payout', label: 'Customer Payout', viewId: 'CUSTOMER_SETTLEMENTS', iconKey: 'money', order: 25, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], section: 'finance' },
   { id: 'nav-settled-parcels', label: 'Settled Parcels', viewId: 'SETTLED_PARCELS', iconKey: 'checkCircle', order: 26, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-closing', label: 'Period Closing', viewId: 'CLOSING', iconKey: 'closing', order: 28, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
+  { id: 'nav-standard-expenses', label: 'Post Expense', viewId: 'STANDARD_EXPENSES', iconKey: 'receipt', order: 22, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
+  { id: 'nav-expense-templates', label: 'Expense Templates', viewId: 'EXPENSE_TEMPLATES', iconKey: 'settings', order: 23, allowedRoles: ['system-admin', 'finance-manager', 'accountant'], section: 'finance' },
 
   // ==============================
   // EMPLOYEE / STAFF MENUS

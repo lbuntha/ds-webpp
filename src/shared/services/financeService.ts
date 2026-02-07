@@ -1,6 +1,5 @@
-
 import { BaseService } from './baseService';
-import { Account, JournalEntry, FixedAsset, FixedAssetCategory, JournalEntryStatus } from '../types';
+import { Account, JournalEntry, FixedAsset, FixedAssetCategory, JournalEntryStatus, ExpenseTemplate } from '../types';
 import { doc, deleteDoc, writeBatch, query, collection, where, getDocs, updateDoc } from 'firebase/firestore';
 
 export class FinanceService extends BaseService {
@@ -144,4 +143,9 @@ export class FinanceService extends BaseService {
     async runBatchDepreciation(date: string) { return { processed: 0, totalAmount: 0 }; } // Stub implementation
     async depreciateAsset(id: string, date: string, amount: number) { /* Logic omitted */ }
     async disposeAsset(id: string, date: string, amount: number, depositAcc: string, lossAcc: string) { /* Logic omitted */ }
+
+    // ======== EXPENSE TEMPLATES ========
+    async getExpenseTemplates() { return this.getCollection<ExpenseTemplate>('expense_templates'); }
+    async saveExpenseTemplate(template: ExpenseTemplate) { await this.saveDocument('expense_templates', template); }
+    async deleteExpenseTemplate(id: string) { await this.deleteDocument('expense_templates', id); }
 }

@@ -1145,7 +1145,19 @@ export interface StockRequest {
   reviewedAt?: number;
   reviewedBy?: string;
   reviewedByName?: string;
-  receivedAt?: number;
   receivedBy?: string;
   receivedByName?: string;
+}
+
+export interface ExpenseTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  debitAccountId: string; // Expense Account
+  creditAccountId: string; // Payment Account (Bank/Cash)
+  taxRateId?: string; // Optional default tax rate
+  fixedAmount?: number; // Optional default amount
+  currency?: 'USD' | 'KHR'; // Optional default currency
+  createdAt: number;
+  updatedAt?: number;
 }

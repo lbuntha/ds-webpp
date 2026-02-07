@@ -134,6 +134,10 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
         if (item.viewId === 'STAFF_LOAN_ISSUE') return '/app/staff/issue-loan';
         if (item.viewId === 'DELAYED_CHATS') return '/app/parcels/delayed-chats';
 
+        // Expense overrides
+        if (item.viewId === 'STANDARD_EXPENSES') return '/app/expenses/standard';
+        if (item.viewId === 'EXPENSE_TEMPLATES') return '/app/expenses/templates';
+
         return `/app/${item.viewId.toLowerCase().replace(/_/g, '/')}`;
     };
 

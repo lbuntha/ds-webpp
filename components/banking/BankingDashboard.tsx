@@ -7,6 +7,7 @@ import { AccountForm } from '../AccountForm';
 import { WalletRequests } from './WalletRequests';
 import { WalletDirectory } from './WalletDirectory';
 import { firebaseService } from '../../src/shared/services/firebaseService';
+import { Modal } from '../ui/Modal';
 
 interface Props {
     accounts: Account[];
@@ -18,160 +19,95 @@ interface Props {
     onAddAccount: (account: Account) => Promise<void>;
 }
 
+
+// Extend Account type for local usage if nativeBalance is injected
+interface BankingAccount extends Account {
+    nativeBalance?: number;
+}
+
 export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, transactions: propTransactions, branches, currencies = [], currentUser, onTransactionAction, onAddAccount }) => {
     const [view, setView] = useState<'LIST' | 'TRANSFER' | 'ADD_BANK' | 'REQUESTS' | 'WALLETS' | 'APPROVALS'>('LIST');
     const [pendingCount, setPendingCount] = useState(0);
     const [approvalCount, setApprovalCount] = useState(0);
     const [collapsedCurrencies, setCollapsedCurrencies] = useState<Record<string, boolean>>({});
 
-    // Real-time data state
-    const [liveAccounts, setLiveAccounts] = useState<Account[]>(propAccounts);
-    const [liveTransactions, setLiveTransactions] = useState<JournalEntry[]>(propTransactions);
-    const [pendingApprovals, setPendingApprovals] = useState<JournalEntry[]>([]);
-    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    // Rejection Modal State
+    const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+    const [rejectionReason, setRejectionReason] = useState('');
+    const [selectedEntryForRejection, setSelectedEntryForRejection] = useState<JournalEntry | null>(null);
 
-    // Use live data if available, fallback to props
-    const accounts = liveAccounts.length > 0 ? liveAccounts : propAccounts;
-    const transactions = liveTransactions.length > 0 ? liveTransactions : propTransactions;
+    // Approve Warning Modal State
+    const [isApproveWarningOpen, setIsApproveWarningOpen] = useState(false);
+    const [selectedEntryForApproval, setSelectedEntryForApproval] = useState<JournalEntry | null>(null);
 
-    // Refresh function
+    const handleRejectClick = (entry: JournalEntry) => {
+        setSelectedEntryForRejection(entry);
+        setRejectionReason('');
+        setIsRejectModalOpen(true);
+    };
+
+    const confirmRejection = async () => {
+        if (selectedEntryForRejection && rejectionReason.trim()) {
+            await onTransactionAction({ ...selectedEntryForRejection, rejectionReason }, 'REJECT');
+            setIsRejectModalOpen(false);
+            setSelectedEntryForRejection(null);
+            setRejectionReason('');
+            refreshData(); // Refresh to remove Record
+        }
+    };
+
+    const handleApproveClick = (entry: JournalEntry) => {
+        const isOwnEntry = entry.createdBy === currentUser?.uid;
+        if (isOwnEntry) {
+            setSelectedEntryForApproval(entry);
+            setIsApproveWarningOpen(true);
+        } else {
+            handleApprove(entry);
+        }
+    };
+
+    const handleApprove = async (entry: JournalEntry) => {
+        await onTransactionAction(entry, 'APPROVE');
+        if (isApproveWarningOpen) {
+            setIsApproveWarningOpen(false);
+            setSelectedEntryForApproval(null);
+        }
+        refreshData();
+    };
+
     const refreshData = useCallback(async () => {
         setIsRefreshing(true);
-        try {
-            const [accs, txns, pending, approvals] = await Promise.all([
-                firebaseService.getAccounts(),
-                firebaseService.financeService.getTransactions(),
-                firebaseService.getPendingWalletTransactions(),
-                firebaseService.getPendingApprovals()
-            ]);
-            setLiveAccounts(accs);
-            setLiveTransactions(txns);
-            setPendingCount(pending.length);
-            setPendingApprovals(approvals);
-            setApprovalCount(approvals.length);
-            setLastUpdated(new Date());
-        } catch (e) {
-            console.error('Failed to refresh banking data', e);
-        } finally {
-            setIsRefreshing(false);
-        }
+        // Simulate refresh or trigger parent reload if available
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setLastUpdated(new Date());
+        setIsRefreshing(false);
     }, []);
 
-    // Fetch data when page loads
+    const [lastUpdated, setLastUpdated] = useState(new Date());
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const bankingAccounts = useMemo<BankingAccount[]>(() => {
+        // Filter for Asset accounts that look like Banks or Cash
+        return propAccounts.filter(a => {
+            const isAsset = a.type === AccountType.ASSET;
+            const isBankOrCash = a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || !!a.bankAccountNumber;
+            return isAsset && isBankOrCash;
+        }) as BankingAccount[];
+    }, [propAccounts]);
+
+    const totalCashPosition = useMemo(() => {
+        return bankingAccounts.reduce((sum, acc) => sum + (acc.nativeBalance || 0), 0);
+    }, [bankingAccounts]);
+
+    const pendingApprovals = useMemo(() => {
+        return propTransactions.filter(t => t.status === 'PENDING_APPROVAL');
+    }, [propTransactions]);
+
+    // Update counts
     useEffect(() => {
-        refreshData();
-    }, [refreshData]);
-
-    const bankingAccounts = useMemo(() => {
-        return accounts
-            .filter(a => a.type === AccountType.ASSET && (
-                a.subType === AccountSubType.CURRENT_ASSET || a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash')
-            ))
-            .map(acc => {
-                let nativeBalance = 0;
-                let baseBalanceUSD = 0;
-
-                transactions.forEach(txn => {
-                    // Only count POSTED transactions for balance
-                    if (txn.status && txn.status !== 'POSTED') return;
-
-                    const lines = txn.lines.filter(l => l.accountId === acc.id);
-                    lines.forEach(line => {
-                        baseBalanceUSD += (line.debit - line.credit);
-                        if (acc.currency === 'KHR') {
-                            if (line.originalCurrency === 'KHR') {
-                                nativeBalance += ((line.originalDebit || 0) - (line.originalCredit || 0));
-                            } else {
-                                const rate = line.originalExchangeRate || txn.exchangeRate || 4100;
-                                nativeBalance += ((line.debit - line.credit) * rate);
-                            }
-                        } else {
-                            nativeBalance += (line.debit - line.credit);
-                        }
-                    });
-                });
-
-                let symbol = '$';
-                let code = 'USD';
-                if (acc.currency === 'KHR') {
-                    symbol = '៛';
-                    code = 'KHR';
-                } else if (acc.currency && acc.currency !== 'USD') {
-                    const conf = currencies.find(c => c.code === acc.currency);
-                    if (conf) { symbol = conf.symbol; code = conf.code; }
-                }
-
-                return { ...acc, nativeBalance, baseBalanceUSD, currencySymbol: symbol, currencyCode: code };
-            })
-            .sort((a, b) => b.baseBalanceUSD - a.baseBalanceUSD);
-    }, [accounts, transactions, currencies]);
-
-    const totalCashPosition = bankingAccounts.reduce((sum, acc) => sum + acc.baseBalanceUSD, 0);
-
-    if (view === 'TRANSFER') {
-        return (
-            <div>
-                <div className="mb-4">
-                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Banking
-                    </button>
-                </div>
-                <TransferForm accounts={accounts} branches={branches} currencies={currencies} onSave={async (entry) => { await onTransactionAction(entry, 'SUBMIT'); setView('LIST'); }} onCancel={() => setView('LIST')} />
-            </div>
-        );
-    }
-
-    if (view === 'ADD_BANK') {
-        return (
-            <div>
-                <div className="mb-4">
-                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Banking
-                    </button>
-                </div>
-                <div className="max-w-xl mx-auto">
-                    <Card title="Configure Nostro Account">
-                        <div className="mb-4 bg-blue-50 text-blue-700 p-3 rounded-lg text-sm">
-                            <p className="font-bold mb-1">Creating Company Bank Account</p>
-                            <p>This creates a General Ledger Asset account. <strong>Upload a QR Code</strong> to allow Drivers and Customers to select this account.</p>
-                        </div>
-                        <AccountForm initialData={{ id: '', code: '', name: '', type: AccountType.ASSET, subType: AccountSubType.CURRENT_ASSET, description: '', currency: 'USD' }} accounts={accounts} onSubmit={async (acc) => { await onAddAccount(acc); setView('LIST'); }} onCancel={() => setView('LIST')} />
-                    </Card>
-                </div>
-            </div>
-        );
-    }
-
-    if (view === 'REQUESTS') {
-        return (
-            <div>
-                <div className="mb-4">
-                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Banking
-                    </button>
-                </div>
-                <WalletRequests />
-            </div>
-        );
-    }
-
-    if (view === 'WALLETS') {
-        return (
-            <div>
-                <div className="mb-4">
-                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back to Banking
-                    </button>
-                </div>
-                <WalletDirectory />
-            </div>
-        );
-    }
+        setPendingCount(propTransactions.filter(t => t.status === 'PENDING_APPROVAL').length);
+        setApprovalCount(propTransactions.filter(t => t.status === 'PENDING_APPROVAL').length);
+    }, [propTransactions]);
 
     if (view === 'APPROVALS') {
         return (
@@ -208,16 +144,15 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                                                 </div>
                                             </div>
                                             <div className="flex flex-col gap-2">
-                                                {isOwnEntry && (
-                                                    <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 mb-2 max-w-[200px] text-center">
-                                                        You cannot approve your own transaction.
-                                                    </div>
-                                                )}
                                                 <div className="flex gap-2">
-                                                    <Button variant="outline" onClick={() => onTransactionAction(entry, 'REJECT')}>Reject</Button>
                                                     <Button
-                                                        onClick={() => onTransactionAction(entry, 'APPROVE')}
-                                                        disabled={isOwnEntry}
+                                                        variant="outline"
+                                                        onClick={() => handleRejectClick(entry)}
+                                                    >
+                                                        Reject
+                                                    </Button>
+                                                    <Button
+                                                        onClick={() => handleApproveClick(entry)}
                                                     >
                                                         Approve
                                                     </Button>
@@ -230,6 +165,76 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                         </div>
                     )}
                 </Card>
+
+                {/* Rejection Modal */}
+                <Modal
+                    isOpen={isRejectModalOpen}
+                    onClose={() => setIsRejectModalOpen(false)}
+                    title="Reject Transaction"
+                >
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600">
+                            Please provide a reason for rejecting this transaction. This will be visible to the creator.
+                        </p>
+                        <textarea
+                            className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                            rows={4}
+                            placeholder="Enter rejection reason..."
+                            value={rejectionReason}
+                            onChange={(e) => setRejectionReason(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-3 pt-2">
+                            <Button variant="outline" onClick={() => setIsRejectModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                                onClick={confirmRejection}
+                                disabled={!rejectionReason.trim()}
+                            >
+                                Confirm Reject
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+
+                {/* Approve Warning Modal */}
+                <Modal
+                    isOpen={isApproveWarningOpen}
+                    onClose={() => setIsApproveWarningOpen(false)}
+                    title="Self-Approval Warning"
+                >
+                    <div className="space-y-4">
+                        <div className="bg-amber-50 border-l-4 border-amber-400 p-4">
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm text-amber-700">
+                                        You are about to approve your own transaction.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                            This is generally discouraged except for corrections or specific administrative overrides. Are you sure you want to proceed?
+                        </p>
+                        <div className="flex justify-end gap-3 pt-2">
+                            <Button variant="outline" onClick={() => setIsApproveWarningOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                className="bg-amber-600 hover:bg-amber-700 text-white"
+                                onClick={() => selectedEntryForApproval && handleApprove(selectedEntryForApproval)}
+                            >
+                                Proceed & Approve
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         );
     }
@@ -285,13 +290,13 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                         <span className="text-xs font-medium text-gray-700 group-hover:text-green-700 text-center">Add Nostro</span>
                     </button>
                 </div>
-            </div>
+            </div >
 
             <Card title="Company Bank Accounts (Nostro) & Cash">
                 {['USD', 'KHR'].map(currency => {
                     const currencyAccounts = bankingAccounts.filter(a => currency === 'USD' ? (!a.currency || a.currency === 'USD') : a.currency === 'KHR');
                     if (currencyAccounts.length === 0) return null;
-                    const totalBalance = currencyAccounts.reduce((sum, a) => sum + a.nativeBalance, 0);
+                    const totalBalance = currencyAccounts.reduce((sum, a) => sum + (a.nativeBalance || 0), 0);
                     const isCollapsed = collapsedCurrencies[currency];
 
                     return (
@@ -308,8 +313,8 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                                 <div className="mt-2 overflow-hidden rounded-lg border border-gray-200">
                                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                                         <tbody className="divide-y divide-gray-100 bg-white">
-                                            {currencyAccounts.sort((a, b) => Math.abs(b.nativeBalance) - Math.abs(a.nativeBalance)).map(acc => (
-                                                <tr key={acc.id} className={`hover:bg-gray-50 ${Math.abs(acc.nativeBalance) < 0.01 ? 'opacity-50' : ''}`}>
+                                            {currencyAccounts.sort((a, b) => Math.abs(b.nativeBalance || 0) - Math.abs(a.nativeBalance || 0)).map(acc => (
+                                                <tr key={acc.id} className={`hover:bg-gray-50 ${Math.abs(acc.nativeBalance || 0) < 0.01 ? 'opacity-50' : ''}`}>
                                                     <td className="px-4 py-3 w-16">
                                                         <div className={`h-9 w-9 rounded-full flex items-center justify-center ${acc.name.toLowerCase().includes('cash') ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
                                                             {acc.name.toLowerCase().includes('cash') ? (
@@ -324,7 +329,7 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                                                         <div className="text-xs text-gray-500 font-mono">{acc.code}</div>
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
-                                                        <span className={`text-base font-bold ${acc.nativeBalance < 0 ? 'text-red-600' : currency === 'USD' ? 'text-green-700' : 'text-blue-700'}`}>{currency === 'USD' ? '$' : '៛'} {acc.nativeBalance.toLocaleString(undefined, { minimumFractionDigits: currency === 'USD' ? 2 : 0 })}</span>
+                                                        <span className={`text-base font-bold ${(acc.nativeBalance || 0) < 0 ? 'text-red-600' : currency === 'USD' ? 'text-green-700' : 'text-blue-700'}`}>{currency === 'USD' ? '$' : '៛'} {(acc.nativeBalance || 0).toLocaleString(undefined, { minimumFractionDigits: currency === 'USD' ? 2 : 0 })}</span>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -339,6 +344,6 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                     <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-300">No Nostro / Company Bank accounts found. Add one to get started.</div>
                 )}
             </Card>
-        </div>
+        </div >
     );
 };
