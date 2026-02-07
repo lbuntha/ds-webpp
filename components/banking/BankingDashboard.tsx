@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Account, Branch, JournalEntry, AccountType, AccountSubType, CurrencyConfig } from '../../src/shared/types';
-import { AccountingService } from '../../src/shared/services/accountingService';
+import { Account, Branch, JournalEntry, AccountType, AccountSubType, CurrencyConfig, UserProfile } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { TransferForm } from './TransferForm';
@@ -14,18 +13,21 @@ interface Props {
     transactions: JournalEntry[];
     branches: Branch[];
     currencies?: CurrencyConfig[];
-    onTransfer: (entry: JournalEntry) => Promise<void>;
+    currentUser: UserProfile | null;
+    onTransactionAction: (entry: JournalEntry, action: 'SUBMIT' | 'APPROVE' | 'REJECT') => Promise<void>;
     onAddAccount: (account: Account) => Promise<void>;
 }
 
-export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, transactions: propTransactions, branches, currencies = [], onTransfer, onAddAccount }) => {
-    const [view, setView] = useState<'LIST' | 'TRANSFER' | 'ADD_BANK' | 'REQUESTS' | 'WALLETS'>('LIST');
+export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, transactions: propTransactions, branches, currencies = [], currentUser, onTransactionAction, onAddAccount }) => {
+    const [view, setView] = useState<'LIST' | 'TRANSFER' | 'ADD_BANK' | 'REQUESTS' | 'WALLETS' | 'APPROVALS'>('LIST');
     const [pendingCount, setPendingCount] = useState(0);
+    const [approvalCount, setApprovalCount] = useState(0);
     const [collapsedCurrencies, setCollapsedCurrencies] = useState<Record<string, boolean>>({});
 
     // Real-time data state
     const [liveAccounts, setLiveAccounts] = useState<Account[]>(propAccounts);
     const [liveTransactions, setLiveTransactions] = useState<JournalEntry[]>(propTransactions);
+    const [pendingApprovals, setPendingApprovals] = useState<JournalEntry[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -37,14 +39,17 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
     const refreshData = useCallback(async () => {
         setIsRefreshing(true);
         try {
-            const [accs, txns, pending] = await Promise.all([
+            const [accs, txns, pending, approvals] = await Promise.all([
                 firebaseService.getAccounts(),
                 firebaseService.financeService.getTransactions(),
-                firebaseService.getPendingWalletTransactions()
+                firebaseService.getPendingWalletTransactions(),
+                firebaseService.getPendingApprovals()
             ]);
             setLiveAccounts(accs);
             setLiveTransactions(txns);
             setPendingCount(pending.length);
+            setPendingApprovals(approvals);
+            setApprovalCount(approvals.length);
             setLastUpdated(new Date());
         } catch (e) {
             console.error('Failed to refresh banking data', e);
@@ -58,8 +63,6 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
         refreshData();
     }, [refreshData]);
 
-
-
     const bankingAccounts = useMemo(() => {
         return accounts
             .filter(a => a.type === AccountType.ASSET && (
@@ -70,6 +73,9 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                 let baseBalanceUSD = 0;
 
                 transactions.forEach(txn => {
+                    // Only count POSTED transactions for balance
+                    if (txn.status && txn.status !== 'POSTED') return;
+
                     const lines = txn.lines.filter(l => l.accountId === acc.id);
                     lines.forEach(line => {
                         baseBalanceUSD += (line.debit - line.credit);
@@ -112,7 +118,7 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                         Back to Banking
                     </button>
                 </div>
-                <TransferForm accounts={accounts} branches={branches} currencies={currencies} onSave={async (entry) => { await onTransfer(entry); setView('LIST'); }} onCancel={() => setView('LIST')} />
+                <TransferForm accounts={accounts} branches={branches} currencies={currencies} onSave={async (entry) => { await onTransactionAction(entry, 'SUBMIT'); setView('LIST'); }} onCancel={() => setView('LIST')} />
             </div>
         );
     }
@@ -167,6 +173,67 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
         );
     }
 
+    if (view === 'APPROVALS') {
+        return (
+            <div>
+                <div className="mb-4">
+                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back to Banking
+                    </button>
+                </div>
+                <Card title="Pending Approvals">
+                    {pendingApprovals.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+                            No pending approvals found.
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {pendingApprovals.map(entry => {
+                                const isOwnEntry = entry.createdBy === currentUser?.uid;
+                                return (
+                                    <div key={entry.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">PENDING APPROVAL</span>
+                                                    <span className="text-xs text-gray-500">{entry.reference}</span>
+                                                </div>
+                                                <h3 className="text-lg font-medium text-gray-900">{entry.description}</h3>
+                                                <div className="text-sm text-gray-600 mt-1">
+                                                    Created by <span className="font-semibold">{entry.createdByName || 'Unknown'}</span> on {new Date(entry.createdAt).toLocaleDateString()}
+                                                </div>
+                                                <div className="mt-2 text-sm text-gray-700">
+                                                    Amount: <span className="font-bold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: entry.currency }).format(entry.originalTotal || 0)}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                {isOwnEntry && (
+                                                    <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 mb-2 max-w-[200px] text-center">
+                                                        You cannot approve your own transaction.
+                                                    </div>
+                                                )}
+                                                <div className="flex gap-2">
+                                                    <Button variant="outline" onClick={() => onTransactionAction(entry, 'REJECT')}>Reject</Button>
+                                                    <Button
+                                                        onClick={() => onTransactionAction(entry, 'APPROVE')}
+                                                        disabled={isOwnEntry}
+                                                    >
+                                                        Approve
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </Card>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -195,6 +262,11 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                     </div>
                 </Card>
                 <div className="md:col-span-2 flex items-center justify-end space-x-4">
+                    <button onClick={() => setView('APPROVALS')} className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-amber-300 transition-all w-28 h-28 shadow-sm group relative">
+                        {approvalCount > 0 && <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">{approvalCount}</span>}
+                        <div className="bg-amber-50 p-2 rounded-full mb-2 group-hover:bg-amber-100"><svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
+                        <span className="text-xs font-medium text-gray-700 group-hover:text-amber-700 text-center">Approvals</span>
+                    </button>
                     <button onClick={() => setView('REQUESTS')} className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-blue-300 transition-all w-28 h-28 shadow-sm group relative">
                         {pendingCount > 0 && <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">{pendingCount}</span>}
                         <div className="bg-blue-50 p-2 rounded-full mb-2 group-hover:bg-blue-100"><svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div>
