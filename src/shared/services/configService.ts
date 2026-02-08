@@ -191,6 +191,10 @@ export class ConfigService extends BaseService {
     }
 
     async seedDefaultMenu() {
+        await this.overwriteMenu(DEFAULT_NAVIGATION);
+    }
+
+    async overwriteMenu(items: NavigationItem[]) {
         const batch = writeBatch(this.db);
 
         // FIRST: Delete ALL existing menu items to ensure clean reset
@@ -199,8 +203,8 @@ export class ConfigService extends BaseService {
             batch.delete(docSnap.ref);
         });
 
-        // THEN: Seed with DEFAULT_NAVIGATION
-        for (const item of DEFAULT_NAVIGATION) {
+        // THEN: Seed with provided items
+        for (const item of items) {
             const ref = doc(this.db, 'navigation_menu', item.id);
             batch.set(ref, item);
         }

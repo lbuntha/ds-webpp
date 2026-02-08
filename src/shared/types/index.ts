@@ -1014,6 +1014,7 @@ export interface NavigationItem {
   section?: string; // Optional grouping (e.g., 'system')
   parentId?: string; // For submenu items - references parent's id
   isParent?: boolean; // Indicates this item has children
+  hidden?: boolean; // If true, hidden from sidebar even if user has permission
 }
 
 

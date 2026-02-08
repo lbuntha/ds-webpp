@@ -9,7 +9,7 @@ import { CurrencyForm } from './CurrencyForm';
 import { TaxRateForm } from './TaxRateForm';
 import { DriverCommissionSetup } from './DriverCommissionSetup';
 import { ReferralSettings } from './ReferralSettings';
-import { MenuManagement } from './MenuManagement';
+import { MenuBuilder } from './MenuBuilder';
 import { RolePermissionManagement } from './RolePermissionManagement';
 import { CompanyProfileSettings } from './CompanyProfileSettings'; // Import
 import { TransactionDefinitions } from './TransactionDefinitions'; // Import
@@ -683,7 +683,7 @@ export const SettingsDashboard: React.FC<Props> = ({
             )}
 
             {/* ... (Existing Tabs content maintained: COA, BRANCHES, COMMISSIONS, etc) ... */}
-            {activeTab === 'MENU' && <MenuManagement onUpdateMenuItem={onMenuUpdate} />}
+            {activeTab === 'MENU' && <MenuBuilder />}
             {activeTab === 'REFERRAL' && <ReferralSettings />}
             {activeTab === 'COMMISSIONS' && <DriverCommissionSetup />}
 

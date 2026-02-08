@@ -54,12 +54,11 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
     // Filter AND SORT menu items based on permissions
     const filteredMenuItems = useMemo(() => {
         const filtered = menuItems.filter(item => {
-            // System admin gets everything
-            if (user.role === 'system-admin') return true;
+            // If hidden is explicitly set to true, hide it from sidebar (active for ALL roles including admin)
+            if (item.hidden) return false;
 
-            // Strict Access Control
-            const hasRole = item.allowedRoles && item.allowedRoles.length > 0 && item.allowedRoles.includes(user.role);
-            const hasPermission = item.requiredPermission && userPermissions.includes(item.requiredPermission);
+            // System admin gets everything (except hidden)
+            if (user.role === 'system-admin') return true;
 
             // If item has NO restrictions, it's hidden (following original logic).
             // Item must match EITHER role OR permission if both are present? 

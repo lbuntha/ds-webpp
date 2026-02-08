@@ -70,6 +70,7 @@ const BookingStatusByDriverReport = lazy(() => import('../../components/reports/
 const UserProfileView = lazy(() => import('./views/UserProfileView'));
 const UserManualView = lazy(() => import('./views/UserManualView'));
 const SeedPermissionsView = lazy(() => import('./views/SeedPermissionsView'));
+const MenuBuilderView = lazy(() => import('./views/MenuBuilderView'));
 
 // Driver Views
 const DriverJobsView = lazy(() => import('./views/DriverJobsView'));
@@ -495,6 +496,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_SETTINGS">
                         {withSuspense(SettingsView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'settings/menu-builder',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_SETTINGS">
+                        {withSuspense(MenuBuilderView)}
                     </PermissionRoute>
                 ),
             },

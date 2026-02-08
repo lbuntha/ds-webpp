@@ -106,6 +106,7 @@ export class FirebaseService {
     saveMenuItem(item: NavigationItem) { return this.configService.saveMenuItem(item); }
     deleteMenuItem(id: string) { return this.configService.deleteMenuItem(id); }
     seedDefaultMenu() { return this.configService.seedDefaultMenu(); }
+    overwriteMenu(items: NavigationItem[]) { return this.configService.overwriteMenu(items); }
 
     // Finance
     getAccounts() { return this.financeService.getAccounts(); }
