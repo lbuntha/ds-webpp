@@ -13,9 +13,15 @@ import { useState } from 'react';
  */
 export default function MainLayout() {
     const { user, logout } = useAuth();
-    const { menuItems } = useData();
+    const { menuItems, transactions, pendingWalletRequests } = useData();
     const { t } = useLanguage();
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+    // Calculate Badges
+    const pendingApprovalsCount = (transactions?.filter(t => t.status === 'PENDING_APPROVAL').length || 0) + (pendingWalletRequests?.length || 0);
+    const badges = {
+        'BANKING': pendingApprovalsCount
+    };
 
     if (!user) return null;
 
@@ -35,6 +41,7 @@ export default function MainLayout() {
                 onLogout={logout}
                 isMobileOpen={isMobileSidebarOpen}
                 onMobileClose={() => setIsMobileSidebarOpen(false)}
+                badges={badges}
             />
 
             <div className="flex-1 flex flex-col min-w-0 bg-gray-50 transition-all duration-300">

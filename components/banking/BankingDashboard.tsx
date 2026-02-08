@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Account, Branch, JournalEntry, AccountType, AccountSubType, CurrencyConfig, UserProfile } from '../../src/shared/types';
+import { Account, Branch, JournalEntry, AccountType, AccountSubType, CurrencyConfig, UserProfile, WalletTransaction } from '../../src/shared/types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { TransferForm } from './TransferForm';
@@ -17,6 +17,7 @@ interface Props {
     currentUser: UserProfile | null;
     onTransactionAction: (entry: JournalEntry, action: 'SUBMIT' | 'APPROVE' | 'REJECT') => Promise<void>;
     onAddAccount: (account: Account) => Promise<void>;
+    pendingWalletRequests: WalletTransaction[];
 }
 
 
@@ -25,7 +26,7 @@ interface BankingAccount extends Account {
     nativeBalance?: number;
 }
 
-export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, transactions: propTransactions, branches, currencies = [], currentUser, onTransactionAction, onAddAccount }) => {
+export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, transactions: propTransactions, branches, currencies = [], currentUser, onTransactionAction, onAddAccount, pendingWalletRequests = [] }) => {
     const [view, setView] = useState<'LIST' | 'TRANSFER' | 'ADD_BANK' | 'REQUESTS' | 'WALLETS' | 'APPROVALS'>('LIST');
     const [pendingCount, setPendingCount] = useState(0);
     const [approvalCount, setApprovalCount] = useState(0);
@@ -90,7 +91,7 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
         // Filter for Asset accounts that look like Banks or Cash
         return propAccounts.filter(a => {
             const isAsset = a.type === AccountType.ASSET;
-            const isBankOrCash = a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || !!a.bankAccountNumber;
+            const isBankOrCash = a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('settlement') || !!a.bankAccountNumber;
             return isAsset && isBankOrCash;
         }) as BankingAccount[];
     }, [propAccounts]);
@@ -105,9 +106,9 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
 
     // Update counts
     useEffect(() => {
-        setPendingCount(propTransactions.filter(t => t.status === 'PENDING_APPROVAL').length);
+        setPendingCount(pendingWalletRequests.length);
         setApprovalCount(propTransactions.filter(t => t.status === 'PENDING_APPROVAL').length);
-    }, [propTransactions]);
+    }, [propTransactions, pendingWalletRequests]);
 
     if (view === 'APPROVALS') {
         return (
@@ -239,6 +240,78 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
         );
     }
 
+    if (view === 'REQUESTS') {
+        return (
+            <div>
+                <div className="mb-4">
+                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back to Banking
+                    </button>
+                </div>
+                <WalletRequests />
+            </div>
+        );
+    }
+
+    if (view === 'WALLETS') {
+        return (
+            <div>
+                <div className="mb-4">
+                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back to Banking
+                    </button>
+                </div>
+                <WalletDirectory />
+            </div>
+        );
+    }
+
+    if (view === 'TRANSFER') {
+        return (
+            <div>
+                <div className="mb-4">
+                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back to Banking
+                    </button>
+                </div>
+                <TransferForm
+                    accounts={propAccounts}
+                    branches={branches}
+                    currencies={currencies}
+                    onSave={async (entry) => {
+                        await onTransactionAction(entry, 'SUBMIT');
+                        setView('LIST');
+                    }}
+                    onCancel={() => setView('LIST')}
+                />
+            </div>
+        );
+    }
+
+    if (view === 'ADD_BANK') {
+        return (
+            <div>
+                <div className="mb-4">
+                    <button onClick={() => setView('LIST')} className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back to Banking
+                    </button>
+                </div>
+                <AccountForm
+                    accounts={propAccounts}
+                    onSubmit={async (acc) => {
+                        await onAddAccount(acc);
+                        setView('LIST');
+                    }}
+                    onCancel={() => setView('LIST')}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -292,7 +365,7 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                 </div>
             </div >
 
-            <Card title="Company Bank Accounts (Nostro) & Cash">
+            <Card title="Company Bank, Cash & Settlement Accounts">
                 {['USD', 'KHR'].map(currency => {
                     const currencyAccounts = bankingAccounts.filter(a => currency === 'USD' ? (!a.currency || a.currency === 'USD') : a.currency === 'KHR');
                     if (currencyAccounts.length === 0) return null;

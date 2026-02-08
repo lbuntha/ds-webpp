@@ -11,7 +11,7 @@ import { getFriendlyErrorMessage } from '../../shared/utils/errorUtils';
 import { useNavigate } from 'react-router-dom';
 
 export default function StandardExpenseView() {
-    const { accounts, taxRates } = useData();
+    const { accounts, taxRates, currencies } = useData();
     const { user } = useAuth();
     const navigate = useNavigate();
     const [templates, setTemplates] = useState<ExpenseTemplate[]>([]);
@@ -97,16 +97,23 @@ export default function StandardExpenseView() {
                 }
             }
 
+            // Get System Rate
+            const exchangeRate = currencies.find(c => c.code === currency)?.exchangeRate || 1;
+
             const debitLine = {
                 accountId: template.debitAccountId,
-                debit: netAmount,
-                credit: 0
+                debit: netAmount / exchangeRate, // Convert FCY to Base
+                credit: 0,
+                originalDebit: netAmount,
+                originalCredit: 0
             };
 
             const creditLine = {
                 accountId: template.creditAccountId,
                 debit: 0,
-                credit: amount
+                credit: amount / exchangeRate, // Convert FCY to Base
+                originalDebit: 0,
+                originalCredit: amount
             };
 
             const lines = [debitLine, creditLine];
@@ -124,13 +131,16 @@ export default function StandardExpenseView() {
                 if (taxAccount) {
                     lines.push({
                         accountId: taxAccount.id,
-                        debit: taxAmount,
-                        credit: 0
+                        debit: taxAmount / exchangeRate, // Convert FCY to Base
+                        credit: 0,
+                        originalDebit: taxAmount,
+                        originalCredit: 0
                     });
                 } else {
                     // Fallback: Add tax back to expense or warn? 
                     // For simplicity in this iteration, if no tax account, just debit full amount to expense.
-                    debitLine.debit = amount;
+                    debitLine.debit = amount / exchangeRate;
+                    debitLine.originalDebit = amount;
                     // Remove tax line attempt
                     console.warn('No tax account found, posting full amount to expense');
                 }
@@ -141,17 +151,20 @@ export default function StandardExpenseView() {
                 date,
                 description: `${template.name} - ${notes || 'Standard Expense'}`,
                 reference: reference || `EXP-${Date.now().toString().slice(-6)}`,
-                branchId: user.branchId || accounts[0]?.branchId || 'b1', // Default to user branch or HQ
+                // Default to user's managed branch, then first account branch, then generic fallback
+                branchId: user.managedBranchId || accounts[0]?.branchId || 'b1',
                 currency,
-                exchangeRate: 1, // Simplified for same-currency
+                exchangeRate: exchangeRate,
                 originalTotal: amount,
                 createdAt: Date.now(),
                 lines: lines.map(line => ({
-                    ...line,
+                    accountId: line.accountId,
+                    debit: line.debit,
+                    credit: line.credit,
                     originalCurrency: currency,
-                    originalExchangeRate: 1,
-                    originalDebit: line.debit,
-                    originalCredit: line.credit
+                    originalExchangeRate: exchangeRate,
+                    originalDebit: line.originalDebit,
+                    originalCredit: line.originalCredit
                 }))
             };
 
@@ -277,7 +290,7 @@ export default function StandardExpenseView() {
                             </div>
 
                             <div className="flex justify-end pt-4">
-                                <Button size="lg" type="submit" isLoading={submitting} icon={<Save className="w-5 h-5" />}>
+                                <Button type="submit" isLoading={submitting} icon={<Save className="w-5 h-5" />}>
                                     Submit Expense
                                 </Button>
                             </div>

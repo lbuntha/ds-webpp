@@ -14,7 +14,8 @@ import {
     SystemSettings,
     UserRole,
     Permission,
-    NavigationItem
+    NavigationItem,
+    WalletTransaction
 } from '../types';
 import { firebaseService } from '../services/firebaseService';
 import { ROLE_PERMISSIONS, DEFAULT_NAVIGATION } from '../constants';
@@ -37,6 +38,7 @@ interface DataContextValue {
     bills: Bill[];
     employees: Employee[];
     loans: StaffLoan[];
+    pendingWalletRequests: WalletTransaction[];
 
     // Loading State
     loading: boolean;
@@ -60,6 +62,7 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
     const [bills, setBills] = useState<Bill[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [loans, setLoans] = useState<StaffLoan[]>([]);
+    const [pendingWalletRequests, setPendingWalletRequests] = useState<WalletTransaction[]>([]);
     const [currencies, setCurrencies] = useState<CurrencyConfig[]>([]);
     const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
     const [menuItems, setMenuItems] = useState<NavigationItem[]>([]);
@@ -75,12 +78,13 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
 
         if (isFinancialUser) {
             try {
-                const [txns, invs, vends, bls, lns] = await Promise.all([
+                const [txns, invs, vends, bls, lns, walletReqs] = await Promise.all([
                     firebaseService.getTransactions().catch(() => []),
                     firebaseService.getInvoices().catch(() => []),
                     firebaseService.getVendors().catch(() => []),
                     firebaseService.getBills().catch(() => []),
-                    firebaseService.getStaffLoans().catch(() => [])
+                    firebaseService.getStaffLoans().catch(() => []),
+                    firebaseService.getPendingWalletTransactions().catch(() => [])
                 ]);
 
                 setTransactions(txns);
@@ -88,6 +92,7 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
                 setVendors(vends);
                 setBills(bls);
                 setLoans(lns);
+                setPendingWalletRequests(walletReqs);
             } catch (e) {
                 console.error('Error loading financial data:', e);
             }
@@ -98,6 +103,7 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
             setVendors([]);
             setBills([]);
             setLoans([]);
+            setPendingWalletRequests([]);
         }
     };
 
@@ -181,6 +187,7 @@ export function DataProvider({ children, userRole }: { children: ReactNode; user
         bills,
         employees,
         loans,
+        pendingWalletRequests,
         loading,
         error,
         refreshData,

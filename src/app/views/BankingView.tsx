@@ -4,7 +4,7 @@ import { firebaseService } from '../../shared/services/firebaseService';
 import { BankingDashboard } from '../../../components/banking/BankingDashboard';
 
 export default function BankingView() {
-  const { accounts, transactions, branches, currencies, refreshData } = useData();
+  const { accounts, transactions, branches, currencies, refreshData, pendingWalletRequests } = useData();
   const { user } = useAuth();
 
   return (
@@ -28,6 +28,7 @@ export default function BankingView() {
         await firebaseService.addAccount(acc);
         await refreshData();
       }}
+      pendingWalletRequests={pendingWalletRequests || []}
     />
   );
 }

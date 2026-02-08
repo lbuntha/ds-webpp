@@ -26,9 +26,10 @@ interface SidebarProps {
     // New props for mobile handling
     isMobileOpen?: boolean;
     onMobileClose?: () => void;
+    badges?: Record<string, number>;
 }
 
-export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMobileClose }: SidebarProps) {
+export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMobileClose, badges = {} }: SidebarProps) {
     const location = useLocation();
     const { settings } = useData();
     const { t } = useLanguage();
@@ -208,9 +209,14 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
                                 <span className={isCollapsed ? 'md:mr-0 mr-3' : 'mr-3'}>
                                     <MenuIcon iconKey={item.iconKey} className="w-5 h-5" />
                                 </span>
-                                <span className={`truncate transition-opacity duration-200 ${isCollapsed ? 'md:hidden' : ''}`}>
+                                <span className={`truncate transition-opacity duration-200 flex-1 ${isCollapsed ? 'md:hidden' : ''}`}>
                                     {t(item.label as any)}
                                 </span>
+                                {badges[item.viewId] > 0 && (
+                                    <span className={`bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isCollapsed ? 'absolute top-2 right-2 md:top-0 md:right-0' : 'ml-2'}`}>
+                                        {badges[item.viewId] > 99 ? '99+' : badges[item.viewId]}
+                                    </span>
+                                )}
                             </Link>
                         </div>
                     );
