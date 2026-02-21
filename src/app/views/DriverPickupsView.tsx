@@ -67,6 +67,7 @@ export default function DriverPickupsView() {
                 <DriverPickupProcessor
                     job={pickups[0]}
                     user={user!}
+                    services={[]}
                     onSave={async () => {
                         // Reload pickups after save
                         const bookings = await firebaseService.getParcelBookings();

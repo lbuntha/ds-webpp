@@ -32,19 +32,19 @@ export const DriverLayout: React.FC<Props> = ({ user, onLogout }) => {
     const allNavItems: NavItem[] = useMemo(() => [
         {
             id: 'JOBS',
-            permission: 'DRIVER_VIEW_JOBS',
+            permission: 'VIEW_DRIVER_JOBS',
             label: t('my_jobs'),
             icon: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
         },
         {
             id: 'WALLET',
-            permission: 'DRIVER_ACCESS_WALLET',
+            permission: 'VIEW_DRIVER_EARNINGS',
             label: t('wallet'),
             icon: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
         },
         {
             id: 'PROFILE',
-            permission: 'DRIVER_MANAGE_PROFILE',
+            permission: 'VIEW_PROFILE',
             label: t('profile'),
             icon: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
         }
@@ -109,9 +109,9 @@ export const DriverLayout: React.FC<Props> = ({ user, onLogout }) => {
             </div>
 
             <div className="max-w-3xl mx-auto p-4 pt-6">
-                {view === 'JOBS' && hasPermission(user, 'DRIVER_VIEW_JOBS') && <DriverDashboard user={user} />}
-                {view === 'WALLET' && hasPermission(user, 'DRIVER_ACCESS_WALLET') && <WalletDashboard user={user} />}
-                {view === 'PROFILE' && hasPermission(user, 'DRIVER_MANAGE_PROFILE') && (
+                {view === 'JOBS' && hasPermission(user, 'VIEW_DRIVER_JOBS') && <DriverDashboard user={user} />}
+                {view === 'WALLET' && hasPermission(user, 'VIEW_DRIVER_EARNINGS') && <WalletDashboard user={user} />}
+                {view === 'PROFILE' && hasPermission(user, 'VIEW_PROFILE') && (
                     <div className="space-y-4">
                         <CustomerProfile user={user} />
                         <button onClick={onLogout} className="w-full py-3 text-red-600 font-bold bg-red-50 rounded-xl hover:bg-red-100 border border-red-200">

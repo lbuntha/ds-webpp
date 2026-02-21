@@ -108,7 +108,8 @@ export default function ExpenseTemplatesView() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-gray-800">Expense Templates</h1>
-                <Button onClick={() => handleEdit()} icon={<Plus className="w-4 h-4" />}>
+                <Button onClick={() => handleEdit()}>
+                    <Plus className="w-4 h-4 mr-2" />
                     New Template
                 </Button>
             </div>
@@ -199,7 +200,10 @@ export default function ExpenseTemplatesView() {
 
                         <div className="flex justify-end gap-2 pt-4">
                             <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-                            <Button type="submit" isLoading={processLoading} icon={<Save className="w-4 h-4" />}>Save Template</Button>
+                            <Button type="submit" isLoading={processLoading}>
+                                <Save className="w-4 h-4 mr-2" />
+                                Save Template
+                            </Button>
                         </div>
                     </form>
                 </Card>
@@ -243,7 +247,7 @@ export default function ExpenseTemplatesView() {
                 {templates.length === 0 && !isEditing && (
                     <div className="col-span-full py-12 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-300">
                         <p>No expense templates defined yet.</p>
-                        <Button variant="link" onClick={() => handleEdit()}>Create your first template</Button>
+                        <Button variant="outline" onClick={() => handleEdit()}>Create your first template</Button>
                     </div>
                 )}
             </div>

@@ -478,7 +478,7 @@ export const ParcelList: React.FC = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('date')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('sender')}</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('service')}</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('notes') || 'Notes'}</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('items')}</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">COD</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('fee')}</th>
