@@ -617,6 +617,23 @@ export interface PayrollRun {
   journalEntryId?: string;
 }
 
+export interface FeeReceivable {
+  id: string; // e.g., 'fee-rec-timestamp'
+  customerId: string;
+  customerName: string;
+  userId: string;
+  bookingId: string;
+  itemId: string;
+  totalAmount: number; // The total fee originally owed for this item
+  paidAmount: number; // How much has been collected so far
+  currency: 'USD' | 'KHR';
+  status: 'UNPAID' | 'PARTIAL' | 'PAID';
+  sourceSettlementTxnId: string; // The wallet_transaction ID that triggered this
+  createdAt: number;
+  clearedAt?: number;
+  clearingTxnIds?: string[]; // Array of DEPOSIT wallet_transaction IDs that contributed to paying this off
+}
+
 export interface PayslipItem {
   description: string;
   amount: number;

@@ -424,34 +424,35 @@ export const CustomerSettlementReport: React.FC = () => {
     } | null>(null);
 
     const initiateSettle = (summary: CustomerSummary, targetCurrency: 'USD' | 'KHR') => {
-        // Use Live Balance if available, else Fallback
-        let netUSD = liveBalance ? liveBalance.usd : summary.netUSD;
-        let netKHR = liveBalance ? liveBalance.khr : summary.netKHR;
+        // Prepare selection
+        const itemsToSettleData = selectedCustomerDetails.filter(d => {
+            if (d.codCurrency === targetCurrency) return true;
+            if (d.taxiFee > 0 && d.taxiFeeCurrency === targetCurrency) return true;
+            return false;
+        });
 
-        // Apply Add-Backs for Gross Payment
+        const itemsToSettle = itemsToSettleData.map(d => ({
+            bookingId: d.bookingId,
+            itemId: d.itemId
+        }));
+
+        let netAmount = 0;
+
         if (excludeFees) {
-            netUSD += grossAdjustments.usd;
-            netKHR += grossAdjustments.khr;
+            // PAY GROSS: Use sum of product prices (COD) directly, ignoring wallet balance debts.
+            // This allows the wallet to go negative, representing the receivable.
+            netAmount = itemsToSettleData.reduce((sum, item) => {
+                if (item.codCurrency === targetCurrency) {
+                    return sum + (item.cod || 0); // Use item.cod which is already Number(item.productPrice) || 0
+                }
+                return sum;
+            }, 0);
+        } else {
+            // Use Live Balance if available, else Fallback
+            const netUSD = liveBalance ? liveBalance.usd : summary.netUSD;
+            const netKHR = liveBalance ? liveBalance.khr : summary.netKHR;
+            netAmount = targetCurrency === 'USD' ? netUSD : netKHR;
         }
-
-        const netAmount = targetCurrency === 'USD' ? netUSD : netKHR;
-
-        // Include items where COD OR Taxi Fee matches the target currency
-        const itemsToSettle = selectedCustomerDetails
-            .filter(d => {
-                // Primary check: COD currency matches
-                if (d.codCurrency === targetCurrency) return true;
-
-                // Secondary check: Taxi Fee matches (and is non-zero)
-                // This covers mixed currency items (e.g. USD COD but KHR Taxi Fee)
-                if (d.taxiFee > 0 && d.taxiFeeCurrency === targetCurrency) return true;
-
-                return false;
-            })
-            .map(d => ({
-                bookingId: d.bookingId,
-                itemId: d.itemId
-            }));
 
         setConfirmation({
             summary,

@@ -153,6 +153,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-journal', label: 'Journal', viewId: 'JOURNAL', iconKey: 'journal', order: 20, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-banking', label: 'Banking', viewId: 'BANKING', iconKey: 'banking', order: 21, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-customer-payout', label: 'Customer Payout', viewId: 'CUSTOMER_SETTLEMENTS', iconKey: 'money', order: 25, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], section: 'finance' },
+  { id: 'nav-customer-collection', label: 'Fee Collection', viewId: 'CUSTOMER_COLLECTION', iconKey: 'banking', order: 27, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-settled-parcels', label: 'Settled Parcels', viewId: 'SETTLED_PARCELS', iconKey: 'checkCircle', order: 26, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-closing', label: 'Period Closing', viewId: 'CLOSING', iconKey: 'closing', order: 28, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-standard-expenses', label: 'Post Expense', viewId: 'STANDARD_EXPENSES', iconKey: 'receipt', order: 22, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },

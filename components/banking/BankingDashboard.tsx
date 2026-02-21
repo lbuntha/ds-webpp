@@ -97,8 +97,9 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
                     const accId = line.accountId;
                     if (!balances[accId]) balances[accId] = 0;
 
-                    const debit = Number(line.debit) || 0;
-                    const credit = Number(line.credit) || 0;
+                    // Use original currency values if available (fallback to converted if not) to always show native balance
+                    const debit = line.originalDebit !== undefined ? Number(line.originalDebit) : (Number(line.debit) || 0);
+                    const credit = line.originalCredit !== undefined ? Number(line.originalCredit) : (Number(line.credit) || 0);
                     // For ASSET accounts, balance increases with debit and decreases with credit
                     balances[accId] += (debit - credit);
                 });

@@ -1,7 +1,7 @@
 
 import { BaseService } from './baseService';
 import { WalletTransaction, ReferralRule } from '../types';
-import { query, collection, where, getDocs, updateDoc, doc, getDoc, increment, onSnapshot } from 'firebase/firestore';
+import { query, collection, where, getDocs, updateDoc, doc, getDoc, setDoc, increment, onSnapshot } from 'firebase/firestore';
 
 export class WalletService extends BaseService {
     async getWalletTransactions(uid: string): Promise<WalletTransaction[]> {
@@ -100,10 +100,100 @@ export class WalletService extends BaseService {
     }
 
     async approveWalletTransaction(id: string, approverId: string, journalEntryId?: string, approvalNote?: string) {
+        // Fetch the transaction first to check for excludeFees
+        const txnDoc = await getDoc(doc(this.db, 'wallet_transactions', id));
+        if (!txnDoc.exists()) return;
+        const txn = txnDoc.data() as WalletTransaction;
+
         const updates: any = { status: 'APPROVED' };
         if (journalEntryId) updates.journalEntryId = journalEntryId;
         if (approvalNote) updates.approvalNote = approvalNote;
         await updateDoc(doc(this.db, 'wallet_transactions', id), updates);
+
+        console.log(`[DEBUG] approveWalletTransaction: ID=${id}, Type=${txn.type}, excludeFees=${txn.excludeFees}, relatedItems:`, txn.relatedItems);
+
+        // --- NEW: FeeReceivable Logic ---
+        // If this is a SETTLEMENT and we EXCLUDED fees (Pay Gross), we must explicitly track the owed fees.
+        if (txn.type === 'SETTLEMENT' && txn.excludeFees && txn.relatedItems && txn.relatedItems.length > 0) {
+            console.log(`[DEBUG] approveWalletTransaction: Entering FeeReceivable creation block for ${txn.relatedItems.length} items`);
+
+            // Group the related items by bookingId to minimize Firestore fetches
+            const itemsByBooking: { [bookingId: string]: string[] } = {};
+            txn.relatedItems.forEach(item => {
+                if (!itemsByBooking[item.bookingId]) itemsByBooking[item.bookingId] = [];
+                itemsByBooking[item.bookingId].push(item.itemId);
+            });
+
+            // Fetch bookings and create FeeReceivable objects
+            for (const bookingId of Object.keys(itemsByBooking)) {
+                console.log(`[DEBUG] fetching booking: ${bookingId}`);
+                const bookingDoc = await getDoc(doc(this.db, 'parcel_bookings', bookingId));
+                if (bookingDoc.exists()) {
+                    const bookingData = bookingDoc.data();
+                    const targetItemIds = itemsByBooking[bookingId];
+
+                    // Find the specific items in the booking
+                    const items = bookingData.items || [];
+                    for (const item of items) {
+                        if (targetItemIds.includes(item.id)) {
+                            // Extract the fee
+                            const feeUSD = Number(item.deliveryFeeUSD) || 0;
+                            const feeKHR = Number(item.deliveryFeeKHR) || 0;
+                            // Default to USD if both are 0 but legacy deliveryFee exists
+                            const legacyFee = Number(item.deliveryFee) || 0;
+
+                            // Fallback to booking level totalDeliveryFee if item level is not set (useful for single-item bookings)
+                            const bookingLevelFee = Number(bookingData.totalDeliveryFee) || 0;
+
+                            // Start with the COD Currency as the target currency for the fee
+                            let currency: 'USD' | 'KHR' = item.codCurrency || bookingData.currency || 'USD';
+                            let amount = 0;
+
+                            if (currency === 'USD') {
+                                amount = feeUSD || legacyFee || (items.length === 1 ? bookingLevelFee : 0);
+                                if (amount === 0 && feeKHR > 0) {
+                                    // Extreme fallback: they assigned a KHR fee but COD is USD. 
+                                    amount = feeKHR;
+                                    currency = 'KHR';
+                                }
+                            } else {
+                                amount = feeKHR || legacyFee || (items.length === 1 ? bookingLevelFee : 0);
+                                if (amount === 0 && feeUSD > 0) {
+                                    // Extreme fallback: they assigned a USD fee but COD is KHR.
+                                    amount = feeUSD;
+                                    currency = 'USD';
+                                }
+                            }
+
+                            console.log(`[DEBUG] Extracted Fee amounts for item ${item.id}: USD=${feeUSD}, KHR=${feeKHR}, Legacy=${legacyFee}, BookingLevel=${bookingLevelFee}. Will use amount=${amount}`);
+
+                            // Create the FeeReceivable record if there's a fee
+                            if (amount > 0) {
+                                const feeRecId = `fee-rec-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                                console.log(`[DEBUG] Creating FeeReceivable: ${feeRecId} for ${amount} ${currency}`);
+                                const feeReceivable: any = { // Using any to avoid importing the type here, since this is a service
+                                    id: feeRecId,
+                                    customerId: bookingData.customerId || bookingData.senderId, // Fallback to senderId
+                                    customerName: bookingData.customerName || bookingData.senderName, // Fallback to senderName
+                                    userId: txn.userId, // The wallet user who got paid gross
+                                    bookingId: bookingId,
+                                    itemId: item.id,
+                                    totalAmount: amount,
+                                    paidAmount: 0,
+                                    currency: currency,
+                                    status: 'UNPAID',
+                                    sourceSettlementTxnId: id,
+                                    createdAt: Date.now()
+                                };
+                                await setDoc(doc(this.db, 'fee_receivables', feeRecId), feeReceivable);
+                            }
+                        }
+                    }
+                } else {
+                    console.log(`[DEBUG] Booking ${bookingId} does NOT exist!`);
+                }
+            }
+        }
     }
 
     // Mark TAXI_FEE wallet transactions as settled (to exclude from balance)

@@ -30,6 +30,7 @@ const AnalyticsDashboard = lazy(() => import('../../components/analytics/Analyti
 const JournalView = lazy(() => import('./views/JournalView'));
 const BankingView = lazy(() => import('./views/BankingView'));
 const StaffLoansView = lazy(() => import('./views/StaffLoansView'));
+const CustomerCollectionForm = lazy(() => import('../../components/banking/CustomerCollectionForm').then(m => ({ default: m.default })));
 const StandardExpenseView = lazy(() => import('./views/StandardExpenseView'));
 const ExpenseTemplatesView = lazy(() => import('./views/ExpenseTemplatesView'));
 
@@ -196,6 +197,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_BANKING">
                         {withSuspense(BankingView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'customer-collection',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_BANKING">
+                        {withSuspense(CustomerCollectionForm)}
                     </PermissionRoute>
                 ),
             },
