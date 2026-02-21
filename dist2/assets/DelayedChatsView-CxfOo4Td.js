@@ -1,0 +1,1 @@
+import{j as t}from"./index-BjK2osQV.js";import{D as e}from"./DelayedChatReport-VTGKNbPx.js";import"./Card-DROeE3UG.js";import"./Button-JCYNVMjR.js";import"./toast-DTXa3ATd.js";const l=()=>t.jsxs("div",{className:"space-y-6",children:[t.jsx("h1",{className:"text-2xl font-bold text-gray-900",children:"Delayed Chats"}),t.jsx(e,{})]});export{l as default};
