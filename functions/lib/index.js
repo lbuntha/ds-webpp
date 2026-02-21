@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBroadcastJobStatus = exports.sendTelegramBroadcast = exports.checkPayWayUpdates = exports.setupTelegramWebhook = exports.telegramWebhook = exports.testTelegramMessages = exports.onWalletTransactionWritten = exports.resetPasswordOTP = exports.verifyOTP = exports.requestOTP = exports.api = void 0;
+exports.getBroadcastJobStatus = exports.sendTelegramBroadcast = exports.checkPayWayUpdates = exports.setupTelegramWebhook = exports.telegramWebhook = exports.testTelegramMessages = exports.onUserDeleted = exports.onWalletTransactionWritten = exports.resetPasswordOTP = exports.verifyOTP = exports.requestOTP = exports.api = void 0;
 const functions = __importStar(require("firebase-functions"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
@@ -135,6 +135,8 @@ exports.resetPasswordOTP = functions.https.onCall(async (data, context) => {
  * Firestore Triggers
  */
 exports.onWalletTransactionWritten = notificationTriggers.onWalletTransactionWritten;
+const userTriggers = __importStar(require("./triggers/userTriggers"));
+exports.onUserDeleted = userTriggers.onUserDeleted;
 /**
  * Telegram Bot Webhook & Test Endpoints
  */

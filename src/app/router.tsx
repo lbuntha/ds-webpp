@@ -119,6 +119,10 @@ const routes: RouteObject[] = [
         element: withSuspense(AuthView),
     },
     {
+        path: '/auth/login/phone',
+        element: withSuspense(lazy(() => import('./views/PhoneLoginView'))),
+    },
+    {
         path: '/signup/phone',
         element: withSuspense(PhoneSignupView),
     },
@@ -536,6 +540,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_USERS">
                         {withSuspense(UsersView)}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'admin/migration',
+                element: (
+                    <PermissionRoute requiredPermission="MANAGE_SETTINGS">
+                        {withSuspense(lazy(() => import('../pages/admin/MigrationPage')))}
                     </PermissionRoute>
                 ),
             },

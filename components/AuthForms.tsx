@@ -158,6 +158,17 @@ export const AuthForms: React.FC<AuthProps> = ({ mode, onSubmit, onModeChange, o
                                         </a>
                                     </p>
                                 )}
+                                {mode === 'LOGIN' && (
+                                    <p className="text-xs text-slate-600">
+                                        Or{' '}
+                                        <a
+                                            href="/auth/login/phone"
+                                            className="font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                                        >
+                                            📱 Login with Phone
+                                        </a>
+                                    </p>
+                                )}
                             </div>
                         )}
                     </div>

@@ -18,9 +18,17 @@ export default function MainLayout() {
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
     // Calculate Badges
-    const pendingApprovalsCount = (transactions?.filter(t => t.status === 'PENDING_APPROVAL').length || 0) + (pendingWalletRequests?.length || 0);
+    const approvalCount = transactions?.filter(t => t.status === 'PENDING_APPROVAL').length || 0;
+    const requestCount = pendingWalletRequests?.length || 0;
+    const pendingApprovalsCount = approvalCount + requestCount;
+
     const badges = {
-        'BANKING': pendingApprovalsCount
+        'BANKING': pendingApprovalsCount,
+        'APPROVALS': approvalCount,
+        'REQUESTS': requestCount,
+        // Also support potential variations the user might have used
+        'BANKING_APPROVALS': approvalCount,
+        'BANKING_REQUESTS': requestCount
     };
 
     if (!user) return null;

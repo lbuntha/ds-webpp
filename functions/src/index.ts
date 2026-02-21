@@ -107,6 +107,9 @@ export const resetPasswordOTP = functions.https.onCall(async (data, context) => 
  */
 export const onWalletTransactionWritten = notificationTriggers.onWalletTransactionWritten;
 
+import * as userTriggers from './triggers/userTriggers';
+export const onUserDeleted = userTriggers.onUserDeleted;
+
 /**
  * Telegram Bot Webhook & Test Endpoints
  */

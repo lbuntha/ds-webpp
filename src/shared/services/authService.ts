@@ -1,4 +1,4 @@
-import { Auth, getAuth, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, updatePassword, signInWithPopup } from 'firebase/auth';
+import { Auth, getAuth, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, updatePassword, signInWithPopup, signInWithCustomToken } from 'firebase/auth';
 import { Firestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { OTPService } from './otpService';
@@ -97,6 +97,9 @@ export class AuthService {
         let linkedEmployeeId = null;
         const role = extraData?.role || 'customer';
         const now = Date.now();
+        // Use provided timestamps for migration, or default to now
+        const createdAt = extraData?.createdAt || extraData?.joinedAt || now;
+        const joinedAt = extraData?.joinedAt || extraData?.createdAt || now;
 
         // 1. Create Customer Data (if role is customer)
         if (role === 'customer') {
@@ -110,8 +113,8 @@ export class AuthService {
                 phone: extraData.phone || '',
                 status: 'ACTIVE',
                 linkedUserId: user.uid,
-                createdAt: now,
-                bankAccounts: [],
+                createdAt: createdAt,
+                bankAccounts: extraData.bankAccounts || [],
                 address: extraData.address || '',
                 referralCode: extraData.referralCode || this.generateReferralCode(name),
                 savedLocations: extraData.savedLocations || [],
@@ -154,9 +157,9 @@ export class AuthService {
             status: role === 'customer' ? 'APPROVED' : 'PENDING',
             linkedCustomerId: linkedCustomerId,
             linkedEmployeeId: linkedEmployeeId,
-            lastLogin: now,
+            lastLogin: extraData.lastLogin || now,
             authMethod: extraData.authMethod || 'email',
-            joinedAt: now,
+            joinedAt: joinedAt,
             phone: extraData.phone ? normalizePhone(extraData.phone) : '',
             address: extraData.address || '',
             referralCode: role === 'customer' ? (extraData.referralCode || this.generateReferralCode(name)) : null,
@@ -349,10 +352,14 @@ export class AuthService {
     /**
      * OTP Management via Cloud Function API
      */
-    async requestOTP(phone: string, purpose: 'SIGNUP' | 'LOGIN' | 'RESET' = 'LOGIN'): Promise<{ success: boolean; message: string }> {
+    async requestOTP(phone: string, purpose: 'SIGNUP' | 'LOGIN' | 'RESET' = 'LOGIN'): Promise<{ success: boolean; message: string; debugCode?: string }> {
         try {
             const data = await this.callApi('/auth/request-otp', 'POST', { phone, purpose });
-            return { success: true, message: data.message || 'OTP sent successfully' };
+            return {
+                success: true,
+                message: data.message || 'OTP sent successfully',
+                debugCode: data.data?.debugCode
+            };
         } catch (error: any) {
             return { success: false, message: error.message || 'Failed to send OTP' };
         }
@@ -404,5 +411,20 @@ export class AuthService {
             }
             throw error;
         }
+    }
+    /**
+     * Login with phone and OTP (uses Custom Token from backend)
+     */
+    async loginWithOTP(phone: string, otp: string) {
+        // 1. Call backend to verify OTP and get custom token
+        const result = await this.callApi('/auth/login-otp', 'POST', { phone, otp });
+
+        if (!result.token) {
+            throw new Error('Login failed: No token received');
+        }
+
+        // 2. Sign in with custom token
+        const userCredential = await signInWithCustomToken(this.auth, result.token);
+        return userCredential.user;
     }
 }

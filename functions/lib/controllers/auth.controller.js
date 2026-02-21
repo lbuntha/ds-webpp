@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testSMS = exports.resetPasswordWithOTP = exports.verifyOTP = exports.requestOTP = exports.refreshToken = exports.logout = exports.login = exports.signup = void 0;
+exports.testSMS = exports.loginWithOTP = exports.resetPasswordWithOTP = exports.verifyOTP = exports.requestOTP = exports.refreshToken = exports.logout = exports.login = exports.signup = void 0;
 const response_1 = require("../utils/response");
 const sms_service_1 = require("../services/sms.service");
 const constants_1 = require("../config/constants");
@@ -256,9 +256,12 @@ const requestOTP = async (req, res) => {
             console.error('[AUTH-API] Failed to send SMS:', smsError);
             smsDebug = 'Error: ' + smsError.message;
         }
+        // Expose code for testing (Dev/Emulator only)
+        const isDev = process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'development';
         (0, response_1.sendSuccess)(res, 'OTP generated successfully', {
             note: 'OTP sent via configured method.',
-            smsDebug: smsDebug
+            smsDebug: smsDebug,
+            debugCode: isDev ? code : undefined
         });
     }
     catch (error) {
@@ -383,6 +386,70 @@ const resetPasswordWithOTP = async (req, res) => {
     }
 };
 exports.resetPasswordWithOTP = resetPasswordWithOTP;
+/**
+ * Login with OTP (returns Firebase Custom Token)
+ * POST /auth/login-otp
+ * Body: { phone, otp }
+ */
+const loginWithOTP = async (req, res) => {
+    try {
+        const { phone, otp } = req.body;
+        if (!phone || !otp) {
+            (0, response_1.sendError)(res, 'Phone and OTP are required', constants_1.ERROR_CODES.VALIDATION_ERROR, constants_1.HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+        const normalizedPhone = phone.replace(/\D/g, '');
+        // 1. Verify OTP
+        const otpDoc = await firebase_1.db.collection('otp_codes').doc(normalizedPhone).get();
+        if (!otpDoc.exists) {
+            (0, response_1.sendError)(res, 'No OTP found for this phone number', constants_1.ERROR_CODES.VALIDATION_ERROR, constants_1.HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+        const otpData = otpDoc.data();
+        const now = Date.now();
+        if ((otpData === null || otpData === void 0 ? void 0 : otpData.code) !== otp) {
+            (0, response_1.sendError)(res, 'Invalid OTP code', constants_1.ERROR_CODES.VALIDATION_ERROR, constants_1.HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+        if ((otpData === null || otpData === void 0 ? void 0 : otpData.expiry) < now) {
+            (0, response_1.sendError)(res, 'OTP has expired', constants_1.ERROR_CODES.VALIDATION_ERROR, constants_1.HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+        // 2. Find User by Phone
+        // We look up by the 'phone' field in the 'users' collection
+        const usersSnapshot = await firebase_1.db.collection('users')
+            .where('phone', '==', normalizedPhone)
+            .limit(1)
+            .get();
+        if (usersSnapshot.empty) {
+            (0, response_1.sendError)(res, 'User not found. Please sign up first.', constants_1.ERROR_CODES.AUTHENTICATION_ERROR, constants_1.HTTP_STATUS.NOT_FOUND);
+            return;
+        }
+        const userDoc = usersSnapshot.docs[0];
+        const userData = userDoc.data();
+        const uid = userDoc.id;
+        // 3. Generate Custom Token
+        const customToken = await firebase_1.auth.createCustomToken(uid, {
+            role: userData.role || 'customer'
+        });
+        // 4. Update Last Login
+        await firebase_1.db.collection('users').doc(uid).update({
+            lastLogin: now
+        });
+        // 5. Cleanup OTP
+        await firebase_1.db.collection('otp_codes').doc(normalizedPhone).delete();
+        // 6. Return Token
+        (0, response_1.sendSuccess)(res, 'Login successful', {
+            token: customToken,
+            user: userData
+        });
+    }
+    catch (error) {
+        console.error('Login with OTP error:', error);
+        (0, response_1.sendError)(res, error.message || 'Login failed', constants_1.ERROR_CODES.INTERNAL_ERROR, constants_1.HTTP_STATUS.INTERNAL_ERROR);
+    }
+};
+exports.loginWithOTP = loginWithOTP;
 /**
  * Test SMS sending directly (Debug Endpoint)
  * POST /auth/test-sms

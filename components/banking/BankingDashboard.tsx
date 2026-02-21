@@ -88,17 +88,44 @@ export const BankingDashboard: React.FC<Props> = ({ accounts: propAccounts, tran
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const bankingAccounts = useMemo<BankingAccount[]>(() => {
-        // Filter for Asset accounts that look like Banks or Cash
+        // 1. Calculate running balances per account from POSTED transactions
+        const balances: Record<string, number> = {};
+
+        propTransactions.forEach(txn => {
+            if (txn.status === 'POSTED') {
+                (txn.lines || []).forEach(line => {
+                    const accId = line.accountId;
+                    if (!balances[accId]) balances[accId] = 0;
+
+                    const debit = Number(line.debit) || 0;
+                    const credit = Number(line.credit) || 0;
+                    // For ASSET accounts, balance increases with debit and decreases with credit
+                    balances[accId] += (debit - credit);
+                });
+            }
+        });
+
+        // 2. Filter for Asset accounts that look like Banks or Cash, and map nativeBalance
         return propAccounts.filter(a => {
             const isAsset = a.type === AccountType.ASSET;
             const isBankOrCash = a.name.toLowerCase().includes('bank') || a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('settlement') || !!a.bankAccountNumber;
             return isAsset && isBankOrCash;
-        }) as BankingAccount[];
-    }, [propAccounts]);
+        }).map(a => ({
+            ...a,
+            nativeBalance: balances[a.id] || 0
+        })) as BankingAccount[];
+    }, [propAccounts, propTransactions]);
 
     const totalCashPosition = useMemo(() => {
-        return bankingAccounts.reduce((sum, acc) => sum + (acc.nativeBalance || 0), 0);
-    }, [bankingAccounts]);
+        const khrRate = currencies?.find(c => c.code === 'KHR')?.exchangeRate || 4000;
+        return bankingAccounts.reduce((sum, acc) => {
+            const balance = acc.nativeBalance || 0;
+            if (acc.currency === 'KHR') {
+                return sum + (balance / khrRate);
+            }
+            return sum + balance; // USD or implicitly USD
+        }, 0);
+    }, [bankingAccounts, currencies]);
 
     const pendingApprovals = useMemo(() => {
         return propTransactions.filter(t => t.status === 'PENDING_APPROVAL');

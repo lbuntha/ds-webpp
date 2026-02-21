@@ -33,18 +33,30 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const authController = __importStar(require("../controllers/auth.controller"));
-const router = (0, express_1.Router)();
-// Authentication endpoints
-router.post('/request-otp', authController.requestOTP);
-router.post('/verify-otp', authController.verifyOTP);
-router.post('/signup', authController.signup);
-router.post('/login', authController.login);
-router.post('/logout', authController.logout);
-router.post('/refresh-token', authController.refreshToken);
-router.post('/reset-password-otp', authController.resetPasswordWithOTP);
-router.post('/login-otp', authController.loginWithOTP);
-router.post('/test-sms', authController.testSMS);
-exports.default = router;
-//# sourceMappingURL=auth.routes.js.map
+exports.onUserDeleted = void 0;
+const functions = __importStar(require("firebase-functions"));
+const firebase_1 = require("../config/firebase");
+/**
+ * Triggered when a document is deleted in the `users` collection.
+ * This deletes the corresponding user in Firebase Authentication.
+ */
+exports.onUserDeleted = functions.firestore
+    .document('users/{userId}')
+    .onDelete(async (snap, context) => {
+    const userId = context.params.userId;
+    console.log(`[userTriggers] User document deleted for ID: ${userId}. Attempting to delete from Firebase Auth.`);
+    try {
+        await firebase_1.auth.deleteUser(userId);
+        console.log(`[userTriggers] Successfully deleted user ${userId} from Firebase Auth.`);
+    }
+    catch (error) {
+        if (error.code === 'auth/user-not-found') {
+            console.log(`[userTriggers] User ${userId} was not found in Firebase Auth. (Already deleted?)`);
+        }
+        else {
+            console.error(`[userTriggers] Error deleting user ${userId} from Firebase Auth:`, error);
+            throw new Error(`Failed to delete user from Auth: ${error.message}`);
+        }
+    }
+});
+//# sourceMappingURL=userTriggers.js.map

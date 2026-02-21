@@ -39,6 +39,7 @@ export class FirebaseService {
     verifyOTP(phone: string, code: string) { return this.authService.verifyOTP(phone, code); }
     getOTP(phone: string) { return this.authService.getOTP(phone); }
     signupWithOTP(phone: string, code: string, name: string, extra?: any) { return this.authService.signupWithOTP(phone, code, name, extra); }
+    loginWithOTP(phone: string, code: string) { return this.authService.loginWithOTP(phone, code); }
 
     logout() { return this.authService.logout(); }
     resetPassword(email: string) { return this.authService.resetPassword(email); }

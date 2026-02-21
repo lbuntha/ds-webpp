@@ -25,20 +25,29 @@ class Environment {
     }
 
     private loadConfig(): EnvConfig {
+        // Isomorphic env access
+        // @ts-ignore
+        const metaEnv = typeof import.meta.env !== 'undefined' ? import.meta.env : {};
+        const procEnv = typeof process !== 'undefined' ? process.env : {};
+
+        const get = (key: string) => {
+            return metaEnv[key] || procEnv[key] || '';
+        };
+
         return {
-            // Firebase - Check both VITE_ prefixed (for Cloud Build compatibility) and standard keys
-            FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.FIREBASE_API_KEY || '',
-            FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || import.meta.env.FIREBASE_AUTH_DOMAIN || '',
-            FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID || import.meta.env.FIREBASE_PROJECT_ID || '',
-            FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || import.meta.env.FIREBASE_STORAGE_BUCKET || '',
-            FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || import.meta.env.FIREBASE_MESSAGING_SENDER_ID || '',
-            FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID || import.meta.env.FIREBASE_APP_ID || '',
-            FIREBASE_MEASUREMENT_ID: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || import.meta.env.FIREBASE_MEASUREMENT_ID,
+            // Firebase
+            FIREBASE_API_KEY: get('VITE_FIREBASE_API_KEY') || get('FIREBASE_API_KEY'),
+            FIREBASE_AUTH_DOMAIN: get('VITE_FIREBASE_AUTH_DOMAIN') || get('FIREBASE_AUTH_DOMAIN'),
+            FIREBASE_PROJECT_ID: get('VITE_FIREBASE_PROJECT_ID') || get('FIREBASE_PROJECT_ID'),
+            FIREBASE_STORAGE_BUCKET: get('VITE_FIREBASE_STORAGE_BUCKET') || get('FIREBASE_STORAGE_BUCKET'),
+            FIREBASE_MESSAGING_SENDER_ID: get('VITE_FIREBASE_MESSAGING_SENDER_ID') || get('FIREBASE_MESSAGING_SENDER_ID'),
+            FIREBASE_APP_ID: get('VITE_FIREBASE_APP_ID') || get('FIREBASE_APP_ID'),
+            FIREBASE_MEASUREMENT_ID: get('VITE_FIREBASE_MEASUREMENT_ID') || get('FIREBASE_MEASUREMENT_ID'),
 
             // App Config
-            VITE_APP_NAME: import.meta.env.VITE_APP_NAME || 'Doorstep',
-            VITE_DEFAULT_LANGUAGE: import.meta.env.VITE_DEFAULT_LANGUAGE || 'en',
-            VITE_API_URL: import.meta.env.VITE_API_URL || 'https://api-lsv4ogyjva-uc.a.run.app',
+            VITE_APP_NAME: get('VITE_APP_NAME') || 'Doorstep',
+            VITE_DEFAULT_LANGUAGE: get('VITE_DEFAULT_LANGUAGE') || 'en',
+            VITE_API_URL: get('VITE_API_URL') || 'https://api-lsv4ogyjva-uc.a.run.app',
         };
     }
 

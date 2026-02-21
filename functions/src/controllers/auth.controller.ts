@@ -291,9 +291,13 @@ export const requestOTP = async (req: Request, res: Response): Promise<void> => 
             smsDebug = 'Error: ' + smsError.message;
         }
 
+        // Expose code for testing (Dev/Emulator only)
+        const isDev = process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'development';
+
         sendSuccess(res, 'OTP generated successfully', {
             note: 'OTP sent via configured method.',
-            smsDebug: smsDebug
+            smsDebug: smsDebug,
+            debugCode: isDev ? code : undefined
         });
     } catch (error: any) {
         console.error('Request OTP error:', error);
@@ -434,6 +438,85 @@ export const resetPasswordWithOTP = async (req: Request, res: Response): Promise
     } catch (error: any) {
         console.error('PIN reset error:', error);
         sendError(res, error.message || 'Failed to reset PIN', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_ERROR);
+    }
+};
+
+
+/**
+ * Login with OTP (returns Firebase Custom Token)
+ * POST /auth/login-otp
+ * Body: { phone, otp }
+ */
+export const loginWithOTP = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { phone, otp } = req.body;
+
+        if (!phone || !otp) {
+            sendError(res, 'Phone and OTP are required', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        const normalizedPhone = phone.replace(/\D/g, '');
+
+        // 1. Verify OTP
+        const otpDoc = await db.collection('otp_codes').doc(normalizedPhone).get();
+
+        if (!otpDoc.exists) {
+            sendError(res, 'No OTP found for this phone number', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        const otpData = otpDoc.data();
+        const now = Date.now();
+
+        if (otpData?.code !== otp) {
+            sendError(res, 'Invalid OTP code', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        if (otpData?.expiry < now) {
+            sendError(res, 'OTP has expired', ERROR_CODES.VALIDATION_ERROR, HTTP_STATUS.BAD_REQUEST);
+            return;
+        }
+
+        // 2. Find User by Phone
+        // We look up by the 'phone' field in the 'users' collection
+        const usersSnapshot = await db.collection('users')
+            .where('phone', '==', normalizedPhone)
+            .limit(1)
+            .get();
+
+        if (usersSnapshot.empty) {
+            sendError(res, 'User not found. Please sign up first.', ERROR_CODES.AUTHENTICATION_ERROR, HTTP_STATUS.NOT_FOUND);
+            return;
+        }
+
+        const userDoc = usersSnapshot.docs[0];
+        const userData = userDoc.data();
+        const uid = userDoc.id;
+
+        // 3. Generate Custom Token
+        const customToken = await auth.createCustomToken(uid, {
+            role: userData.role || 'customer'
+        });
+
+        // 4. Update Last Login
+        await db.collection('users').doc(uid).update({
+            lastLogin: now
+        });
+
+        // 5. Cleanup OTP
+        await db.collection('otp_codes').doc(normalizedPhone).delete();
+
+        // 6. Return Token
+        sendSuccess(res, 'Login successful', {
+            token: customToken,
+            user: userData
+        });
+
+    } catch (error: any) {
+        console.error('Login with OTP error:', error);
+        sendError(res, error.message || 'Login failed', ERROR_CODES.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_ERROR);
     }
 };
 
