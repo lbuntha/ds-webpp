@@ -1,1 +1,0 @@
-import{j as r}from"./index-BUL6LB55.js";import{M as e}from"./MenuBuilder-BtbqS8hr.js";import"./Modal-CwdR8lyW.js";import"./MenuIcon-Cobwt2rr.js";const s=()=>r.jsx("div",{className:"max-w-6xl mx-auto py-6",children:r.jsx(e,{})});export{s as default};

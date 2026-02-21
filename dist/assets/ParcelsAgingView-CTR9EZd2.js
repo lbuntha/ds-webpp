@@ -1,1 +1,0 @@
-import{j as r}from"./index-BUL6LB55.js";import{I as t}from"./InTransitAgingReport-DiBAMAJo.js";import"./Card-k44aVk4n.js";import"./Button-CqEssTF4.js";import"./TrackingTimeline--cIDV8xm.js";import"./toast-DfW6NkLH.js";function e(){return r.jsx(t,{})}export{e as default};
