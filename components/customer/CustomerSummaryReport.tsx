@@ -4,6 +4,7 @@ import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
+import { roundKHR } from '../../src/shared/utils/currencyUtils';
 
 interface Props {
     user: UserProfile;
@@ -128,7 +129,7 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
         if (usd === 0 && khr === 0) return '$0.00';
         const parts = [];
         if (usd > 0) parts.push(formatCurrency(usd));
-        if (khr > 0) parts.push(`${khr.toLocaleString()} ៛`);
+        if (khr > 0) parts.push(`${roundKHR(khr).toLocaleString()} ៛`);
         return parts.join(' + ');
     };
 
@@ -481,20 +482,20 @@ export const CustomerSummaryReport: React.FC<Props> = ({ user }) => {
                                                                                 {item.deliveryFeeUSD !== undefined || item.deliveryFeeKHR !== undefined
                                                                                     ? formatDualCurrency(item.deliveryFeeUSD || 0, item.deliveryFeeKHR || 0)
                                                                                     : (item.codCurrency === 'KHR'
-                                                                                        ? `${(item.deliveryFee || 0).toLocaleString()} ៛`
+                                                                                        ? `${roundKHR(item.deliveryFee || 0).toLocaleString()} ៛`
                                                                                         : formatCurrency(item.deliveryFee || 0))}
                                                                             </td>
                                                                             <td className="py-2 px-2 text-right text-orange-600">
                                                                                 {item.isTaxiDelivery && item.taxiFee && item.taxiFee > 0
                                                                                     ? (item.taxiFeeCurrency === 'KHR'
-                                                                                        ? `${item.taxiFee.toLocaleString()} ៛`
+                                                                                        ? `${roundKHR(item.taxiFee).toLocaleString()} ៛`
                                                                                         : formatCurrency(item.taxiFee))
                                                                                     : '-'}
                                                                             </td>
                                                                             <td className="py-2 px-2 text-right font-medium">
                                                                                 {item.productPrice
                                                                                     ? (item.codCurrency === 'KHR'
-                                                                                        ? `${item.productPrice.toLocaleString()} ៛`
+                                                                                        ? `${roundKHR(item.productPrice).toLocaleString()} ៛`
                                                                                         : formatCurrency(item.productPrice))
                                                                                     : '-'}
                                                                             </td>

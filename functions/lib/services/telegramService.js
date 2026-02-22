@@ -3,6 +3,39 @@
 // However, functions/src usually doesn't have access to ../../src unless configured.
 // Let's check if I can assume types or just use 'any' for now to be safe, or redefine minimal interface.
 // For robust code, I'll redefine minimal interfaces here to avoid build issues if ../../ is outside scope.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -10,8 +43,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TelegramService = void 0;
 const form_data_1 = __importDefault(require("form-data"));
 const node_fetch_1 = __importDefault(require("node-fetch"));
+const admin = __importStar(require("firebase-admin"));
 class TelegramService {
     constructor() {
+        if (admin.apps.length === 0) {
+            admin.initializeApp();
+        }
         this.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
         if (!this.botToken) {
             console.warn('TELEGRAM_BOT_TOKEN is not set. Telegram notifications will not be sent.');
@@ -112,7 +149,18 @@ class TelegramService {
         }
     }
     async sendSettlementReport(chatId, txn, customerName, statusOverride, excelBuffer, breakdown, note, excludeFees) {
-        var _a;
+        var _a, _b;
+        // 1. Fetch Settlement Template from Settings
+        let templateConfig = null;
+        try {
+            const settingsSnap = await admin.firestore().collection('settings').doc('general').get();
+            if (settingsSnap.exists) {
+                templateConfig = (_a = settingsSnap.data()) === null || _a === void 0 ? void 0 : _a.settlementTemplate;
+            }
+        }
+        catch (error) {
+            console.error('Error fetching settlement template settings:', error);
+        }
         const fmt = (val, currency) => {
             const cur = currency || txn.currency;
             const sym = cur === 'USD' ? '$' : '៛';
@@ -121,10 +169,43 @@ class TelegramService {
                 : `${val.toLocaleString()} ${sym}`;
         };
         const amountStr = fmt(txn.amount);
-        const title = statusOverride === 'APPROVED' ? '*Settlement Payout Approved & Sent*' : '*Settlement Payout Initiated*';
-        const bodyText = statusOverride === 'APPROVED'
-            ? `Your settlement payout has been approved and transferred. Reference: \`${txn.id}\``
-            : `A settlement payout has been initiated for your account.`;
+        const parcelCount = (((_b = txn.relatedItems) === null || _b === void 0 ? void 0 : _b.length) || 0).toString();
+        // 2. Define Placeholders
+        const data = {
+            '{{customerName}}': customerName,
+            '{{txnId}}': txn.id,
+            '{{date}}': txn.date,
+            '{{parcelCount}}': parcelCount,
+            '{{totalCod}}': breakdown ? fmt(breakdown.totalCOD, breakdown.codCurrency) : amountStr,
+            '{{totalFeesUsd}}': (breakdown === null || breakdown === void 0 ? void 0 : breakdown.deliveryFeeUSD) ? fmt(breakdown.deliveryFeeUSD, 'USD') : '$0.00',
+            '{{totalFeesKhr}}': (breakdown === null || breakdown === void 0 ? void 0 : breakdown.deliveryFeeKHR) ? fmt(breakdown.deliveryFeeKHR, 'KHR') : '0 ៛',
+            '{{netPayout}}': amountStr,
+            '{{adminNote}}': note || '',
+        };
+        const format = (text) => {
+            let result = text;
+            for (const [key, value] of Object.entries(data)) {
+                result = result.split(key).join(value);
+            }
+            return result;
+        };
+        // 3. Determine Content parts
+        let title = '';
+        let bodyText = '';
+        let footerText = '';
+        if (templateConfig) {
+            title = statusOverride === 'APPROVED' ? format(templateConfig.approvedTitle) : format(templateConfig.initiatedTitle);
+            bodyText = statusOverride === 'APPROVED' ? format(templateConfig.approvedBody) : format(templateConfig.initiatedBody);
+            footerText = format(templateConfig.footer);
+        }
+        else {
+            // Fallback to hardcoded defaults
+            title = statusOverride === 'APPROVED' ? '*Settlement Payout Approved & Sent*' : '*Settlement Payout Initiated*';
+            bodyText = statusOverride === 'APPROVED'
+                ? `Your settlement payout has been approved and transferred. Reference: \`${txn.id}\``
+                : `A settlement payout has been initiated for your account.`;
+            footerText = `⚠️ _Please confirm the settlement amount within 7 days. After 7 days, Doorstep is not responsible for any discrepancies._\n\nThis amount will be transferred to your registered bank account shortly.\nPlease check your banking app for receipt.`;
+        }
         let summaryLines = [];
         if (breakdown) {
             const codCurrency = breakdown.codCurrency || txn.currency;
@@ -165,8 +246,6 @@ class TelegramService {
                 ];
             }
         }
-        // Terms and Conditions Footer
-        const termsAndConditions = `⚠️ _Please confirm the settlement amount within 7 days. After 7 days, Doorstep is not responsible for any discrepancies._`;
         const lines = [
             title,
             `--------------------------------`,
@@ -178,17 +257,15 @@ class TelegramService {
             // Fallback if breakdown not provided, though we should aim to provide it
             !breakdown ? `*Total Amount:* ${amountStr}` : '',
             `*Date:* ${txn.date}`,
-            `*Parcels Included:* ${((_a = txn.relatedItems) === null || _a === void 0 ? void 0 : _a.length) || 0}`,
+            `*Parcels Included:* ${parcelCount}`,
             ``,
-            // Approval Note (if present)
-            note ? `📝 *Note from Admin:* ${note}` : '',
+            // Approval Note handled in Body or separate if note exists and body doesn't contain it
+            // To be safe, we'll keep the Note from Admin logic if {{adminNote}} was NOT used in bodyText
+            (note && !bodyText.includes(note)) ? `📝 *Note from Admin:* ${note}` : '',
             ``,
             statusOverride === 'APPROVED' ? `_See attached Excel file for detailed breakdown._` : '',
             ``,
-            `This amount will be transferred to your registered bank account shortly.`,
-            `Please check your banking app for receipt.`,
-            ``,
-            termsAndConditions
+            footerText
         ].filter(l => l !== '');
         const caption = lines.join('\n');
         // If we have an Excel buffer, send as document

@@ -14,6 +14,9 @@ import { RolePermissionManagement } from './RolePermissionManagement';
 import { CompanyProfileSettings } from './CompanyProfileSettings'; // Import
 import { TransactionDefinitions } from './TransactionDefinitions'; // Import
 import { SuggestionListEditor } from './SuggestionListEditor'; // Import
+import { SettlementTemplateEditor } from './SettlementTemplateEditor';
+import { SettlementMessageTemplate, EmailSettings } from '../../src/shared/types';
+import { EmailSettingsEditor } from './EmailSettingsEditor';
 import { Modal } from '../ui/Modal';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { MASTER_COA_DATA } from '../../src/shared/constants';
@@ -52,7 +55,7 @@ export const SettingsDashboard: React.FC<Props> = ({
     onRunSetup, onUpdateSettings, onClearData, onMenuUpdate
 }) => {
     const { t } = useLanguage();
-    const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMPANY' | 'COA' | 'BRANCHES' | 'CURRENCIES' | 'TAXES' | 'COMMISSIONS' | 'REFERRAL' | 'MENU' | 'RULES' | 'PERMISSIONS'>('GENERAL');
+    const [activeTab, setActiveTab] = useState<'GENERAL' | 'COMPANY' | 'COA' | 'BRANCHES' | 'CURRENCIES' | 'TAXES' | 'COMMISSIONS' | 'REFERRAL' | 'MENU' | 'RULES' | 'PERMISSIONS' | 'MESSAGING'>('GENERAL');
 
     // Account State
     const [accountFormOpen, setAccountFormOpen] = useState(false);
@@ -112,6 +115,30 @@ export const SettingsDashboard: React.FC<Props> = ({
     const [cusSuggestions, setCusSuggestions] = useState<string[]>(settings?.cus_suggestion || []);
     const [drvSuggestions, setDrvSuggestions] = useState<string[]>(settings?.drv_suggestion || []);
 
+    // Messaging / Settlement Templates
+    const [settlementTemplate, setSettlementTemplate] = useState<SettlementMessageTemplate>(settings?.settlementTemplate || {
+        approvedSendTelegram: true,
+        approvedSendEmail: true,
+        initiatedSendTelegram: true,
+        initiatedSendEmail: true,
+        approvedTitle: '*Settlement Payout Approved & Sent*',
+        approvedBody: 'Dear *{{customerName}}*,\n\nYour settlement payout has been approved and transferred. Reference: `{{txnId}}`',
+        initiatedTitle: '*Settlement Process Initiated*',
+        initiatedBody: 'Dear *{{customerName}}*,\n\nWe have started processing your settlement. Reference: `{{txnId}}`',
+        emailSubjectApproved: 'Settlement Payout Approved & Sent - {{txnId}}',
+        emailBodyApproved: 'Dear {{customerName}},\n\nWe are pleased to inform you that your settlement payout for transaction {{txnId}} has been approved and successfully processed.\n\nSettlement Details:\n- Total COD: {{totalCod}}\n- Net Payout: {{netPayout}}\n\nPlease find the detailed breakdown in the attached report.\n\nThank you for choosing Doorstep.\n\nBest regards,\nDoorstep Team',
+        emailSubjectInitiated: 'Settlement Process Initiated - {{txnId}}',
+        emailBodyInitiated: 'Dear {{customerName}},\n\nYour settlement request for transaction {{txnId}} has been initiated and is now being processed by our finance team.\n\nYou will receive a follow-up notification once the payout is approved.\n\nBest regards,\nDoorstep Team',
+        footer: '⚠️ _Please confirm the settlement amount within 7 days. After 7 days, Doorstep is not responsible for any discrepancies._\n\nThis amount will be transferred to your registered bank account shortly.\nPlease check your banking app for receipt.'
+    });
+    const [emailSettings, setEmailSettings] = useState<EmailSettings>(settings?.emailSettings || {
+        enabled: false,
+        provider: 'none',
+        fromEmail: '',
+        fromName: 'Doorstep Notifications'
+    });
+
+
     const [savingGeneral, setSavingGeneral] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [cleaningUpUsers, setCleaningUpUsers] = useState(false);
@@ -137,10 +164,29 @@ export const SettingsDashboard: React.FC<Props> = ({
             setDefaultRevenueUSD(settings.defaultRevenueAccountUSD || '');
             setDefaultRevenueKHR(settings.defaultRevenueAccountKHR || '');
             setDefaultTaxUSD(settings.defaultTaxAccountUSD || '');
-            setDefaultTaxUSD(settings.defaultTaxAccountUSD || '');
             setDefaultTaxKHR(settings.defaultTaxAccountKHR || '');
             setCusSuggestions(settings.cus_suggestion || []);
             setDrvSuggestions(settings.drv_suggestion || []);
+
+            // Merge Settlement Template with professional email defaults
+            if (settings.settlementTemplate) {
+                setSettlementTemplate({
+                    ...settlementTemplate,
+                    ...settings.settlementTemplate,
+                    // Ensure new fields are present even if settings.settlementTemplate is old
+                    emailSubjectApproved: settings.settlementTemplate.emailSubjectApproved || settlementTemplate.emailSubjectApproved,
+                    emailBodyApproved: settings.settlementTemplate.emailBodyApproved || settlementTemplate.emailBodyApproved,
+                    emailSubjectInitiated: settings.settlementTemplate.emailSubjectInitiated || settlementTemplate.emailSubjectInitiated,
+                    emailBodyInitiated: settings.settlementTemplate.emailBodyInitiated || settlementTemplate.emailBodyInitiated,
+                    approvedSendTelegram: settings.settlementTemplate.approvedSendTelegram ?? true,
+                    approvedSendEmail: settings.settlementTemplate.approvedSendEmail ?? true,
+                    initiatedSendTelegram: settings.settlementTemplate.initiatedSendTelegram ?? true,
+                    initiatedSendEmail: settings.settlementTemplate.initiatedSendEmail ?? true,
+                });
+            }
+            if (settings.emailSettings) {
+                setEmailSettings(settings.emailSettings);
+            }
         }
     }, [settings]);
 
@@ -353,7 +399,11 @@ export const SettingsDashboard: React.FC<Props> = ({
 
                 // Suggestions
                 cus_suggestion: cusSuggestions,
-                drv_suggestion: drvSuggestions
+                drv_suggestion: drvSuggestions,
+                // Template
+                settlementTemplate: settlementTemplate,
+                // Email Settings
+                emailSettings: emailSettings
             });
             toast.success("Configuration saved successfully.");
         } catch (e) {
@@ -450,6 +500,7 @@ export const SettingsDashboard: React.FC<Props> = ({
                 <button onClick={() => setActiveTab('TAXES')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'TAXES' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>{t('taxes')}</button>
                 <button onClick={() => setActiveTab('CURRENCIES')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'CURRENCIES' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>{t('currencies')}</button>
                 <button onClick={() => setActiveTab('MENU')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'MENU' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Menu Builder</button>
+                <button onClick={() => setActiveTab('MESSAGING')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'MESSAGING' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Messaging</button>
                 <button onClick={() => setActiveTab('REFERRAL')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'REFERRAL' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>Referrals</button>
             </div>
 
@@ -684,6 +735,30 @@ export const SettingsDashboard: React.FC<Props> = ({
 
             {/* ... (Existing Tabs content maintained: COA, BRANCHES, COMMISSIONS, etc) ... */}
             {activeTab === 'MENU' && <MenuBuilder />}
+            {activeTab === 'MESSAGING' && (
+                <div className="space-y-6">
+                    <Card title="Email Configuration">
+                        <EmailSettingsEditor
+                            settings={emailSettings}
+                            onChange={setEmailSettings}
+                        />
+                    </Card>
+
+                    <Card title="Notification Templates">
+                        <div className="space-y-6">
+                            <SettlementTemplateEditor
+                                template={settlementTemplate}
+                                onChange={setSettlementTemplate}
+                            />
+                            <div className="pt-4 border-t border-gray-100 flex justify-end">
+                                <Button onClick={handleSaveGeneral} isLoading={savingGeneral} className="text-xs">
+                                    Save Messaging Settings
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            )}
             {activeTab === 'REFERRAL' && <ReferralSettings />}
             {activeTab === 'COMMISSIONS' && <DriverCommissionSetup />}
 

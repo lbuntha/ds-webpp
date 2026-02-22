@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { toast } from '../../src/shared/utils/toast';
+import { roundKHR } from '../../src/shared/utils/currencyUtils';
 
 interface SettledItem {
     bookingId: string;
@@ -117,7 +118,15 @@ export const SettledParcelsReport: React.FC = () => {
                     }
 
                     // Calculate net in same currency
-                    const netPayout = codAmount - fee;
+                    let netPayout = codAmount - fee;
+
+                    // Apply KHR rounding if applicable
+                    if (codCurrency === 'KHR') {
+                        fee = roundKHR(fee);
+                        // Rounding codAmount too if it's KHR to be safe, though usually it's entered as round
+                        const roundedCod = roundKHR(codAmount);
+                        netPayout = roundedCod - fee;
+                    }
 
                     items.push({
                         bookingId: b.id,
@@ -206,11 +215,11 @@ export const SettledParcelsReport: React.FC = () => {
             item.customerName,
             item.customerPhone,
             item.receiverName,
-            item.codAmount.toFixed(2),
+            item.codAmount.toString(),
             item.codCurrency,
-            item.fee.toFixed(2),
+            item.fee.toString(),
             item.feeCurrency,
-            item.netPayout.toFixed(2)
+            item.netPayout.toString()
         ]);
 
         const csvContent = [
@@ -259,17 +268,17 @@ export const SettledParcelsReport: React.FC = () => {
                 <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                     <div className="text-xs text-gray-500 uppercase font-bold">Total COD</div>
                     <div className="text-lg font-bold text-green-600 mt-1">${totals.totalCodUSD.toFixed(2)}</div>
-                    {totals.totalCodKHR > 0 && <div className="text-sm text-blue-600">{totals.totalCodKHR.toLocaleString()} ៛</div>}
+                    {totals.totalCodKHR > 0 && <div className="text-sm text-blue-600">{roundKHR(totals.totalCodKHR).toLocaleString()} ៛</div>}
                 </div>
                 <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                     <div className="text-xs text-gray-500 uppercase font-bold">Total Fees</div>
                     <div className="text-lg font-bold text-amber-600 mt-1">${totals.totalFeeUSD.toFixed(2)}</div>
-                    {totals.totalFeeKHR > 0 && <div className="text-sm text-amber-500">{totals.totalFeeKHR.toLocaleString()} ៛</div>}
+                    {totals.totalFeeKHR > 0 && <div className="text-sm text-amber-500">{roundKHR(totals.totalFeeKHR).toLocaleString()} ៛</div>}
                 </div>
                 <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                     <div className="text-xs text-gray-500 uppercase font-bold">Net Payouts</div>
                     <div className="text-lg font-bold text-indigo-600 mt-1">${totals.netUSD.toFixed(2)}</div>
-                    {totals.netKHR !== 0 && <div className="text-sm text-indigo-500">{totals.netKHR.toLocaleString()} ៛</div>}
+                    {totals.netKHR !== 0 && <div className="text-sm text-indigo-500">{roundKHR(totals.netKHR).toLocaleString()} ៛</div>}
                 </div>
             </div>
 
@@ -358,10 +367,10 @@ export const SettledParcelsReport: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-sm text-right text-amber-600">
-                                            {item.feeCurrency === 'USD' ? '$' : ''}{item.fee.toFixed(2)}{item.feeCurrency === 'KHR' ? ' ៛' : ''}
+                                            {item.feeCurrency === 'USD' ? `$${item.fee.toFixed(2)}` : `${roundKHR(item.fee).toLocaleString()} ៛`}
                                         </td>
                                         <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">
-                                            {item.codCurrency === 'USD' ? '$' : ''}{item.netPayout.toLocaleString()}{item.codCurrency === 'KHR' ? ' ៛' : ''}
+                                            {item.codCurrency === 'USD' ? `$${item.netPayout.toFixed(2)}` : `${roundKHR(item.netPayout).toLocaleString()} ៛`}
                                         </td>
                                     </tr>
                                 ))

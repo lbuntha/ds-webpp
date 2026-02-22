@@ -811,6 +811,33 @@ export interface PayrollConfig {
   dayOffsPerPeriod: number; // 2
 }
 
+export interface SettlementMessageTemplate {
+  approvedSendTelegram?: boolean;
+  approvedSendEmail?: boolean;
+  initiatedSendTelegram?: boolean;
+  initiatedSendEmail?: boolean;
+  approvedTitle: string;
+  approvedBody: string;
+  initiatedTitle: string;
+  initiatedBody: string;
+  emailSubjectApproved?: string;
+  emailBodyApproved?: string;
+  emailSubjectInitiated?: string;
+  emailBodyInitiated?: string;
+  footer: string;
+}
+
+export interface EmailSettings {
+  enabled: boolean;
+  provider: 'none' | 'smtp' | 'gmail' | 'sendgrid';
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  fromEmail?: string;
+  fromName?: string;
+}
+
 export interface CompanyProfile {
   name: string;
   logo?: string;
@@ -879,6 +906,8 @@ export interface SystemSettings {
   // Suggestions for chat/notes
   cus_suggestion?: string[];
   drv_suggestion?: string[];
+  settlementTemplate?: SettlementMessageTemplate;
+  emailSettings?: EmailSettings;
 }
 
 export interface ParcelServiceType {
