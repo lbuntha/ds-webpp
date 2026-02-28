@@ -492,7 +492,7 @@ export const CustomerSettlementReport: React.FC = () => {
             // Only process the single targeted currency
             const description = "Payout Request (" + itemsToSettle.length + " parcels)" + (excludeFees ? " - Gross Payout" : "");
 
-            if (targetCurrency === 'USD' && Math.abs(netAmount) > 0.01) {
+            if (targetCurrency === 'USD' && (Math.abs(netAmount) > 0.01 || itemsToSettle.length > 0)) {
                 await firebaseService.walletService.requestSettlement(
                     linkedUser.uid,
                     linkedUser.name,
@@ -504,7 +504,7 @@ export const CustomerSettlementReport: React.FC = () => {
                     itemsToSettle,
                     excludeFees
                 );
-            } else if (targetCurrency === 'KHR' && Math.abs(netAmount) > 0.1) {
+            } else if (targetCurrency === 'KHR' && (Math.abs(netAmount) > 0.1 || itemsToSettle.length > 0)) {
                 await firebaseService.walletService.requestSettlement(
                     linkedUser.uid,
                     linkedUser.name,
@@ -692,7 +692,25 @@ export const CustomerSettlementReport: React.FC = () => {
                                     type="checkbox"
                                     id="excludeFees"
                                     checked={excludeFees}
-                                    onChange={e => setExcludeFees(e.target.checked)}
+                                    onChange={e => {
+                                        const willBeChecked = e.target.checked;
+                                        if (!willBeChecked) {
+                                            // Check if unchecking would result in a negative balance
+                                            const potentialNetUSD = liveBalance ? liveBalance.usd : summary?.netUSD || 0;
+                                            const potentialNetKHR = liveBalance ? liveBalance.khr : summary?.netKHR || 0;
+
+                                            // We only care if the customer owes us money AND there are unsettled items of that currency
+                                            const hasUSDEntries = selectedCustomerDetails.some(d => d.codCurrency === 'USD');
+                                            const hasKHREntries = selectedCustomerDetails.some(d => d.codCurrency === 'KHR');
+
+                                            if ((hasUSDEntries && potentialNetUSD < 0) || (hasKHREntries && potentialNetKHR < 0)) {
+                                                toast.error("Cannot include fees. The resulting net payout would be negative (customer owes you). Please settle these items as Pay Gross to move the debt to Fee Collections.");
+                                                e.preventDefault();
+                                                return;
+                                            }
+                                        }
+                                        setExcludeFees(willBeChecked);
+                                    }}
                                     className="w-4 h-4 text-green-600 rounded cursor-pointer"
                                 />
                                 <label htmlFor="excludeFees" className={`text-sm font-medium select-none cursor-pointer text-gray-700 ${excludeFees ? 'font-bold' : ''}`}>
@@ -722,7 +740,9 @@ export const CustomerSettlementReport: React.FC = () => {
                                     className="bg-green-600 hover:bg-green-700 text-white font-bold"
                                     onClick={() => summary && initiateSettle(summary, 'USD')}
                                     isLoading={processing}
-                                    disabled={Math.abs((excludeFees ? grossCodAmounts.usd : (liveBalance ? liveBalance.usd : summary?.netUSD || 0))) < 0.01}
+                                    disabled={
+                                        Math.abs((excludeFees ? grossCodAmounts.usd : (liveBalance ? liveBalance.usd : summary?.netUSD || 0))) < 0.01 && selectedCustomerDetails.filter(d => d.codCurrency === 'USD').length === 0
+                                    }
                                 >
                                     Pay USD
                                 </Button>
@@ -741,7 +761,9 @@ export const CustomerSettlementReport: React.FC = () => {
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
                                     onClick={() => summary && initiateSettle(summary, 'KHR')}
                                     isLoading={processing}
-                                    disabled={Math.abs((excludeFees ? grossCodAmounts.khr : (liveBalance ? liveBalance.khr : summary?.netKHR || 0))) < 1}
+                                    disabled={
+                                        Math.abs((excludeFees ? grossCodAmounts.khr : (liveBalance ? liveBalance.khr : summary?.netKHR || 0))) < 1 && selectedCustomerDetails.filter(d => d.codCurrency === 'KHR').length === 0
+                                    }
                                 >
                                     Pay KHR
                                 </Button>
