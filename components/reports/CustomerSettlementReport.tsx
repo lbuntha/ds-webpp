@@ -396,8 +396,6 @@ export const CustomerSettlementReport: React.FC = () => {
         return details;
     }, [bookings, selectedCustomerId, excludeFees]);
 
-    // --- Gross Payment Adjustments ---
-    // Calculates what needs to be added back to Net Balance to get Gross Payout
     const grossAdjustments = useMemo(() => {
         let adjUSD = 0;
         let adjKHR = 0;
@@ -417,6 +415,20 @@ export const CustomerSettlementReport: React.FC = () => {
         }
         return { usd: adjUSD, khr: adjKHR };
     }, [excludeFees, selectedCustomerDetails]);
+
+    // Calculates exactly the total COD of unsettled items (Gross Payout)
+    const grossCodAmounts = useMemo(() => {
+        let usd = 0;
+        let khr = 0;
+        selectedCustomerDetails.forEach(d => {
+            if (d.codCurrency === 'USD') usd += d.cod;
+            else khr += d.cod;
+
+            // Taxi Fee is still deducted even in gross payout if paying gross only refers to delivery fees
+            // Wait, the initiateSettle only sums COD. So we must ONLY sum COD to match the modal exactly.
+        });
+        return { usd, khr };
+    }, [selectedCustomerDetails]);
 
     // --- Confirmation Modal State ---
     const [confirmation, setConfirmation] = useState<{
@@ -702,15 +714,15 @@ export const CustomerSettlementReport: React.FC = () => {
                                 <div>
                                     <div className="text-xs font-bold text-green-800 uppercase">Wait to Pay (USD)</div>
                                     <div className="text-3xl font-bold text-green-900 mt-1">
-                                        ${(liveBalance ? ((liveBalance.usd || 0) + grossAdjustments.usd) : summary?.netUSD || 0).toFixed(2)}
+                                        ${(excludeFees ? grossCodAmounts.usd : (liveBalance ? liveBalance.usd : summary?.netUSD || 0)).toFixed(2)}
                                     </div>
-                                    <div className="text-[10px] text-green-600 mt-1">Based on {liveBalance ? 'Verified Wallet Balance' : 'Pending Bookings'}</div>
+                                    <div className="text-[10px] text-green-600 mt-1">Based on {excludeFees ? 'Gross COD Amount' : (liveBalance ? 'Verified Wallet Balance' : 'Pending Bookings')}</div>
                                 </div>
                                 <Button
                                     className="bg-green-600 hover:bg-green-700 text-white font-bold"
                                     onClick={() => summary && initiateSettle(summary, 'USD')}
                                     isLoading={processing}
-                                    disabled={Math.abs((liveBalance ? ((liveBalance.usd || 0) + grossAdjustments.usd) : summary?.netUSD || 0)) < 0.01}
+                                    disabled={Math.abs((excludeFees ? grossCodAmounts.usd : (liveBalance ? liveBalance.usd : summary?.netUSD || 0))) < 0.01}
                                 >
                                     Pay USD
                                 </Button>
@@ -721,15 +733,15 @@ export const CustomerSettlementReport: React.FC = () => {
                                 <div>
                                     <div className="text-xs font-bold text-blue-800 uppercase">Wait to Pay (KHR)</div>
                                     <div className="text-3xl font-bold text-blue-900 mt-1">
-                                        {(liveBalance ? ((liveBalance.khr || 0) + grossAdjustments.khr) : summary?.netKHR || 0).toLocaleString()} ៛
+                                        {(excludeFees ? grossCodAmounts.khr : (liveBalance ? liveBalance.khr : summary?.netKHR || 0)).toLocaleString()} ៛
                                     </div>
-                                    <div className="text-[10px] text-blue-600 mt-1">Based on {liveBalance ? 'Verified Wallet Balance' : 'Pending Bookings'}</div>
+                                    <div className="text-[10px] text-blue-600 mt-1">Based on {excludeFees ? 'Gross COD Amount' : (liveBalance ? 'Verified Wallet Balance' : 'Pending Bookings')}</div>
                                 </div>
                                 <Button
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
                                     onClick={() => summary && initiateSettle(summary, 'KHR')}
                                     isLoading={processing}
-                                    disabled={Math.abs((liveBalance ? ((liveBalance.khr || 0) + grossAdjustments.khr) : summary?.netKHR || 0)) < 1}
+                                    disabled={Math.abs((excludeFees ? grossCodAmounts.khr : (liveBalance ? liveBalance.khr : summary?.netKHR || 0))) < 1}
                                 >
                                     Pay KHR
                                 </Button>
