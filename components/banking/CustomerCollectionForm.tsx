@@ -219,12 +219,17 @@ const CustomerCollectionForm: React.FC = () => {
                 const clearingTxnIds = rec.clearingTxnIds || [];
                 if (!clearingTxnIds.includes(txnId)) clearingTxnIds.push(txnId);
 
-                const recordUpdate = {
+                const recordUpdate: any = {
                     paidAmount: newPaidAmount,
                     status: newStatus,
-                    clearingTxnIds: clearingTxnIds,
-                    clearedAt: newStatus === 'PAID' ? Date.now() : rec.clearedAt
+                    clearingTxnIds: clearingTxnIds
                 };
+
+                if (newStatus === 'PAID') {
+                    recordUpdate.clearedAt = Date.now();
+                } else if (rec.clearedAt !== undefined) {
+                    recordUpdate.clearedAt = rec.clearedAt;
+                }
 
                 // Add to promises
                 updatePromises.push(updateDoc(doc(db, 'fee_receivables', rec.id), recordUpdate));
