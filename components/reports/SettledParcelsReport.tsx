@@ -92,6 +92,16 @@ export const SettledParcelsReport: React.FC = () => {
     const settledItems = useMemo(() => {
         const items: SettledItem[] = [];
 
+        // Map item ID to its excludeFees status from wallet transactions
+        const itemExcludeFeesMap = new Map<string, boolean>();
+        walletTxns.forEach(txn => {
+            if (txn.type === 'SETTLEMENT' && txn.relatedItems) {
+                txn.relatedItems.forEach(ri => {
+                    itemExcludeFeesMap.set(`${ri.bookingId}_${ri.itemId}`, !!txn.excludeFees);
+                });
+            }
+        });
+
         bookings.forEach(b => {
             (b.items || []).forEach(item => {
                 if (item.customerSettlementStatus === 'SETTLED') {
@@ -117,15 +127,18 @@ export const SettledParcelsReport: React.FC = () => {
                         fee = fee / exchangeRate;
                     }
 
+                    // Check if this item's settlement excluded fees
+                    const isFeeExcluded = itemExcludeFeesMap.get(`${b.id}_${item.id}`) || false;
+
                     // Calculate net in same currency
-                    let netPayout = codAmount - fee;
+                    let netPayout = codAmount - (isFeeExcluded ? 0 : fee);
 
                     // Apply KHR rounding if applicable
                     if (codCurrency === 'KHR') {
                         fee = roundKHR(fee);
                         // Rounding codAmount too if it's KHR to be safe, though usually it's entered as round
                         const roundedCod = roundKHR(codAmount);
-                        netPayout = roundedCod - fee;
+                        netPayout = roundedCod - (isFeeExcluded ? 0 : fee);
                     }
 
                     items.push({
@@ -151,7 +164,7 @@ export const SettledParcelsReport: React.FC = () => {
         items.sort((a, b) => b.deliveryDate.localeCompare(a.deliveryDate));
 
         return items;
-    }, [bookings, customers, users, settings]);
+    }, [bookings, customers, users, settings, walletTxns]);
 
     // Filter items
     const filteredItems = useMemo(() => {

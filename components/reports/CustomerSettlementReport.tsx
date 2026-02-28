@@ -366,9 +366,12 @@ export const CustomerSettlementReport: React.FC = () => {
 
                     // Net Calculation (Indicative only, mixed currencies might exist)
                     // If currencies match, we deduct. If not, we don't for 'Net' of this specific item row unless we want to show mixed net.
-                    let net = (Number(item.productPrice) || 0) - fee;
-                    if (taxiFee > 0 && taxiFeeCurrency === feeCurrency) {
-                        net -= taxiFee;
+                    let net = Number(item.productPrice) || 0;
+                    if (!excludeFees) {
+                        net -= fee;
+                        if (taxiFee > 0 && taxiFeeCurrency === feeCurrency) {
+                            net -= taxiFee;
+                        }
                     }
 
                     details.push({
@@ -391,7 +394,7 @@ export const CustomerSettlementReport: React.FC = () => {
             });
         });
         return details;
-    }, [bookings, selectedCustomerId]);
+    }, [bookings, selectedCustomerId, excludeFees]);
 
     // --- Gross Payment Adjustments ---
     // Calculates what needs to be added back to Net Balance to get Gross Payout
