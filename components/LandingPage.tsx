@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/Button';
-import { LanguageSwitcher } from './ui/LanguageSwitcher';
 import { useLanguage } from '../src/shared/contexts/LanguageContext';
 import { toast } from '../src/shared/utils/toast';
 
@@ -553,7 +552,6 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
             </div>
 
             <div className="flex items-center gap-3">
-              <LanguageSwitcher className="hidden sm:flex" />
               <button onClick={onLogin} className="text-sm font-bold text-slate-700 hover:text-red-600 px-4 py-2 transition-colors">
                 Log In
               </button>
@@ -1003,8 +1001,8 @@ export const LandingPage: React.FC<Props> = ({ onLogin: propOnLogin, onRegister:
               <h4 className="font-bold text-slate-900 mb-4">Support</h4>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li><button onClick={() => setActivePage('HELP')} className="hover:text-red-600">Help Center</button></li>
-                <li><button onClick={() => setActivePage('PRIVACY')} className="hover:text-red-600">Privacy Policy</button></li>
-                <li><button onClick={() => setActivePage('TERMS')} className="hover:text-red-600">Terms of Use</button></li>
+                <li><button onClick={() => navigate('/privacy')} className="hover:text-red-600">Privacy Policy</button></li>
+                <li><button onClick={() => navigate('/terms')} className="hover:text-red-600">Terms of Use</button></li>
               </ul>
             </div>
           </div>

@@ -15,6 +15,8 @@ const OTPSignup = lazy(() => import('../../components/OTPSignup').then(m => ({ d
 const PhoneSignupView = lazy(() => import('./views/PhoneSignupView'));
 const PhoneResetView = lazy(() => import('./views/PhoneResetView'));
 const EmailResetView = lazy(() => import('./views/EmailResetView'));
+const PrivacyPolicyView = lazy(() => import('./views/PrivacyPolicyView'));
+const TermsOfUseView = lazy(() => import('./views/TermsOfUseView'));
 
 
 // Layouts
@@ -47,6 +49,7 @@ const ParcelsProductsView = lazy(() => import('./views/ParcelsProductsView'));
 const ParcelsRetentionView = lazy(() => import('./views/ParcelsRetentionView'));
 const ParcelsServiceSetupView = lazy(() => import('./views/ParcelsServiceSetupView'));
 const DriverCommissionSetupView = lazy(() => import('./views/DriverCommissionSetupView'));
+const DriverCommissionView = lazy(() => import('./views/DriverCommissionView'));
 const ParcelsAgingView = lazy(() => import('./views/ParcelsAgingView'));
 const PromotionsPage = lazy(() => import('./views/PromotionsPage'));
 const CashbackPage = lazy(() => import('./views/CashbackPage'));
@@ -139,6 +142,14 @@ const routes: RouteObject[] = [
         // Also handle Firebase's __/auth/action path format for when Console is configured
         path: '/__/auth/action',
         element: withSuspense(EmailResetView),
+    },
+    {
+        path: '/privacy',
+        element: withSuspense(PrivacyPolicyView),
+    },
+    {
+        path: '/terms',
+        element: withSuspense(TermsOfUseView),
     },
     {
         path: '/pending',
@@ -282,6 +293,14 @@ const routes: RouteObject[] = [
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_PAYROLL">
                         {withSuspense(lazy(() => import('./views/PayrollView')))}
+                    </PermissionRoute>
+                ),
+            },
+            {
+                path: 'driver-commissions',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_REPORTS">
+                        {withSuspense(DriverCommissionView)}
                     </PermissionRoute>
                 ),
             },

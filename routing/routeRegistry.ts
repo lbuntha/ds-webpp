@@ -1,4 +1,4 @@
-import { Permission, UserRole } from '../types';
+import { Permission, UserRole } from '../src/shared/types';
 
 export interface AppRoute {
     id: string;
@@ -42,7 +42,8 @@ export const DEFAULT_ROUTES: AppRoute[] = [
     { id: 'route-reports', path: 'REPORTS', label: 'reports', component: 'Reports', iconKey: 'reports', requiredPermission: 'VIEW_REPORTS', allowedRoles: ['system-admin', 'accountant', 'finance-manager'], order: 200, section: 'reports', isActive: true },
     { id: 'route-reports-aging', path: 'PARCELS_AGING', label: 'aging_report', component: 'InTransitAgingReport', iconKey: 'aging', requiredPermission: 'VIEW_REPORTS', allowedRoles: ['system-admin', 'accountant'], order: 201, section: 'reports', isActive: true },
     { id: 'route-reports-retention', path: 'PARCELS_RETENTION', label: 'retention', component: 'CustomerRetentionReport', iconKey: 'retention', requiredPermission: 'VIEW_REPORTS', allowedRoles: ['system-admin', 'accountant'], order: 202, section: 'reports', isActive: true },
-    { id: 'route-analytics', path: 'ANALYTICS', label: 'analytics', component: 'AnalyticsDashboard', iconKey: 'analytics', requiredPermission: 'VIEW_REPORTS', allowedRoles: ['system-admin', 'accountant', 'finance-manager'], order: 203, section: 'reports', isActive: true },
+    { id: 'route-driver-commissions', path: 'DRIVER_COMMISSIONS', label: 'driver_commissions', component: 'DriverCommissionView', iconKey: 'fleet', requiredPermission: 'VIEW_REPORTS', allowedRoles: ['system-admin', 'accountant', 'finance-manager'], order: 203, section: 'reports', isActive: true },
+    { id: 'route-analytics', path: 'ANALYTICS', label: 'analytics', component: 'AnalyticsDashboard', iconKey: 'analytics', requiredPermission: 'VIEW_REPORTS', allowedRoles: ['system-admin', 'accountant', 'finance-manager'], order: 204, section: 'reports', isActive: true },
 
     // Staff Section
     { id: 'route-staff', path: 'STAFF', label: 'staff_loans', component: 'StaffLoansDashboard', iconKey: 'staff', requiredPermission: 'MANAGE_STAFF', allowedRoles: ['system-admin', 'accountant'], order: 300, section: 'staff', isActive: true },

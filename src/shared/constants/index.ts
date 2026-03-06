@@ -152,6 +152,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   // ==============================
   { id: 'nav-journal', label: 'Journal', viewId: 'JOURNAL', iconKey: 'journal', order: 20, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-banking', label: 'Banking', viewId: 'BANKING', iconKey: 'banking', order: 21, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
+  { id: 'nav-driver-commissions', label: 'Driver Commissions', viewId: 'DRIVER_COMMISSIONS', iconKey: 'fleet', order: 24, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], section: 'finance' },
   { id: 'nav-customer-payout', label: 'Customer Payout', viewId: 'CUSTOMER_SETTLEMENTS', iconKey: 'money', order: 25, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], section: 'finance' },
   { id: 'nav-customer-collection', label: 'Fee Collection', viewId: 'CUSTOMER_COLLECTION', iconKey: 'banking', order: 27, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-settled-parcels', label: 'Settled Parcels', viewId: 'SETTLED_PARCELS', iconKey: 'checkCircle', order: 26, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
