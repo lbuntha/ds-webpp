@@ -12,6 +12,9 @@ export const WalletRequests: React.FC = () => {
     const [requests, setRequests] = useState<WalletTransaction[]>([]);
     const [loading, setLoading] = useState(false);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [batchIndex, setBatchIndex] = useState<number>(-1); // -1 means no batch processing
+    const [activeTab, setActiveTab] = useState<'DRIVER' | 'CUSTOMER'>('DRIVER');
 
     // Rounding helper for financial accuracy
     const round2 = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
@@ -70,13 +73,26 @@ export const WalletRequests: React.FC = () => {
         loadRequests();
     }, []);
 
-    // Summary: Total amounts to be settled, breakdown by currency
+    // Categorize and Filter Requests
+    const categorizedRequests = useMemo(() => {
+        const driverUserIds = new Set(employees.filter(e => e.linkedUserId).map(e => e.linkedUserId));
+        return requests.map(r => ({
+            ...r,
+            userType: driverUserIds.has(r.userId) ? 'DRIVER' : 'CUSTOMER'
+        }));
+    }, [requests, employees]);
+
+    const filteredRequests = useMemo(() => {
+        return categorizedRequests.filter(r => r.userType === activeTab);
+    }, [categorizedRequests, activeTab]);
+
+    // Summary: Total amounts to be settled, breakdown by currency (based on filtered list)
     const summary = useMemo(() => {
         const totals = {
             usd: { settlement: 0, withdrawal: 0, deposit: 0, total: 0 },
             khr: { settlement: 0, withdrawal: 0, deposit: 0, total: 0 }
         };
-        requests.forEach(r => {
+        filteredRequests.forEach(r => {
             const curr = r.currency === 'KHR' ? 'khr' : 'usd';
             const type = r.type?.toLowerCase() || 'settlement';
             if (type === 'settlement') totals[curr].settlement += r.amount;
@@ -85,7 +101,7 @@ export const WalletRequests: React.FC = () => {
             totals[curr].total += r.amount;
         });
         return totals;
-    }, [requests]);
+    }, [filteredRequests]);
 
     const initiateApprove = (txn: WalletTransaction) => {
         // Show preview for Settlements, Withdrawals, AND Deposits to verify accounting
@@ -96,7 +112,45 @@ export const WalletRequests: React.FC = () => {
         if (viewTransaction) {
             setPendingApprovalNote(note);
             setConfirmAction({ type: 'APPROVE', txn: viewTransaction });
+            // Don't setViewTransaction(null) here, keep it for the confirmation dialog or batch flow
+        }
+    };
+
+    const toggleSelection = (id: string) => {
+        const newSelection = new Set(selectedIds);
+        if (newSelection.has(id)) newSelection.delete(id);
+        else newSelection.add(id);
+        setSelectedIds(newSelection);
+    };
+
+    const toggleAllSelection = () => {
+        if (selectedIds.size === filteredRequests.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredRequests.map(r => r.id)));
+        }
+    };
+
+    const startBatchAuthorize = () => {
+        if (selectedIds.size === 0) return;
+        setBatchIndex(0);
+        const firstId = Array.from(selectedIds)[0];
+        const txn = requests.find(r => r.id === firstId);
+        if (txn) setViewTransaction(txn);
+    };
+
+    const moveToNextInBatch = () => {
+        const nextIndex = batchIndex + 1;
+        const selectedArray = Array.from(selectedIds);
+        if (nextIndex < selectedArray.length) {
+            setBatchIndex(nextIndex);
+            const nextTxn = filteredRequests.find(r => r.id === selectedArray[nextIndex]);
+            if (nextTxn) setViewTransaction(nextTxn);
+            else setViewTransaction(null);
+        } else {
+            setBatchIndex(-1);
             setViewTransaction(null);
+            setSelectedIds(new Set());
         }
     };
 
@@ -221,10 +275,17 @@ export const WalletRequests: React.FC = () => {
             setConfirmAction(null);
             setPendingApprovalNote(undefined);
             await loadRequests();
-            toast.success("Transaction Approved & Posted to GL");
+            toast.success("Transaction Authorized & Posted to GL");
+
+            // Handle Batch Progression
+            if (batchIndex !== -1) {
+                moveToNextInBatch();
+            } else {
+                setViewTransaction(null); // Close modal if not batching
+            }
         } catch (e: any) {
             console.error(e);
-            toast.error("Approval Failed: " + e.message);
+            toast.error("Authorization Failed: " + e.message);
         } finally {
             setProcessingId(null);
         }
@@ -274,8 +335,34 @@ export const WalletRequests: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-gray-900">Pending Wallet Requests</h3>
+                <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-bold text-gray-900">Pending Wallet Requests</h3>
+                    {selectedIds.size > 0 && (
+                        <Button
+                            onClick={startBatchAuthorize}
+                            className="bg-blue-600 hover:bg-blue-700 text-xs px-4 py-1"
+                        >
+                            Batch Authorize ({selectedIds.size})
+                        </Button>
+                    )}
+                </div>
                 <Button variant="outline" onClick={loadRequests} isLoading={loading} className="text-xs">Refresh</Button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+                <button
+                    onClick={() => { setActiveTab('DRIVER'); setSelectedIds(new Set()); }}
+                    className={`px-6 py-2 text-sm font-bold transition-colors border-b-2 ${activeTab === 'DRIVER' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                    Drivers ({categorizedRequests.filter(r => r.userType === 'DRIVER').length})
+                </button>
+                <button
+                    onClick={() => { setActiveTab('CUSTOMER'); setSelectedIds(new Set()); }}
+                    className={`px-6 py-2 text-sm font-bold transition-colors border-b-2 ${activeTab === 'CUSTOMER' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                    Customers ({categorizedRequests.filter(r => r.userType === 'CUSTOMER').length})
+                </button>
             </div>
 
             {/* Summary Cards - Total by Currency */}
@@ -307,6 +394,14 @@ export const WalletRequests: React.FC = () => {
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
+                                <th className="px-4 py-3 text-left">
+                                    <input
+                                        type="checkbox"
+                                        checked={filteredRequests.length > 0 && selectedIds.size === filteredRequests.length}
+                                        onChange={toggleAllSelection}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
@@ -316,8 +411,16 @@ export const WalletRequests: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {requests.map(txn => (
-                                <tr key={txn.id} className="hover:bg-gray-50">
+                            {filteredRequests.map(txn => (
+                                <tr key={txn.id} className={`hover:bg-gray-50 ${selectedIds.has(txn.id) ? 'bg-blue-50' : ''}`}>
+                                    <td className="px-4 py-4">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(txn.id)}
+                                            onChange={() => toggleSelection(txn.id)}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                    </td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{txn.date}</td>
                                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{txn.userName}</td>
                                     <td className="px-6 py-4 text-sm">
@@ -335,12 +438,12 @@ export const WalletRequests: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
                                         <button onClick={() => initiateReject(txn)} className="text-red-600 hover:text-red-900">Reject</button>
-                                        <button onClick={() => initiateApprove(txn)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Approve</button>
+                                        <button onClick={() => initiateApprove(txn)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Authorize</button>
                                     </td>
                                 </tr>
                             ))}
-                            {requests.length === 0 && (
-                                <tr><td colSpan={6} className="text-center py-8 text-gray-500">No pending requests.</td></tr>
+                            {filteredRequests.length === 0 && (
+                                <tr><td colSpan={7} className="text-center py-8 text-gray-500">No pending {activeTab.toLowerCase()} requests.</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -350,7 +453,10 @@ export const WalletRequests: React.FC = () => {
             {viewTransaction && (
                 <SettlementReportModal
                     transaction={viewTransaction}
-                    onClose={() => setViewTransaction(null)}
+                    onClose={() => {
+                        setViewTransaction(null);
+                        setBatchIndex(-1); // Reset batch if modal closed manually
+                    }}
                     isApproving={true}
                     onConfirm={confirmApprovalFromModal}
                     bookings={bookings}
@@ -360,11 +466,16 @@ export const WalletRequests: React.FC = () => {
                     settings={settings}
                     currencies={currencies}
                     taxRates={taxRates}
+                    batchInfo={batchIndex !== -1 ? {
+                        current: batchIndex + 1,
+                        total: selectedIds.size,
+                        onSkip: moveToNextInBatch
+                    } : undefined}
                 />
             )}
 
             {confirmAction && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 p-4">
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900 bg-opacity-50 p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
                         <h3 className="text-lg font-bold mb-4">{confirmAction.type === 'APPROVE' ? 'Confirm Approval' : 'Reject Request'}</h3>
                         {confirmAction.type === 'REJECT' ? (

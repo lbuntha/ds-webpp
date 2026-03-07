@@ -17,6 +17,11 @@ interface Props {
     settings?: SystemSettings;
     currencies?: CurrencyConfig[];
     taxRates?: TaxRate[];
+    batchInfo?: {
+        current: number;
+        total: number;
+        onSkip: () => void;
+    };
 }
 
 interface ReportLineItem {
@@ -50,7 +55,8 @@ interface PreviewLine {
 export const SettlementReportModal: React.FC<Props> = ({
     transaction, onClose, onConfirm, isApproving,
     bookings = [], commissionRules = [], employees = [], accounts = [],
-    settings = {} as SystemSettings, currencies = [], taxRates = []
+    settings = {} as SystemSettings, currencies = [], taxRates = [],
+    batchInfo
 }) => {
     const [items, setItems] = useState<ReportLineItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -605,7 +611,18 @@ export const SettlementReportModal: React.FC<Props> = ({
                         <h3 className="text-lg font-bold text-gray-900">Transaction Detail</h3>
                         <p className="text-xs text-gray-500 font-mono">Ref: {transaction.id}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                        {batchInfo && (
+                            <div className="flex items-center gap-2 mr-4 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Batch {batchInfo.current} / {batchInfo.total}</span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); batchInfo.onSkip(); }}
+                                    className="text-[10px] font-bold text-blue-500 hover:text-blue-700 underline"
+                                >
+                                    Skip
+                                </button>
+                            </div>
+                        )}
                         <Button variant="outline" onClick={handlePrint} className="text-xs">
                             Print / PDF
                         </Button>
