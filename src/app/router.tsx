@@ -313,6 +313,14 @@ const routes: RouteObject[] = [
                 ),
             },
             {
+                path: 'driver-settlements',
+                element: (
+                    <PermissionRoute requiredPermission="VIEW_REPORTS">
+                        {withSuspense(lazy(() => import('../../components/reports/DriverSettlementReport').then(m => ({ default: m.DriverSettlementReport }))))}
+                    </PermissionRoute>
+                ),
+            },
+            {
                 path: 'settled-parcels',
                 element: (
                     <PermissionRoute requiredPermission="MANAGE_CUSTOMER_SETTLEMENTS">

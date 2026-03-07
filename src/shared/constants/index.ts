@@ -45,7 +45,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_PARCEL_FLEET',
     'MANAGE_PARCEL_PLACES',
     'MANAGE_PARCEL_PRODUCTS',
-    'MANAGE_CASHBACK'
+    'MANAGE_CASHBACK',
+    'MANAGE_DRIVER_SETTLEMENTS'
   ],
   'accountant': [
     'VIEW_DASHBOARD',
@@ -59,6 +60,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'MANAGE_PAYROLL', // Added
     'MANAGE_BANKING',
     'MANAGE_CUSTOMER_SETTLEMENTS',
+    'MANAGE_DRIVER_SETTLEMENTS',
     'MANAGE_CUSTOMERS',
     'VIEW_PARCELS_OVERVIEW' // Can view parcel list only
   ],
@@ -68,6 +70,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'APPROVE_JOURNAL',
     'VIEW_REPORTS',
     'MANAGE_CUSTOMER_SETTLEMENTS',
+    'MANAGE_DRIVER_SETTLEMENTS',
     'MANAGE_CUSTOMERS',
     'VIEW_PARCELS_OVERVIEW',
     'VIEW_PARCEL_RETENTION',
@@ -97,6 +100,28 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'VIEW_PARCEL_AGING'
   ]
 };
+
+export const AVAILABLE_VIEWS = [
+  { value: 'DASHBOARD', label: 'Dashboard' },
+  { value: 'ANALYTICS', label: 'Analytics' },
+  { value: 'JOURNAL', label: 'General Journal' },
+  { value: 'BANKING', label: 'Banking' },
+  { value: 'PARCELS_OVERVIEW', label: 'Parcels Overview' },
+  { value: 'PARCELS_NEW', label: 'New Booking' },
+  { value: 'PARCELS_OPERATIONS', label: 'Operations Console' },
+  { value: 'PARCELS_WAREHOUSE', label: 'Warehouse Ops' },
+  { value: 'PARCELS_DISPATCH', label: 'Dispatch Console' },
+  { value: 'STOCK_MANAGEMENT', label: 'Stock Management' },
+  { value: 'DRIVER_COMMISSIONS', label: 'Driver Commissions' },
+  { value: 'DRIVER_SETTLEMENTS', label: 'Driver Settlements' },
+  { value: 'CUSTOMER_SETTLEMENTS', label: 'Customer Payouts' },
+  { value: 'CUSTOMER_COLLECTION', label: 'Fee Collection' },
+  { value: 'SETTLED_PARCELS', label: 'Settled Parcels' },
+  { value: 'CLOSING', label: 'Period Closing' },
+  { value: 'REPORTS', label: 'Main Reports' },
+  { value: 'SETTINGS', label: 'Configuration' },
+  { value: 'USERS', label: 'User Management' }
+];
 
 export const DEFAULT_NAVIGATION: NavigationItem[] = [
   // ==============================
@@ -153,6 +178,7 @@ export const DEFAULT_NAVIGATION: NavigationItem[] = [
   { id: 'nav-journal', label: 'Journal', viewId: 'JOURNAL', iconKey: 'journal', order: 20, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-banking', label: 'Banking', viewId: 'BANKING', iconKey: 'banking', order: 21, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-driver-commissions', label: 'Driver Commissions', viewId: 'DRIVER_COMMISSIONS', iconKey: 'fleet', order: 24, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], section: 'finance' },
+  { id: 'nav-driver-settlements', label: 'Driver Settlements', viewId: 'DRIVER_SETTLEMENTS', iconKey: 'money', order: 24.5, requiredPermission: 'MANAGE_DRIVER_SETTLEMENTS', section: 'finance' },
   { id: 'nav-customer-payout', label: 'Customer Payout', viewId: 'CUSTOMER_SETTLEMENTS', iconKey: 'money', order: 25, allowedRoles: ['system-admin', 'accountant', 'finance-manager'], section: 'finance' },
   { id: 'nav-customer-collection', label: 'Fee Collection', viewId: 'CUSTOMER_COLLECTION', iconKey: 'banking', order: 27, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
   { id: 'nav-settled-parcels', label: 'Settled Parcels', viewId: 'SETTLED_PARCELS', iconKey: 'checkCircle', order: 26, allowedRoles: ['system-admin', 'accountant'], section: 'finance' },
@@ -203,6 +229,7 @@ export const FEATURE_LIST: { key: Permission; label: string }[] = [
   { key: 'MANAGE_PAYROLL', label: 'Payroll Management' }, // Added
   { key: 'MANAGE_BANKING', label: 'Banking & Transfers' },
   { key: 'MANAGE_CUSTOMER_SETTLEMENTS', label: 'Customer Settlements (Payouts)' },
+  { key: 'MANAGE_DRIVER_SETTLEMENTS', label: 'Driver Settlements (Payouts)' },
   { key: 'MANAGE_CUSTOMERS', label: 'Customer Management' },
   { key: 'VIEW_REPORTS', label: 'Financial Reports' },
   { key: 'PERFORM_CLOSING', label: 'Period Closing' },
@@ -242,6 +269,7 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Permission[]> = {
     'MANAGE_PAYROLL', // Added
     'MANAGE_BANKING',
     'MANAGE_CUSTOMER_SETTLEMENTS',
+    'MANAGE_DRIVER_SETTLEMENTS',
     'MANAGE_CUSTOMERS',
     'PERFORM_CLOSING'
   ],

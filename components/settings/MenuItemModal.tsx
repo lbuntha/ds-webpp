@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { NavigationItem, UserRole } from '../../src/shared/types';
+import { NavigationItem, UserRole, Permission } from '../../src/shared/types';
 import { Modal } from '../ui/Modal';
 import { useLanguage } from '../../src/shared/contexts/LanguageContext';
 import { MenuIcon } from '../ui/MenuIcon'; // Assuming this component exists based on Sidebar usage
+import { AVAILABLE_VIEWS, FEATURE_LIST } from '../../src/shared/constants';
 
 interface MenuItemModalProps {
     isOpen: boolean;
@@ -40,7 +41,8 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
         iconKey: 'dashboard',
         order: 0,
         section: '',
-        allowedRoles: []
+        allowedRoles: [],
+        requiredPermission: undefined
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -54,7 +56,8 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
                 iconKey: 'dashboard',
                 order: 0,
                 section: '',
-                allowedRoles: []
+                allowedRoles: [],
+                requiredPermission: undefined
             });
         }
     }, [initialData, isOpen]);
@@ -136,16 +139,51 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({ isOpen, onClose, o
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700">View ID (Internal Route Key)</label>
-                    <input
-                        type="text"
-                        name="viewId"
-                        value={formData.viewId}
-                        onChange={handleChange}
+                    <div className="flex gap-2">
+                        <select
+                            name="viewId"
+                            value={AVAILABLE_VIEWS.some(v => v.value === formData.viewId) ? formData.viewId : 'CUSTOM'}
+                            onChange={(e) => {
+                                if (e.target.value !== 'CUSTOM') {
+                                    setFormData(prev => ({ ...prev, viewId: e.target.value }));
+                                }
+                            }}
+                            className="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                        >
+                            <option value="">Select a View...</option>
+                            {AVAILABLE_VIEWS.map(view => (
+                                <option key={view.value} value={view.value}>{view.label} ({view.value})</option>
+                            ))}
+                            <option value="CUSTOM">-- Custom ID --</option>
+                        </select>
+                        <input
+                            type="text"
+                            name="viewId"
+                            value={formData.viewId}
+                            onChange={handleChange}
+                            className="mt-1 block w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            required
+                            placeholder="e.g. ANALYTICS"
+                            readOnly={AVAILABLE_VIEWS.some(v => v.value === formData.viewId) && formData.viewId !== ''}
+                        />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Must match route configuration. Select from list or type a custom ID.</p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Required Permission (Recommended)</label>
+                    <select
+                        name="requiredPermission"
+                        value={formData.requiredPermission || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, requiredPermission: e.target.value as Permission || undefined }))}
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
-                        required
-                        placeholder="e.g. ANALYTICS"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Must match route configuration (e.g. starts with DRIVER_ or CUSTOMER_ for portals)</p>
+                    >
+                        <option value="">None (Use Roles instead)</option>
+                        {FEATURE_LIST.map(feature => (
+                            <option key={feature.key} value={feature.key}>{feature.label}</option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">If set, only users with this specific permission can see this item.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

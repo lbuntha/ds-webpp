@@ -141,6 +141,7 @@ export type Permission =
   | 'MANAGE_PAYROLL'             // NEW: Payroll Management
   | 'MANAGE_BANKING'
   | 'MANAGE_CUSTOMER_SETTLEMENTS'
+  | 'MANAGE_DRIVER_SETTLEMENTS'
   | 'MANAGE_CUSTOMERS'
   | 'PERFORM_CLOSING'
   | 'MANAGE_PARCELS' // Legacy/General - kept for backward compatibility

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { NavigationItem, UserRole } from '../../src/shared/types';
+import { NavigationItem, UserRole, Permission } from '../../src/shared/types';
 import { firebaseService } from '../../src/shared/services/firebaseService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS } from '../../src/shared/constants';
+import { DEFAULT_NAVIGATION, ROLE_PERMISSIONS, AVAILABLE_VIEWS, FEATURE_LIST } from '../../src/shared/constants';
 import { toast } from '../../src/shared/utils/toast';
 
 const ICON_OPTIONS = [
@@ -194,15 +194,45 @@ export const MenuManagement: React.FC<Props> = ({ onUpdateMenuItem }) => {
                             />
 
                             {/* View ID is critical for routing */}
-                            <div>
+                            {/* View ID selection */}
+                            <div className="space-y-1">
+                                <label className="block text-sm font-medium text-gray-700">View (Route)</label>
+                                <select
+                                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border mb-2"
+                                    value={AVAILABLE_VIEWS.some(v => v.value === editingItem.viewId) ? editingItem.viewId : 'CUSTOM'}
+                                    onChange={e => {
+                                        if (e.target.value !== 'CUSTOM') {
+                                            setEditingItem({ ...editingItem, viewId: e.target.value });
+                                        }
+                                    }}
+                                >
+                                    <option value="">Select a View...</option>
+                                    {AVAILABLE_VIEWS.map(view => (
+                                        <option key={view.value} value={view.value}>{view.label} ({view.value})</option>
+                                    ))}
+                                    <option value="CUSTOM">-- Custom ID --</option>
+                                </select>
                                 <Input
-                                    label="View ID (Internal Route Key)"
                                     value={editingItem.viewId}
                                     onChange={e => setEditingItem({ ...editingItem, viewId: e.target.value })}
-                                    placeholder="e.g. DRIVER_WALLET or CUSTOMER_WALLET"
+                                    placeholder="e.g. DRIVER_WALLET"
                                     required
+                                    readOnly={AVAILABLE_VIEWS.some(v => v.value === editingItem.viewId) && editingItem.viewId !== ''}
                                 />
-                                <p className="text-xs text-gray-500 mt-1">Must match route configuration (e.g. starts with DRIVER_ or CUSTOMER_)</p>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="block text-sm font-medium text-gray-700">Required Permission</label>
+                                <select
+                                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                                    value={editingItem.requiredPermission || ''}
+                                    onChange={e => setEditingItem({ ...editingItem, requiredPermission: e.target.value as Permission || undefined })}
+                                >
+                                    <option value="">None (Use Roles)</option>
+                                    {FEATURE_LIST.map(feature => (
+                                        <option key={feature.key} value={feature.key}>{feature.label}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

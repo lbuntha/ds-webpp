@@ -115,6 +115,7 @@ export function Sidebar({ menuItems, user, onLogout, isMobileOpen = false, onMob
         if (item.viewId === 'CUSTOMER_COLLECTION') return '/app/customer-collection';
         if (item.viewId === 'SETTLED_PARCELS') return '/app/settled-parcels';
         if (item.viewId === 'DRIVER_COMMISSIONS') return '/app/driver-commissions';
+        if (item.viewId === 'DRIVER_SETTLEMENTS') return '/app/driver-settlements';
         if (item.viewId === 'CASHBACK') return '/app/cashback';
         if (item.viewId === 'CASHBACK_REPORT') return '/app/cashback-report';
         if (item.viewId === 'BOOKING_MAP') return '/app/reports/booking-map';
