@@ -41,6 +41,15 @@ export const WarehouseOperations: React.FC = () => {
     const [scanResult, setScanResult] = useState<{ type: 'success' | 'error' | 'not_found', message: string } | null>(null);
     const quickScanInputRef = useRef<HTMLInputElement>(null);
     const [isCameraScanOpen, setIsCameraScanOpen] = useState(false);
+    const [showAllDrivers, setShowAllDrivers] = useState(false);
+    const [expandedDrivers, setExpandedDrivers] = useState<Record<string, boolean>>({});
+
+    const toggleDriverExpansion = (driverName: string) => {
+        setExpandedDrivers(prev => ({
+            ...prev,
+            [driverName]: !prev[driverName]
+        }));
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -94,6 +103,16 @@ export const WarehouseOperations: React.FC = () => {
                 item: i
             }))
     );
+
+    // Group inbound items by driver
+    const groupedInboundItems = inboundItems.reduce((acc, current) => {
+        const driverName = current.item.collectorName || current.item.driverName || 'Other / Unknown';
+        if (!acc[driverName]) {
+            acc[driverName] = [];
+        }
+        acc[driverName].push(current);
+        return acc;
+    }, {} as Record<string, typeof inboundItems>);
 
     const handleConfirmReceipt = async (bookingId: string, item: ParcelItem) => {
         setProcessing(true);
@@ -484,7 +503,100 @@ export const WarehouseOperations: React.FC = () => {
                 )}
             </Card>
 
-            {/* Parcel Cards Grid (Removed per request) */}
+            {/* Expected from Drivers (Scan to Accept) */}
+            <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        Incoming from Drivers ({inboundItems.length})
+                    </h3>
+                </div>
+
+                {Object.keys(groupedInboundItems).length === 0 ? (
+                    <div className="bg-white border-2 border-dashed rounded-2xl p-12 text-center text-gray-400">
+                        <div className="mx-auto w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                        <p className="text-lg font-medium">No parcels expected</p>
+                        <p className="text-sm">All incoming parcels have been processed.</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {Object.entries(groupedInboundItems)
+                                .slice(0, showAllDrivers ? undefined : 3)
+                                .map(([driverName, items]) => {
+                                    const isExpanded = expandedDrivers[driverName];
+                                    const visibleItems = isExpanded ? items : items.slice(0, 3);
+
+                                    return (
+                                        <Card key={driverName} className="border-gray-200 shadow-sm overflow-hidden flex flex-col hover:border-blue-300 transition-colors">
+                                            <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-[10px]">
+                                                        {driverName.substring(0, 1).toUpperCase()}
+                                                    </div>
+                                                    <span className="font-bold text-gray-700 text-xs truncate max-w-[120px]">{driverName}</span>
+                                                </div>
+                                                <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                                    {items.length} {items.length === 1 ? 'item' : 'items'}
+                                                </span>
+                                            </div>
+                                            <div className="divide-y divide-gray-100 overflow-y-auto max-h-[400px]">
+                                                {visibleItems.map((entry, idx) => (
+                                                    <div key={`${entry.bookingId}-${entry.item.id}-${idx}`} className="px-3 py-2.5 hover:bg-blue-50 transition-colors group">
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-bold text-gray-900 truncate">{entry.item.receiverName}</p>
+                                                                <p className="text-[10px] text-gray-500 font-mono mt-0.5">{entry.item.trackingCode || 'No Ref'}</p>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                <span className={`text-[8px] px-1 py-0.5 rounded font-bold uppercase ${entry.item.status === 'PICKED_UP' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                                                                    }`}>
+                                                                    {entry.item.status === 'PICKED_UP' ? 'Hand' : 'Transit'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded w-fit">
+                                                            <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10M7 12h10m-8 5h8" /></svg>
+                                                            <span className="text-[9px] font-mono font-bold tracking-tight text-gray-600">{entry.item.barcode || 'N/A'}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {items.length > 3 && (
+                                                <div className="p-1.5 bg-gray-50 border-t border-gray-100 text-center">
+                                                    <button
+                                                        onClick={() => toggleDriverExpansion(driverName)}
+                                                        className="text-[10px] text-blue-600 font-bold hover:text-blue-800 transition-colors"
+                                                    >
+                                                        {isExpanded ? 'Less' : `+${items.length - 3} More`}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </Card>
+                                    );
+                                })}
+                        </div>
+
+                        {Object.keys(groupedInboundItems).length > 3 && (
+                            <div className="flex justify-center mt-6">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowAllDrivers(!showAllDrivers)}
+                                    className="px-8 py-2 border-blue-200 text-blue-600 hover:bg-blue-50 text-sm"
+                                >
+                                    {showAllDrivers ? 'Show Less Drivers' : `Show All Drivers (${Object.keys(groupedInboundItems).length})`}
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
 
             {/* Barcode Scanner Modal */}
             {
