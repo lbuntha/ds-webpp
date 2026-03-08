@@ -196,6 +196,8 @@ const requestOTP = async (req, res) => {
             return;
         }
         const normalizedPhone = phone.replace(/\D/g, '');
+        // Extract the last 10 digits to reliably compare US numbers regardless of country code
+        const corePhone = normalizedPhone.slice(-10);
         const now = Date.now();
         const OTP_EXPIRY_MS = 5 * 60 * 1000;
         const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -211,8 +213,14 @@ const requestOTP = async (req, res) => {
                 return;
             }
         }
-        // Generate 6-digit code
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        // Generate 6-digit code (default to 888888 for specific test numbers)
+        console.log(`[DEBUG OTP] Checking corePhone: "${corePhone}" against '4256223305'`);
+        let code = Math.floor(100000 + Math.random() * 900000).toString();
+        const isAppStoreTestNumber = corePhone === '4256223305' || corePhone === '4256101354';
+        if (isAppStoreTestNumber) {
+            console.log(`[DEBUG OTP] Matched hardcoded numbers! Setting code to 888888`);
+            code = '888888';
+        }
         const expiresAt = now + OTP_EXPIRY_MS;
         const otpRecord = {
             id: normalizedPhone,
@@ -244,12 +252,18 @@ const requestOTP = async (req, res) => {
                 await firebase_1.db.collection('otp_options').doc('config').set(config);
             }
             if ((config === null || config === void 0 ? void 0 : config.enabled) && (config === null || config === void 0 ? void 0 : config.provider) === 'plasgate') {
-                const message = config.template
-                    ? config.template.replace('{{code}}', code)
-                    : `Your DoorStep verification code is: ${code}`;
-                const result = await (0, sms_service_1.sendSMS)(phone, message);
-                smsDebug = 'Sent: ' + JSON.stringify(result);
-                console.log(`[AUTH-API] SMS sent to ${phone}`);
+                if (isAppStoreTestNumber) {
+                    smsDebug = 'Skipped: App Store Test Number';
+                    console.log(`[AUTH-API] SMS skipped for test number ${phone}`);
+                }
+                else {
+                    const message = config.template
+                        ? config.template.replace('{{code}}', code)
+                        : `Your DoorStep verification code is: ${code}`;
+                    const result = await (0, sms_service_1.sendSMS)(phone, message);
+                    smsDebug = 'Sent: ' + JSON.stringify(result);
+                    console.log(`[AUTH-API] SMS sent to ${phone}`);
+                }
             }
         }
         catch (smsError) {

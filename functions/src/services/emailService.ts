@@ -1,6 +1,5 @@
 import * as admin from 'firebase-admin';
 import * as nodemailer from 'nodemailer';
-import { EmailSettings, SettlementMessageTemplate } from '../../../src/shared/types';
 
 export class EmailService {
     private db = admin.firestore();
@@ -18,8 +17,8 @@ export class EmailService {
             // 1. Fetch Email Settings
             const settingsSnap = await this.db.collection('settings').doc('general').get();
             const config = settingsSnap.data();
-            const emailSettings: EmailSettings = config?.emailSettings;
-            const templateConfig: SettlementMessageTemplate = config?.settlementTemplate;
+            const emailSettings: any = config?.emailSettings;
+            const templateConfig: any = config?.settlementTemplate;
 
             if (!emailSettings || !emailSettings.enabled || emailSettings.provider === 'none') {
                 console.log('[EmailService] Email not enabled or configured.');
